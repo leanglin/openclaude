@@ -26,6 +26,7 @@ export type ProviderProfilePayload = {
   baseUrl?: string
   model?: string
   apiKey?: string
+  midscene?: MidsceneProfilePayload
 }
 
 export type ProviderProfileSummary = {
@@ -37,6 +38,21 @@ export type ProviderProfileSummary = {
   credentialKeys: string[]
   filePath?: string
   createdAt?: string
+}
+
+export type MidsceneProfilePayload = {
+  model?: string
+  baseUrl?: string
+  apiKey?: string
+  modelFamily?: string
+}
+
+export type MidsceneProfileSummary = {
+  model?: string
+  baseUrl?: string
+  modelFamily?: string
+  credentialConfigured: boolean
+  credentialKeys: string[]
 }
 
 export type ProviderOption = {
@@ -59,6 +75,9 @@ export type BootstrapState = {
   cwd: string
   permissionMode: string
   profile: ProviderProfileSummary | null
+  midsceneProfile: MidsceneProfileSummary | null
+  chatSessions: WebChatSessionSummary[]
+  activeChatSessionId?: string
   providers: ProviderOption[]
   primaryMenus: PrimaryMenuOption[]
   redaction: {
@@ -71,10 +90,26 @@ export type BootstrapOptions = {
   cwd: string
   permissionMode: string
   profileLocation?: ProfileFileLocation
+  chatSessions?: WebChatSessionSummary[]
+  activeChatSessionId?: string
+}
+
+export type WebChatSessionSummary = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type WebChatMessage = {
+  messageId: string
+  role: 'assistant' | 'user' | 'system'
+  content: string
 }
 
 export type ActivityKind =
   | 'thinking'
+  | 'preflight'
   | 'read'
   | 'grep'
   | 'edit'
@@ -105,6 +140,8 @@ export type PermissionAction = 'allow' | 'deny' | 'allow-session'
 export type ClientMessage =
   | { type: 'start_session' }
   | { type: 'send_message'; text: string }
+  | { type: 'select_session'; sessionId: string }
+  | { type: 'delete_session'; sessionId: string }
   | {
       type: 'permission_response'
       requestId: string
@@ -112,9 +149,20 @@ export type ClientMessage =
     }
   | { type: 'abort' }
   | { type: 'new_session' }
+  | { type: 'refresh_session' }
 
 export type ServerEvent =
   | { type: 'ready'; bootstrap: BootstrapState }
+  | {
+      type: 'sessions_updated'
+      sessions: WebChatSessionSummary[]
+      activeSessionId?: string
+    }
+  | {
+      type: 'session_loaded'
+      sessionId?: string
+      messages: WebChatMessage[]
+    }
   | { type: 'status'; status: string; detail?: string }
   | { type: 'activity'; activity: ActivityItem }
   | { type: 'stream_start'; messageId: string }

@@ -25,6 +25,14 @@ export const COMMON_EXTERNALS: string[] = [
   // Orama search engine
   '@orama/orama',
   '@orama/plugin-data-persistence',
+  // App/Web test sidecar runtime dependencies are resolved at install time.
+  '@midscene/android',
+  '@midscene/android-playground',
+  '@midscene/cli',
+  '@midscene/core',
+  '@midscene/web',
+  '@playwright/test',
+  'playwright',
 ]
 
 // Additional packages external only in the SDK bundle (TUI + heavy deps)

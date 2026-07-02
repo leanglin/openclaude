@@ -26,6 +26,7 @@ import { PROTECTED_PROFILE_KEYS, isSensitiveKey } from './redaction.js'
 import type {
   BootstrapOptions,
   BootstrapState,
+  MidsceneProfileSummary,
   PrimaryMenuOption,
   ProviderOption,
   ProviderProfilePayload,
@@ -34,6 +35,29 @@ import type {
 
 const DEFAULT_OPENAI_MODEL = 'gpt-4o'
 const DEFAULT_OLLAMA_MODEL = 'llama3.2:3b'
+export const DEFAULT_MIDSCENE_MODEL_FAMILY = 'doubao-vision'
+export const MIDSCENE_MODEL_FAMILIES = [
+  'doubao-vision',
+  'doubao-seed',
+  'qwen2.5-vl',
+  'qwen3-vl',
+  'qwen3.5',
+  'qwen3.6',
+  'gemini',
+  'vlm-ui-tars',
+  'vlm-ui-tars-doubao',
+  'vlm-ui-tars-doubao-1.5',
+  'glm-v',
+  'auto-glm',
+  'auto-glm-multilingual',
+  'gpt-5',
+] as const
+const MIDSCENE_ENV_KEYS = [
+  'MIDSCENE_MODEL_NAME',
+  'MIDSCENE_MODEL_BASE_URL',
+  'MIDSCENE_MODEL_API_KEY',
+  'MIDSCENE_MODEL_FAMILY',
+] as const
 
 export const PRIMARY_MENUS: PrimaryMenuOption[] = [
   { id: 'chat', label: 'Chat', icon: 'message-square' },
@@ -113,9 +137,58 @@ function getProfileBaseUrl(env: ProfileEnv): string | undefined {
 }
 
 function getCredentialKeys(env: ProfileEnv): string[] {
+  const midsceneKeys = new Set<string>(MIDSCENE_ENV_KEYS)
   return Object.keys(env)
-    .filter(isSensitiveKey)
+    .filter(key => isSensitiveKey(key) && !midsceneKeys.has(key))
     .sort()
+}
+
+function getMidsceneCredentialKeys(env: ProfileEnv): string[] {
+  return MIDSCENE_ENV_KEYS
+    .filter(key => isSensitiveKey(key) && Boolean(env[key]))
+    .sort()
+}
+
+export function extractMidsceneEnv(
+  env: ProfileEnv | null | undefined,
+): ProfileEnv {
+  const output: ProfileEnv = {}
+  if (!env) return output
+  for (const key of MIDSCENE_ENV_KEYS) {
+    const value = env[key]
+    if (value) output[key] = value
+  }
+  return output
+}
+
+export function buildMidsceneSessionEnv(
+  location?: ProfileFileLocation,
+): NodeJS.ProcessEnv {
+  return { ...extractMidsceneEnv(loadProfileFile(location)?.env) }
+}
+
+export function summarizeMidsceneProfile(
+  profileFile: ProfileFile | null,
+): MidsceneProfileSummary | null {
+  if (!profileFile) return null
+  const env = profileFile.env
+  const credentialKeys = getMidsceneCredentialKeys(env)
+  const summary: MidsceneProfileSummary = {
+    model: env.MIDSCENE_MODEL_NAME,
+    baseUrl: env.MIDSCENE_MODEL_BASE_URL,
+    modelFamily: env.MIDSCENE_MODEL_FAMILY,
+    credentialConfigured: credentialKeys.length > 0,
+    credentialKeys,
+  }
+  if (
+    !summary.model &&
+    !summary.baseUrl &&
+    !summary.modelFamily &&
+    !summary.credentialConfigured
+  ) {
+    return null
+  }
+  return summary
 }
 
 export function summarizeProfileFile(
@@ -142,6 +215,9 @@ export function buildBootstrapState(options: BootstrapOptions): BootstrapState {
     cwd: options.cwd,
     permissionMode: options.permissionMode,
     profile: summarizeProfileFile(persisted, options.profileLocation),
+    midsceneProfile: summarizeMidsceneProfile(persisted),
+    chatSessions: options.chatSessions ?? [],
+    activeChatSessionId: options.activeChatSessionId,
     providers: PROVIDER_OPTIONS,
     primaryMenus: PRIMARY_MENUS,
     redaction: {
@@ -151,14 +227,80 @@ export function buildBootstrapState(options: BootstrapOptions): BootstrapState {
   }
 }
 
+function buildMidsceneEnvFromPayload(
+  payload: ProviderProfilePayload['midscene'],
+  existingEnv: ProfileEnv = {},
+): ProfileEnv {
+  const existing = extractMidsceneEnv(existingEnv)
+  if (!payload) return existing
+
+  const model = trimOptional(payload.model) ?? existing.MIDSCENE_MODEL_NAME
+  const baseUrl = trimOptional(payload.baseUrl) ?? existing.MIDSCENE_MODEL_BASE_URL
+  const apiKey = trimOptional(payload.apiKey) ?? existing.MIDSCENE_MODEL_API_KEY
+  const modelFamily =
+    trimOptional(payload.modelFamily) ??
+    existing.MIDSCENE_MODEL_FAMILY ??
+    DEFAULT_MIDSCENE_MODEL_FAMILY
+  const submittedAnyValue = Boolean(
+    trimOptional(payload.model) ||
+      trimOptional(payload.baseUrl) ||
+      trimOptional(payload.apiKey) ||
+      trimOptional(payload.modelFamily),
+  )
+  const hadExistingValue = Object.keys(existing).length > 0
+  if (!submittedAnyValue && !hadExistingValue) return {}
+  if (!model || !baseUrl) {
+    throw new Error('Midscene model and base URL are required.')
+  }
+
+  return {
+    MIDSCENE_MODEL_NAME: model,
+    MIDSCENE_MODEL_BASE_URL: baseUrl,
+    MIDSCENE_MODEL_FAMILY: modelFamily,
+    ...(apiKey ? { MIDSCENE_MODEL_API_KEY: apiKey } : {}),
+  }
+}
+
+function withMidsceneEnv(
+  profileFile: ProfileFile,
+  midsceneEnv: ProfileEnv,
+): ProfileFile {
+  return {
+    ...profileFile,
+    env: {
+      ...profileFile.env,
+      ...midsceneEnv,
+    },
+  }
+}
+
+function getExistingProviderApiKey(
+  provider: ProviderProfilePayload['provider'],
+  existingEnv: ProfileEnv,
+): string | undefined {
+  switch (provider) {
+    case 'openai-compatible':
+      return trimOptional(existingEnv.OPENAI_API_KEY) ?? trimOptional(existingEnv.OPENAI_API_KEYS)
+    case 'gemini':
+      return trimOptional(existingEnv.GEMINI_API_KEY)
+    case 'mistral':
+      return trimOptional(existingEnv.MISTRAL_API_KEY)
+    default:
+      return undefined
+  }
+}
+
 export function buildProfileFromPayload(
   payload: ProviderProfilePayload,
   processEnv: NodeJS.ProcessEnv = process.env,
+  existingEnv: ProfileEnv = {},
 ): ProfileFile {
   const provider = payload.provider
   const baseUrl = trimOptional(payload.baseUrl)
   const model = trimOptional(payload.model)
-  const apiKey = trimOptional(payload.apiKey)
+  const apiKey =
+    trimOptional(payload.apiKey) ?? getExistingProviderApiKey(provider, existingEnv)
+  const midsceneEnv = buildMidsceneEnvFromPayload(payload.midscene, existingEnv)
 
   switch (provider) {
     case 'openai-compatible': {
@@ -184,15 +326,18 @@ export function buildProfileFromPayload(
       if (!env) {
         throw new Error('OpenAI-compatible profile could not be created.')
       }
-      return createProfileFile('openai', env)
+      return withMidsceneEnv(createProfileFile('openai', env), midsceneEnv)
     }
     case 'ollama':
-      return createProfileFile(
-        'ollama',
-        buildOllamaProfileEnv(model ?? DEFAULT_OLLAMA_MODEL, {
-          baseUrl,
-          getOllamaChatBaseUrl,
-        }),
+      return withMidsceneEnv(
+        createProfileFile(
+          'ollama',
+          buildOllamaProfileEnv(model ?? DEFAULT_OLLAMA_MODEL, {
+            baseUrl,
+            getOllamaChatBaseUrl,
+          }),
+        ),
+        midsceneEnv,
       )
     case 'gemini': {
       const env = buildGeminiProfileEnv({
@@ -202,7 +347,7 @@ export function buildProfileFromPayload(
         processEnv,
       })
       if (!env) throw new Error('Gemini API key is required.')
-      return createProfileFile('gemini', env)
+      return withMidsceneEnv(createProfileFile('gemini', env), midsceneEnv)
     }
     case 'mistral': {
       const env = buildMistralProfileEnv({
@@ -212,7 +357,7 @@ export function buildProfileFromPayload(
         processEnv,
       })
       if (!env) throw new Error('Mistral API key is required.')
-      return createProfileFile('mistral', env)
+      return withMidsceneEnv(createProfileFile('mistral', env), midsceneEnv)
     }
     default:
       throw new Error('Unsupported provider.')
@@ -223,7 +368,12 @@ export function saveProviderProfileFromPayload(
   payload: ProviderProfilePayload,
   location?: ProfileFileLocation,
 ): ProviderProfileSummary {
-  const profileFile = buildProfileFromPayload(payload)
+  const existing = loadProfileFile(location)
+  const profileFile = buildProfileFromPayload(
+    payload,
+    process.env,
+    existing?.env,
+  )
   const filePath = saveProfileFile(profileFile, location)
   return {
     ...summarizeProfileFile(profileFile, { ...location, filePath })!,

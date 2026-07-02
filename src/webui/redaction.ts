@@ -21,6 +21,7 @@ export const PROTECTED_PROFILE_KEYS = [
   'GEMINI_ACCESS_TOKEN',
   'GOOGLE_API_KEY',
   'MISTRAL_API_KEY',
+  'MIDSCENE_MODEL_API_KEY',
 ]
 
 export function isSensitiveKey(key: string): boolean {

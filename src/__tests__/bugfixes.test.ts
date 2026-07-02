@@ -125,6 +125,8 @@ describe('Agent loop continuation nudge', () => {
     
     // Completion marker suppresses nudge
     expect(analyzeContinuationIntent("Task finished").shouldNudge).toBe(false)
+    expect(analyzeContinuationIntent("开发工作已经全部完成，不需要继续了。").shouldNudge).toBe(false)
+    expect(analyzeContinuationIntent("任务完成，请手动执行 git add。").shouldNudge).toBe(false)
     
     // Punctuation-less completion suppresses nudge (Reviewer Feedback)
     expect(analyzeContinuationIntent("The analysis is complete and no code changes are needed here").shouldNudge).toBe(false)

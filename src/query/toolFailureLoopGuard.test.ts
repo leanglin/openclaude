@@ -90,6 +90,29 @@ test('three identical tool failures trip the guard', () => {
   expect(decision.message).toContain('`FileWriteError`')
 })
 
+test('read-before-write failures explain the recovery action', () => {
+  const state = createToolFailureLoopGuardState()
+  const error = 'File has not been read yet. Read it first before writing to it.'
+
+  update(state, [toolUse('a', 'Write')], [
+    toolResult('a', error),
+  ])
+  update(state, [toolUse('b', 'Write')], [
+    toolResult('b', error),
+  ])
+  const decision = update(state, [toolUse('c', 'Write')], [
+    toolResult('c', error),
+  ])
+
+  if (!decision.tripped) {
+    throw new Error('Expected repeated read-before-write failures to trip')
+  }
+  expect(decision.message).toContain('`Write` failed 3 times')
+  expect(decision.message).toContain('`ReadBeforeWriteRequired`')
+  expect(decision.message).toContain('Read the existing file first')
+  expect(decision.message).not.toContain('tool schema')
+})
+
 test('multiple failures in the same batch each increment the counters', () => {
   const state = createToolFailureLoopGuardState()
 

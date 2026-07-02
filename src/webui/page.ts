@@ -255,10 +255,27 @@ export function renderWebUiPage(): string {
       stroke-width: 2;
     }
 
-    #newChat {
+    #newChat, #stopSession {
       width: 34px;
       padding: 0;
       justify-content: center;
+    }
+
+    #stopSession {
+      background: var(--danger);
+    }
+
+    #stopSession:hover {
+      background: #9f2f3b;
+    }
+
+    #stopSession:disabled {
+      cursor: default;
+      opacity: 0.58;
+    }
+
+    #stopSession[hidden] {
+      display: none;
     }
 
     #secondaryExpand {
@@ -474,6 +491,7 @@ export function renderWebUiPage(): string {
     }
 
     input, select {
+      width: 100%;
       height: 38px;
       border: 1px solid var(--border-strong);
       border-radius: 8px;
@@ -493,10 +511,63 @@ export function renderWebUiPage(): string {
       font-size: 13px;
       color: var(--muted);
       line-height: 18px;
+      min-width: 0;
+      overflow: hidden;
+      overflow-wrap: anywhere;
     }
 
     .profileSummary strong {
       color: var(--text);
+    }
+
+    .summaryLine {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .formSection {
+      margin-bottom: 18px;
+      min-width: 0;
+    }
+
+    .formSection h3 {
+      margin: 0;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 20px;
+    }
+
+    .sectionHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      margin-bottom: 10px;
+    }
+
+    .sectionToggle {
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 0 9px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+
+    .sectionToggle:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+
+    .sectionFields[hidden] {
+      display: none;
     }
 
     .secondaryAction {
@@ -517,6 +588,78 @@ export function renderWebUiPage(): string {
       padding: 22px 4px;
       line-height: 21px;
       font-size: 14px;
+    }
+
+    .sessionList {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .sessionItem {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 32px;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 8px 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      text-align: left;
+      min-width: 0;
+    }
+
+    .sessionItem.active {
+      border-color: #a7d5cf;
+      background: var(--accent-soft);
+    }
+
+    .sessionSelect {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .sessionTitle {
+      display: block;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 18px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .sessionTime {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sessionDelete {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+    }
+
+    .sessionDelete:hover {
+      background: #f6e7e9;
+      color: var(--danger);
+    }
+
+    .sessionDelete svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2;
     }
 
     .permissionModal {
@@ -702,7 +845,8 @@ export function renderWebUiPage(): string {
         <div class="topMeta">
           <span class="pill"><span id="statusDot" class="dot"></span><span id="statusText">Ready</span></span>
           <span id="providerSummary" class="pill">No provider profile</span>
-          <button id="newChat" class="primaryButton"></button>
+          <button id="stopSession" class="primaryButton" title="Stop" aria-label="Stop" disabled hidden></button>
+          <button id="newChat" class="primaryButton" title="New chat" aria-label="New chat"></button>
         </div>
       </header>
 
@@ -740,8 +884,8 @@ export function renderWebUiPage(): string {
       <div id="permissionPreview" class="permissionPreview"></div>
       <div class="permissionActions">
         <button class="dangerButton" data-permission-action="deny">Deny</button>
-        <button class="textButton" data-permission-action="allow-session">Allow session</button>
-        <button class="allowButton" data-permission-action="allow">Allow</button>
+        <button class="textButton" data-permission-action="allow-session">Allow and remember</button>
+        <button class="allowButton" data-permission-action="allow">Allow once</button>
       </div>
     </div>
   </div>
@@ -758,7 +902,9 @@ export function renderWebUiPage(): string {
       chevronRight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg>',
       panelRight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>',
       plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
-      send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>'
+      square: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>',
+      send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>'
     };
 
     const app = document.getElementById('app');
@@ -774,16 +920,22 @@ export function renderWebUiPage(): string {
     const permissionPrompt = document.getElementById('permissionPrompt');
     const permissionPreview = document.getElementById('permissionPreview');
     const composerInput = document.getElementById('composerInput');
+    const stopSession = document.getElementById('stopSession');
 
     const state = {
       token: getToken(),
       ws: null,
       bootstrap: null,
+      activeChatSessionId: null,
+      requestedStoredSession: false,
       activeMenu: 'providers',
       secondaryCollapsed: false,
       activityCollapsed: false,
+      running: false,
+      stopping: false,
       streams: new Map(),
-      pendingPermission: null
+      pendingPermission: null,
+      providerEditorOpen: { chat: false, midscene: false }
     };
 
     function getToken() {
@@ -807,6 +959,24 @@ export function renderWebUiPage(): string {
 
     function setStatus(text) {
       statusText.textContent = text;
+    }
+
+    function updateStopControl() {
+      const visible = state.running || Boolean(state.pendingPermission);
+      stopSession.hidden = !visible;
+      stopSession.disabled = !visible || state.stopping;
+    }
+
+    function setRunning(running) {
+      state.running = running;
+      if (!running) state.stopping = false;
+      updateStopControl();
+    }
+
+    function clearPendingPermission() {
+      state.pendingPermission = null;
+      modal.classList.remove('open');
+      updateStopControl();
     }
 
     function setProviderSummary(profile) {
@@ -843,8 +1013,15 @@ export function renderWebUiPage(): string {
       wsUrl.searchParams.set('token', state.token);
       state.ws = new WebSocket(wsUrl);
       state.ws.addEventListener('open', () => setStatus('Ready'));
-      state.ws.addEventListener('close', () => setStatus('Disconnected'));
-      state.ws.addEventListener('error', () => setStatus('Connection error'));
+      state.ws.addEventListener('close', () => {
+        setStatus('Disconnected');
+        clearPendingPermission();
+        setRunning(false);
+      });
+      state.ws.addEventListener('error', () => {
+        setStatus('Connection error');
+        setRunning(false);
+      });
       state.ws.addEventListener('message', event => {
         try {
           handleServerEvent(JSON.parse(event.data));
@@ -893,65 +1070,236 @@ export function renderWebUiPage(): string {
       if (state.activeMenu === 'providers') {
         renderProviderPanel();
       } else if (state.activeMenu === 'chat') {
-        secondaryBody.innerHTML = '<div class="ghostState">Current chat controls will appear here.</div>';
+        renderChatPanel();
       } else {
         secondaryBody.innerHTML = '<div class="ghostState">' + escapeHtml(label) + ' is ready for a future panel.</div>';
       }
     }
 
+    function formatSessionTime(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function renderChatPanel() {
+      const sessions = state.bootstrap?.chatSessions || [];
+      if (!sessions.length) {
+        secondaryBody.innerHTML = '<div class="ghostState">No chats yet. Use the plus button to start one.</div>';
+        return;
+      }
+      secondaryBody.innerHTML = [
+        '<div class="sessionList">',
+        sessions.map(session => [
+          '<div class="sessionItem ' + (session.id === state.activeChatSessionId ? 'active' : '') + '" data-chat-session="' + escapeHtml(session.id) + '">',
+          '<button class="sessionSelect" type="button" data-select-session="' + escapeHtml(session.id) + '">',
+          '<span class="sessionTitle">' + escapeHtml(session.title || 'New chat') + '</span>',
+          '<span class="sessionTime">' + escapeHtml(formatSessionTime(session.updatedAt)) + '</span>',
+          '</button>',
+          '<button class="sessionDelete" type="button" title="Delete chat" aria-label="Delete chat" data-delete-session="' + escapeHtml(session.id) + '">' + iconSvg.trash + '</button>',
+          '</div>'
+        ].join('')).join(''),
+        '</div>'
+      ].join('');
+      secondaryBody.querySelectorAll('[data-select-session]').forEach(button => {
+        button.addEventListener('click', () => {
+          const sessionId = button.dataset.selectSession;
+          if (!sessionId || sessionId === state.activeChatSessionId) return;
+          localStorage.setItem('opencat-active-session', sessionId);
+          sendWs({ type: 'select_session', sessionId });
+        });
+      });
+      secondaryBody.querySelectorAll('[data-delete-session]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          const sessionId = button.dataset.deleteSession;
+          if (!sessionId) return;
+          sendWs({ type: 'delete_session', sessionId });
+        });
+      });
+    }
+
     function renderProviderPanel() {
       const providers = state.bootstrap?.providers || [];
       const current = state.bootstrap?.profile;
+      const midscene = state.bootstrap?.midsceneProfile;
+      const families = [
+        'doubao-vision',
+        'doubao-seed',
+        'qwen2.5-vl',
+        'qwen3-vl',
+        'qwen3.5',
+        'qwen3.6',
+        'gemini',
+        'vlm-ui-tars',
+        'vlm-ui-tars-doubao',
+        'vlm-ui-tars-doubao-1.5',
+        'glm-v',
+        'auto-glm',
+        'auto-glm-multilingual',
+        'gpt-5'
+      ];
+      const providerOptionId = current?.provider === 'openai' ? 'openai-compatible' : current?.provider;
+      const chatExpanded = !current || state.providerEditorOpen.chat;
+      const midsceneExpanded = !midscene || state.providerEditorOpen.midscene;
+      const summaryLine = value => '<span class="summaryLine">' + escapeHtml(value || '') + '</span>';
+      const chatSummary = current
+        ? [
+            '<strong class="summaryLine">' + escapeHtml(current.displayName || 'Chat provider') + '</strong>',
+            summaryLine(current.model || 'Model not set'),
+            summaryLine(current.baseUrl || 'Base URL not set'),
+            summaryLine(current.credentialConfigured ? 'API key configured' : 'API key not configured')
+          ].join('')
+        : 'No provider profile saved.';
+      const midsceneSummary = midscene
+        ? [
+            '<strong class="summaryLine">' + escapeHtml(midscene.model || 'Midscene model') + '</strong>',
+            summaryLine(midscene.baseUrl || 'Base URL not set'),
+            summaryLine(midscene.modelFamily || 'Model family not set'),
+            summaryLine(midscene.credentialConfigured ? 'API key configured' : 'API key not configured')
+          ].join('')
+        : 'No Midscene profile saved.';
+      const sectionToggle = (section, expanded, hasSavedProfile) => hasSavedProfile
+        ? '<button class="sectionToggle" type="button" data-provider-section="' + section + '" aria-expanded="' + String(expanded) + '">' + (expanded ? 'Collapse' : 'Edit') + '</button>'
+        : '';
       secondaryBody.innerHTML = [
-        '<div class="profileSummary" id="profileSummaryBox">',
-        current ? '<strong>' + escapeHtml(current.displayName) + '</strong><br>' + escapeHtml(current.model || '') + '<br>' + escapeHtml(current.baseUrl || '') : 'No provider profile saved.',
-        '</div>',
         '<form id="providerForm">',
+        '<section class="formSection">',
+        '<div class="sectionHeader"><h3>Chat provider</h3>' + sectionToggle('chat', chatExpanded, Boolean(current)) + '</div>',
+        '<div class="profileSummary" id="profileSummaryBox">',
+        chatSummary,
+        '</div>',
+        '<div class="sectionFields" ' + (chatExpanded ? '' : 'hidden') + '>',
         '<div class="field"><label for="providerSelect">Provider</label><select id="providerSelect">',
         providers.map(provider => '<option value="' + escapeHtml(provider.id) + '">' + escapeHtml(provider.label) + '</option>').join(''),
         '</select></div>',
         '<div class="field"><label for="providerBaseUrl">Base URL</label><input id="providerBaseUrl" autocomplete="off"></div>',
         '<div class="field"><label for="providerModel">Model</label><input id="providerModel" autocomplete="off"></div>',
         '<div class="field"><label for="providerApiKey">API key</label><input id="providerApiKey" type="password" autocomplete="off"></div>',
-        '<button class="secondaryAction" type="submit">Save provider</button>',
+        '</div>',
+        '</section>',
+        '<section class="formSection">',
+        '<div class="sectionHeader"><h3>Midscene App Test</h3>' + sectionToggle('midscene', midsceneExpanded, Boolean(midscene)) + '</div>',
+        '<div class="profileSummary" id="midsceneSummaryBox">',
+        midsceneSummary,
+        '</div>',
+        '<div class="sectionFields" ' + (midsceneExpanded ? '' : 'hidden') + '>',
+        '<div class="field"><label for="midsceneBaseUrl">Base URL</label><input id="midsceneBaseUrl" autocomplete="off"></div>',
+        '<div class="field"><label for="midsceneModel">Model</label><input id="midsceneModel" autocomplete="off"></div>',
+        '<div class="field"><label for="midsceneModelFamily">Model family</label><select id="midsceneModelFamily">',
+        families.map(family => '<option value="' + escapeHtml(family) + '">' + escapeHtml(family) + '</option>').join(''),
+        '</select></div>',
+        '<div class="field"><label for="midsceneApiKey">API key</label><input id="midsceneApiKey" type="password" autocomplete="off"></div>',
+        '</div>',
+        '</section>',
+        '<button class="secondaryAction" type="submit">Save configuration</button>',
         '</form>'
       ].join('');
+
+      secondaryBody.querySelectorAll('[data-provider-section]').forEach(button => {
+        button.addEventListener('click', () => {
+          const section = button.dataset.providerSection;
+          if (!section || !(section in state.providerEditorOpen)) return;
+          state.providerEditorOpen[section] = !state.providerEditorOpen[section];
+          renderProviderPanel();
+        });
+      });
 
       const select = document.getElementById('providerSelect');
       const baseUrl = document.getElementById('providerBaseUrl');
       const model = document.getElementById('providerModel');
       const apiKey = document.getElementById('providerApiKey');
+      const midsceneBaseUrl = document.getElementById('midsceneBaseUrl');
+      const midsceneModel = document.getElementById('midsceneModel');
+      const midsceneModelFamily = document.getElementById('midsceneModelFamily');
+      const midsceneApiKey = document.getElementById('midsceneApiKey');
       const updateDefaults = () => {
         const option = providers.find(provider => provider.id === select.value);
+        const selectedSavedProvider = Boolean(current?.credentialConfigured && providerOptionId === select.value);
         baseUrl.value = option?.defaultBaseUrl || '';
         model.value = option?.defaultModel || '';
-        apiKey.placeholder = option?.requiresApiKey ? 'Required unless local' : 'Not required';
+        apiKey.placeholder = selectedSavedProvider ? 'Saved' : option?.requiresApiKey ? 'Required unless local' : 'Not required';
       };
+      if (providerOptionId && providers.some(provider => provider.id === providerOptionId)) {
+        select.value = providerOptionId;
+      }
       select.addEventListener('change', updateDefaults);
       updateDefaults();
+      if (current?.baseUrl) baseUrl.value = current.baseUrl;
+      if (current?.model) model.value = current.model;
+      midsceneBaseUrl.value = midscene?.baseUrl || '';
+      midsceneModel.value = midscene?.model || '';
+      midsceneModelFamily.value = midscene?.modelFamily || 'doubao-vision';
+      midsceneApiKey.placeholder = midscene?.credentialConfigured ? 'Saved' : 'Optional';
 
       document.getElementById('providerForm').addEventListener('submit', async event => {
         event.preventDefault();
         try {
+          const midsceneHasInput = Boolean(
+            midscene ||
+            midsceneBaseUrl.value.trim() ||
+            midsceneModel.value.trim() ||
+            midsceneApiKey.value.trim()
+          );
+          const payload = {
+            provider: select.value,
+            baseUrl: baseUrl.value,
+            model: model.value,
+            apiKey: apiKey.value
+          };
+          if (midsceneHasInput) {
+            payload.midscene = {
+              baseUrl: midsceneBaseUrl.value,
+              model: midsceneModel.value,
+              modelFamily: midsceneModelFamily.value,
+              apiKey: midsceneApiKey.value
+            };
+          }
           const result = await api('/api/provider-profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              provider: select.value,
-              baseUrl: baseUrl.value,
-              model: model.value,
-              apiKey: apiKey.value
-            })
+            body: JSON.stringify(payload)
           });
           apiKey.value = '';
-          state.bootstrap.profile = result.profile;
-          setProviderSummary(result.profile);
+          midsceneApiKey.value = '';
+          if (result.bootstrap) {
+            state.bootstrap = result.bootstrap;
+          } else {
+            state.bootstrap.profile = result.profile;
+          }
+          state.providerEditorOpen.chat = false;
+          state.providerEditorOpen.midscene = false;
+          setProviderSummary(state.bootstrap.profile);
           renderProviderPanel();
-          addActivity({ kind: 'status', title: 'Provider saved', detail: result.profile.displayName, at: Date.now() });
+          sendWs({ type: 'refresh_session' });
+          addActivity({ kind: 'status', title: 'Provider saved', detail: state.bootstrap.profile?.displayName || 'Configuration saved', at: Date.now() });
+          addActivity({ kind: 'status', title: 'Session refreshed', detail: 'Midscene settings applied to new local CLI process', at: Date.now() });
         } catch (error) {
           addActivity({ kind: 'error', title: 'Provider save failed', detail: error.message, at: Date.now() });
         }
       });
+    }
+
+    function clearChatMessages() {
+      messages.querySelectorAll('.message, .toolRow').forEach(node => node.remove());
+      state.streams.clear();
+      emptyState.style.display = '';
+    }
+
+    function renderLoadedMessages(loadedMessages) {
+      clearChatMessages();
+      (loadedMessages || []).forEach(message => {
+        addMessage(message.role || 'assistant', message.content || '', message.messageId || ('restored-' + Date.now() + '-' + Math.random()));
+      });
+      if ((loadedMessages || []).length) {
+        emptyState.style.display = 'none';
+      }
     }
 
     function addMessage(role, content, id) {
@@ -1007,25 +1355,72 @@ export function renderWebUiPage(): string {
 
     function showPermission(request) {
       state.pendingPermission = request;
-      permissionPrompt.textContent = request.prompt || request.toolName || 'Tool permission';
+      const toolName = request.toolName || 'Tool permission';
+      const prompt = request.prompt && request.prompt !== toolName ? toolName + ': ' + request.prompt : toolName;
+      permissionPrompt.textContent = prompt;
       permissionPreview.textContent = JSON.stringify(request.input || {}, null, 2);
       modal.classList.add('open');
+      setRunning(true);
     }
 
     function handleServerEvent(event) {
       if (event.type === 'ready') {
         state.bootstrap = event.bootstrap;
+        state.activeChatSessionId = event.bootstrap.activeChatSessionId || null;
         setProviderSummary(event.bootstrap.profile);
         renderNav();
         renderSecondary();
+        const sessions = event.bootstrap.chatSessions || [];
+        const storedSessionId = localStorage.getItem('opencat-active-session');
+        if (
+          !state.requestedStoredSession &&
+          storedSessionId &&
+          sessions.some(session => session.id === storedSessionId)
+        ) {
+          state.requestedStoredSession = true;
+          if (storedSessionId !== state.activeChatSessionId) {
+            state.activeChatSessionId = storedSessionId;
+            sendWs({ type: 'select_session', sessionId: storedSessionId });
+          }
+        } else if (state.activeChatSessionId) {
+          localStorage.setItem('opencat-active-session', state.activeChatSessionId);
+        }
+      } else if (event.type === 'sessions_updated') {
+        if (!state.bootstrap) state.bootstrap = {};
+        state.bootstrap.chatSessions = event.sessions || [];
+        state.activeChatSessionId = event.activeSessionId || null;
+        if (state.activeChatSessionId) {
+          localStorage.setItem('opencat-active-session', state.activeChatSessionId);
+        } else {
+          localStorage.removeItem('opencat-active-session');
+        }
+        if (state.activeMenu === 'chat') renderChatPanel();
+      } else if (event.type === 'session_loaded') {
+        state.activeChatSessionId = event.sessionId || null;
+        if (state.activeChatSessionId) {
+          localStorage.setItem('opencat-active-session', state.activeChatSessionId);
+        } else {
+          localStorage.removeItem('opencat-active-session');
+        }
+        renderLoadedMessages(event.messages || []);
+        clearPendingPermission();
+        setRunning(false);
+        if (state.activeMenu === 'chat') renderChatPanel();
       } else if (event.type === 'status') {
         setStatus(event.status || 'Ready');
+        if (event.status === 'Ready') {
+          clearPendingPermission();
+          setRunning(false);
+        } else if (event.status === 'Running') {
+          setRunning(true);
+        }
         if (event.detail) addActivity({ kind: 'status', title: event.status, detail: event.detail, at: Date.now() });
       } else if (event.type === 'activity') {
         addActivity(event.activity);
       } else if (event.type === 'stream_start') {
         ensureStream(event.messageId);
         setStatus('Running');
+        setRunning(true);
       } else if (event.type === 'stream_delta') {
         const bubble = ensureStream(event.messageId);
         bubble.textContent += event.delta || '';
@@ -1045,6 +1440,7 @@ export function renderWebUiPage(): string {
       } else if (event.type === 'error') {
         addActivity({ kind: 'error', title: 'Error', detail: event.message, at: Date.now() });
         setStatus('Error');
+        setRunning(false);
       }
     }
 
@@ -1053,6 +1449,7 @@ export function renderWebUiPage(): string {
       setIcon('secondaryExpand', 'chevronRight');
       setIcon('activityCollapse', 'panelRight');
       setIcon('newChat', 'plus');
+      setIcon('stopSession', 'square');
       setIcon('sendButton', 'send');
 
       document.getElementById('secondaryCollapse').addEventListener('click', () => {
@@ -1069,9 +1466,22 @@ export function renderWebUiPage(): string {
       });
       document.getElementById('newChat').addEventListener('click', () => {
         sendWs({ type: 'new_session' });
-        messages.querySelectorAll('.message, .toolRow').forEach(node => node.remove());
-        emptyState.style.display = '';
-        state.streams.clear();
+        state.activeMenu = 'chat';
+        state.secondaryCollapsed = false;
+        renderLayout();
+        renderNav();
+        renderSecondary();
+        clearChatMessages();
+        clearPendingPermission();
+        setRunning(false);
+      });
+      stopSession.addEventListener('click', () => {
+        if (stopSession.disabled) return;
+        state.stopping = true;
+        setStatus('Stopping...');
+        clearPendingPermission();
+        updateStopControl();
+        sendWs({ type: 'abort' });
       });
       document.getElementById('composerForm').addEventListener('submit', event => {
         event.preventDefault();
@@ -1079,6 +1489,7 @@ export function renderWebUiPage(): string {
         if (!text) return;
         addMessage('user', text, 'user-' + Date.now());
         composerInput.value = '';
+        setRunning(true);
         sendWs({ type: 'send_message', text });
       });
       composerInput.addEventListener('keydown', event => {
@@ -1089,14 +1500,14 @@ export function renderWebUiPage(): string {
       });
       modal.querySelectorAll('[data-permission-action]').forEach(button => {
         button.addEventListener('click', () => {
-          if (!state.pendingPermission) return;
+          const pendingPermission = state.pendingPermission;
+          if (!pendingPermission) return;
+          clearPendingPermission();
           sendWs({
             type: 'permission_response',
-            requestId: state.pendingPermission.requestId,
+            requestId: pendingPermission.requestId,
             action: button.dataset.permissionAction
           });
-          state.pendingPermission = null;
-          modal.classList.remove('open');
         });
       });
     }

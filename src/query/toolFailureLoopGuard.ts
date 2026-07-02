@@ -357,6 +357,9 @@ function normalizeErrorCategory(content: string): string {
   if (/Error writing file/i.test(normalized)) {
     return 'FileWriteError'
   }
+  if (/File has not been read yet\.? Read it first before writing to it/i.test(normalized)) {
+    return 'ReadBeforeWriteRequired'
+  }
 
   return (
     normalized.toLowerCase().slice(0, MAX_FALLBACK_CATEGORY_LENGTH) ||
@@ -426,10 +429,14 @@ function createTripMessage(
   } else {
     reason = `Tool calls failed ${detail.threshold} times with \`${detail.errorCategory}\`.`
   }
+  const recovery =
+    detail.kind !== 'path' && detail.errorCategory === 'ReadBeforeWriteRequired'
+      ? 'Read the existing file first, then retry Write/Edit with the updated content.'
+      : 'Please inspect permissions, path, or tool schema before retrying.'
 
   return [
     'Stopped: repeated tool failures detected.',
     '',
-    `${reason} Please inspect permissions, path, or tool schema before retrying.`,
+    `${reason} ${recovery}`,
   ].join('\n')
 }

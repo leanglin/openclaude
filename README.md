@@ -216,6 +216,7 @@ Beginner-friendly guides:
 Advanced and source-build guides:
 
 - [Advanced Setup](docs/advanced-setup.md)
+- [Android App and Web UI Testing](docs/app-testing.md)
 - [Android Install](ANDROID_INSTALL.md)
 
 ## Supported Providers

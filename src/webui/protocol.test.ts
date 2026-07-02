@@ -49,6 +49,28 @@ describe('webui stream-json protocol helpers', () => {
     expect(getStreamTextDelta({ delta: { text: 'hello' } })).toBe('hello')
     expect(
       buildControlResponse(
+        'request-allow',
+        buildPermissionControlResult('allow', {
+          input: { app_package: 'com.cmri.universalapp' },
+          toolUseId: 'tool-app',
+          permissionSuggestions: [{ behavior: 'allow' }],
+        }),
+      ),
+    ).toEqual({
+      type: 'control_response',
+      response: {
+        subtype: 'success',
+        request_id: 'request-allow',
+        response: {
+          behavior: 'allow',
+          updatedInput: { app_package: 'com.cmri.universalapp' },
+          toolUseID: 'tool-app',
+        },
+      },
+    })
+
+    expect(
+      buildControlResponse(
         'request-1',
         buildPermissionControlResult('allow-session', {
           input: { file_path: 'a.ts' },

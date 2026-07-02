@@ -1,0 +1,32 @@
+{
+  "name": "@openclaude/app-test-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JSONL sidecar for OpenClaude Android App and Web UI tests powered by Midscene.",
+  "type": "commonjs",
+  "main": "dist/cli.js",
+  "bin": {
+    "openclaude-app-test-runner": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/*.test.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=18.19.0"
+  },
+  "dependencies": {
+    "@midscene/android": "1.7.6",
+    "@midscene/android-playground": "1.7.6",
+    "@midscene/cli": "1.7.6",
+    "@midscene/core": "1.7.6",
+    "@midscene/web": "1.7.6",
+    "@playwright/test": "^1.59.1",
+    "playwright": "^1.59.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.8.3"
+  }
+}

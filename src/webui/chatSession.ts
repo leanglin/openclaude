@@ -1,5 +1,6 @@
-import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
+import { spawn, type SpawnOptions } from 'node:child_process'
 import type { Readable, Writable } from 'node:stream'
+import treeKill from 'tree-kill'
 import {
   buildControlResponse,
   buildPermissionControlResult,
@@ -26,6 +27,7 @@ import type {
 } from './types.js'
 
 type ChildLike = {
+  pid?: number
   stdin: Writable
   stdout: Readable
   stderr: Readable
@@ -48,6 +50,8 @@ export type CliChatSessionOptions = {
   cliCommand?: string
   env?: NodeJS.ProcessEnv
   secrets?: readonly string[]
+  sessionId?: string
+  resumeSession?: boolean
 }
 
 type PendingPermission = PermissionRequestEvent
@@ -57,8 +61,22 @@ type CliLaunch = {
   shell: false
 }
 
+const ABORT_FORCE_KILL_DELAY_MS = 2_000
+
 function nextId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function killChild(child: ChildLike, signal: NodeJS.Signals): void {
+  if (typeof child.pid === 'number' && child.pid > 0) {
+    treeKill(child.pid, signal, () => {})
+    return
+  }
+  try {
+    child.kill(signal)
+  } catch {
+    // Best-effort cleanup only; the caller may already be tearing down.
+  }
 }
 
 export function resolveCliLaunch(options: {
@@ -91,6 +109,44 @@ function asObject(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function normalizePermissionRequest(message: CliMessage): PermissionRequestEvent {
+  const request = asObject(message.request)
+  const input = asObject(request.input)
+  const requestId =
+    firstString(message.request_id, request.request_id) ?? nextId('permission')
+  const rawToolName = firstString(
+    request.name,
+    request.tool_name,
+    request.display_name,
+    request.title,
+  )
+  const toolName = getToolDisplayName(rawToolName)
+  const prompt = firstString(
+    request.prompt,
+    request.description,
+    request.title,
+    request.display_name,
+  )
+
+  return {
+    requestId,
+    toolName,
+    toolUseId: firstString(request.tool_use_id, input.tool_use_id),
+    input,
+    permissionSuggestions: Array.isArray(request.permission_suggestions)
+      ? request.permission_suggestions
+      : undefined,
+    prompt,
+  }
+}
+
 function stringifyToolInput(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined
   try {
@@ -108,6 +164,50 @@ function activityKindForTool(toolName: string): ActivityKind {
   return 'status'
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : []
+}
+
+function formatPreflightActivityDetail(payload: Record<string, unknown>): string | undefined {
+  if (payload.platform !== 'android') return undefined
+
+  const devices = stringList(payload.connected_devices)
+  const missingMidscene = stringList(payload.missing_midscene_env_keys)
+  const missingAndroid = stringList(payload.missing_android_env_keys)
+  const adbReady = payload.adb_available === true
+  const androidSdkConfigured = payload.android_sdk_configured === true
+  const midsceneConfigured = payload.midscene_model_configured === true
+  const adbStatus = adbReady
+    ? `ADB: ready${devices.length ? ` / device ${devices.join(', ')}` : ''}`
+    : `ADB: unavailable${typeof payload.adb_error === 'string' ? ` (${payload.adb_error})` : ''}`
+  const sdkStatus = androidSdkConfigured
+    ? 'Android SDK env: configured'
+    : `Android SDK env: unset${missingAndroid.length ? ` (${missingAndroid.join(', ')})` : ''}`
+  const midsceneStatus = midsceneConfigured
+    ? 'Midscene model: configured'
+    : `Midscene model: missing ${missingMidscene.length ? missingMidscene.join(', ') : 'configuration'}`
+
+  return `${adbStatus} / ${sdkStatus} / ${midsceneStatus}`
+}
+
+function extractPreflightActivityDetail(content: string | undefined): string | undefined {
+  if (!content) return undefined
+  try {
+    const parsed = JSON.parse(content)
+    const events = Array.isArray(parsed?.events) ? parsed.events : []
+    const event = events.find((item: unknown) => {
+      const record = asObject(item)
+      return record.event_type === 'visual_preflight_checked'
+    })
+    const payload = asObject(asObject(event).payload)
+    return formatPreflightActivityDetail(payload)
+  } catch {
+    return undefined
+  }
+}
+
 export class CliChatSession {
   private child: ChildLike | null = null
   private stdoutBuffer = ''
@@ -115,6 +215,7 @@ export class CliChatSession {
   private currentMessageId: string | null = null
   private currentMessageContent = ''
   private readonly secrets: string[]
+  private forceKillTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly options: CliChatSessionOptions) {
     this.secrets = [
@@ -135,9 +236,18 @@ export class CliChatSession {
       '--input-format=stream-json',
       '--output-format=stream-json',
       '--include-partial-messages',
+      '--permission-prompt-tool',
+      'stdio',
       '--permission-mode',
       this.options.permissionMode || 'acceptEdits',
     ]
+    if (this.options.sessionId) {
+      if (this.options.resumeSession) {
+        streamArgs.push('--resume', this.options.sessionId)
+      } else {
+        streamArgs.push('--session-id', this.options.sessionId)
+      }
+    }
     const launch = resolveCliLaunch({
       streamArgs,
       cliCommand: this.options.cliCommand,
@@ -150,19 +260,24 @@ export class CliChatSession {
       shell: launch.shell,
       windowsHide: true,
     }
-    this.child = spawnFactory(launch.command, launch.args, spawnOptions)
-    this.child.stdout.setEncoding?.('utf8')
-    this.child.stderr.setEncoding?.('utf8')
-    this.child.stdout.on('data', chunk => this.handleStdout(String(chunk)))
-    this.child.stderr.on('data', chunk => this.handleStderr(String(chunk)))
-    this.child.on('error', error => {
+    const child = spawnFactory(launch.command, launch.args, spawnOptions)
+    this.child = child
+    child.stdout.setEncoding?.('utf8')
+    child.stderr.setEncoding?.('utf8')
+    child.stdout.on('data', chunk => this.handleStdout(String(chunk)))
+    child.stderr.on('data', chunk => this.handleStderr(String(chunk)))
+    child.on('error', error => {
       this.send({
         type: 'error',
         message: redactSensitiveText(String(error), this.secrets),
       })
     })
-    this.child.on('close', (code, signal) => {
-      this.child = null
+    child.on('close', (code, signal) => {
+      if (this.child === child) {
+        this.child = null
+      }
+      this.clearForceKillTimer()
+      this.pendingPermissions.clear()
       this.sendActivity('status', 'Session ended', `code=${String(code)} signal=${String(signal)}`)
       this.send({ type: 'status', status: 'Ready', detail: 'Session ended' })
     })
@@ -186,6 +301,12 @@ export class CliChatSession {
       case 'new_session':
         this.dispose()
         this.start()
+        break
+      case 'refresh_session':
+        this.dispose()
+        break
+      case 'select_session':
+      case 'delete_session':
         break
     }
   }
@@ -215,17 +336,43 @@ export class CliChatSession {
   }
 
   abort(): void {
-    if (!this.child) return
-    this.child.kill('SIGINT')
+    const child = this.child
+    this.pendingPermissions.clear()
+    if (!child) {
+      this.send({ type: 'status', status: 'Ready', detail: 'No running session' })
+      return
+    }
+    this.send({ type: 'status', status: 'Stopping', detail: 'Interrupting session' })
     this.sendActivity('status', 'Abort requested', 'Sent interrupt to session')
+    this.clearForceKillTimer()
+    try {
+      child.kill('SIGINT')
+    } catch {
+      killChild(child, 'SIGTERM')
+    }
+    if (this.child !== child) return
+    this.forceKillTimer = setTimeout(() => {
+      if (this.child === child) {
+        killChild(child, 'SIGTERM')
+      }
+    }, ABORT_FORCE_KILL_DELAY_MS)
+    this.forceKillTimer.unref?.()
   }
 
   dispose(): void {
-    if (this.child) {
-      this.child.kill('SIGTERM')
+    this.clearForceKillTimer()
+    const child = this.child
+    if (child) {
       this.child = null
+      killChild(child, 'SIGTERM')
     }
     this.pendingPermissions.clear()
+  }
+
+  private clearForceKillTimer(): void {
+    if (!this.forceKillTimer) return
+    clearTimeout(this.forceKillTimer)
+    this.forceKillTimer = null
   }
 
   private write(message: unknown): void {
@@ -385,6 +532,8 @@ export class CliChatSession {
         summary: content,
       })
       this.sendActivity('result', 'Result ready', content)
+      const preflightDetail = extractPreflightActivityDetail(content)
+      if (preflightDetail) this.sendActivity('preflight', 'Preflight', preflightDetail)
     }
   }
 
@@ -395,30 +544,8 @@ export class CliChatSession {
   }
 
   private handleControlRequest(message: CliMessage): void {
-    const request = asObject(message.request)
-    const requestId =
-      typeof message.request_id === 'string'
-        ? message.request_id
-        : typeof request.request_id === 'string'
-          ? request.request_id
-          : nextId('permission')
-    const input = asObject(request.input)
-    const permission: PermissionRequestEvent = {
-      requestId,
-      toolName: getToolDisplayName(request.name ?? request.tool_name),
-      toolUseId:
-        typeof request.tool_use_id === 'string'
-          ? request.tool_use_id
-          : typeof input.tool_use_id === 'string'
-            ? input.tool_use_id
-            : undefined,
-      input,
-      permissionSuggestions: Array.isArray(request.permission_suggestions)
-        ? request.permission_suggestions
-        : undefined,
-      prompt: typeof request.prompt === 'string' ? request.prompt : undefined,
-    }
-    this.pendingPermissions.set(requestId, permission)
+    const permission = normalizePermissionRequest(message)
+    this.pendingPermissions.set(permission.requestId, permission)
     this.send({ type: 'permission_request', request: permission })
     this.sendActivity('permission', 'Permission requested', permission.toolName)
   }

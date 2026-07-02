@@ -100,7 +100,11 @@ function buildContinuationSignals(): RegExp[] {
 
 export const CONTINUATION_SIGNALS = buildContinuationSignals()
 
-export const COMPLETION_MARKERS = /\b(done|finished|completed|complete|summary|that's all|that is all|all set|hope this helps|let me know if|no issues|lgtm)\b/i
+const COMPLETION_MARKER_PATTERN =
+  "\\b(done|finished|completed|complete|summary|that's all|that is all|all set|hope this helps|let me know if|no issues|lgtm)\\b|(?:任务完成|开发工作已完成|全部完成|不需要继续|无需继续|手动执行|等待提交)"
+
+export const COMPLETION_MARKERS = new RegExp(COMPLETION_MARKER_PATTERN, 'i')
+const COMPLETION_MARKERS_GLOBAL = new RegExp(COMPLETION_MARKER_PATTERN, 'gi')
 
 export type ContinuationResult = {
   shouldNudge: boolean
@@ -117,6 +121,30 @@ export const UNFINISHED_SENTIMENT_SIGNALS = [
   // Unclosed code block starter
   /```[a-z]*\s*$/i,
 ]
+
+function lastCompletionMarkerEnd(text: string): number | null {
+  COMPLETION_MARKERS_GLOBAL.lastIndex = 0
+  let lastEnd: number | null = null
+  let match: RegExpExecArray | null
+  while ((match = COMPLETION_MARKERS_GLOBAL.exec(text)) !== null) {
+    lastEnd = match.index + match[0].length
+  }
+  return lastEnd
+}
+
+function hasStrongContinuationAfter(text: string, start: number): boolean {
+  const after = text.slice(start).trim()
+  if (!after) return false
+
+  return (
+    /\b(let me|i will|i'll|je vais|je suis en train|moving on to|continuing with|proceeding to|next step is to)\b/i.test(after) ||
+    new RegExp(`\\bnow (?:${VERB_ING})\\b`, 'i').test(after) ||
+    new RegExp(
+      `\\bnext (?:i|we)\\s+(?:need to|will|shall|should|must)?\\s*(?:${VERB_ALT})\\b`,
+      'i',
+    ).test(after)
+  )
+}
 
 /**
  * Analyzes assistant text to determine if a continuation nudge is required.
@@ -149,6 +177,14 @@ export function analyzeContinuationIntent(
   if (hasUnclosedCodeBlock || hasUnclosedPair || hasUnfinishedSuffix) {
     // Structural cut-offs always trigger a nudge, even if "done" was said earlier.
     return { shouldNudge: true, reason: 'possible_truncation' }
+  }
+
+  const completionEnd = lastCompletionMarkerEnd(lastText)
+  if (
+    completionEnd !== null &&
+    !hasStrongContinuationAfter(lastText, completionEnd)
+  ) {
+    return { shouldNudge: false }
   }
 
   // 2. Late Intent-based signals (Overriding earlier completion markers)

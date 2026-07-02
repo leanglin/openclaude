@@ -8,9 +8,24 @@ import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
 import { openBrowser as openSystemBrowser } from '../utils/browser.js'
 import { PERMISSION_MODES } from '../utils/permissions/PermissionMode.js'
+import type { ProfileFileLocation } from '../utils/providerProfile.js'
 import { CliChatSession, type SpawnFactory } from './chatSession.js'
-import { buildBootstrapState, saveProviderProfileFromPayload } from './providerProfile.js'
+import {
+  buildBootstrapState,
+  buildMidsceneSessionEnv,
+  saveProviderProfileFromPayload,
+} from './providerProfile.js'
 import { renderWebUiPage } from './page.js'
+import {
+  createWebChatSession,
+  deleteWebChatSession,
+  getWebChatSession,
+  hasWebChatTranscriptMessages,
+  listWebChatSessions,
+  loadWebChatMessages,
+  touchWebChatSessionWithUserMessage,
+  type WebChatSessionStoreLocation,
+} from './sessionStore.js'
 import type {
   BootstrapState,
   ClientMessage,
@@ -26,6 +41,8 @@ type WebUiServerOptions = {
   permissionMode?: string
   openBrowser?: boolean
   spawnFactory?: SpawnFactory
+  profileLocation?: ProfileFileLocation
+  sessionStoreLocation?: WebChatSessionStoreLocation
 }
 
 type WebUiAppOptions = {
@@ -33,6 +50,8 @@ type WebUiAppOptions = {
   permissionMode: string
   token: string
   spawnFactory?: SpawnFactory
+  profileLocation?: ProfileFileLocation
+  sessionStoreLocation?: WebChatSessionStoreLocation
 }
 
 type WebUiApp = {
@@ -110,9 +129,16 @@ function resolveIconPath(): string | null {
 }
 
 function bootstrap(options: WebUiAppOptions): BootstrapState {
+  const chatSessions = listWebChatSessions(
+    options.cwd,
+    options.sessionStoreLocation,
+  )
   return buildBootstrapState({
     cwd: options.cwd,
     permissionMode: options.permissionMode,
+    profileLocation: options.profileLocation,
+    chatSessions,
+    activeChatSessionId: chatSessions[0]?.id,
   })
 }
 
@@ -164,8 +190,11 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
 
         if (request.method === 'POST' && url.pathname === '/api/provider-profile') {
           const payload = await readJsonBody<ProviderProfilePayload>(request)
-          const profile = saveProviderProfileFromPayload(payload)
-          sendJson(response, 200, { profile })
+          const profile = saveProviderProfileFromPayload(
+            payload,
+            options.profileLocation,
+          )
+          sendJson(response, 200, { profile, bootstrap: bootstrap(options) })
           return
         }
 
@@ -179,16 +208,96 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
 
   wss.on('connection', ws => {
     let session: CliChatSession | null = null
+    let activeSessionId = bootstrap(options).activeChatSessionId
     const send = (event: ServerEvent): void => sendWs(ws, event)
     send({ type: 'ready', bootstrap: bootstrap(options) })
 
+    if (activeSessionId) {
+      send({
+        type: 'session_loaded',
+        sessionId: activeSessionId,
+        messages: loadWebChatMessages(options.cwd, activeSessionId),
+      })
+    } else {
+      send({ type: 'session_loaded', messages: [] })
+    }
+
+    function disposeSession(): void {
+      session?.dispose()
+      session = null
+    }
+
+    function sendSessionsUpdated(): void {
+      send({
+        type: 'sessions_updated',
+        sessions: listWebChatSessions(options.cwd, options.sessionStoreLocation),
+        activeSessionId,
+      })
+    }
+
+    function loadActiveSession(sessionId: string | undefined): void {
+      activeSessionId = sessionId
+      disposeSession()
+      send({ type: 'status', status: 'Ready', detail: 'Session selected' })
+      send({
+        type: 'session_loaded',
+        sessionId: activeSessionId,
+        messages: activeSessionId
+          ? loadWebChatMessages(options.cwd, activeSessionId)
+          : [],
+      })
+    }
+
+    function createAndSelectSession(): void {
+      const record = createWebChatSession(
+        options.cwd,
+        options.sessionStoreLocation,
+      )
+      activeSessionId = record.id
+      disposeSession()
+      sendSessionsUpdated()
+      send({
+        type: 'session_loaded',
+        sessionId: activeSessionId,
+        messages: [],
+      })
+      send({ type: 'status', status: 'Ready', detail: 'New chat created' })
+    }
+
+    function ensureActiveSessionForMessage(text: string): string {
+      if (!activeSessionId) {
+        activeSessionId = createWebChatSession(
+          options.cwd,
+          options.sessionStoreLocation,
+        ).id
+      }
+      touchWebChatSessionWithUserMessage(
+        options.cwd,
+        activeSessionId,
+        text,
+        options.sessionStoreLocation,
+      )
+      sendSessionsUpdated()
+      return activeSessionId
+    }
+
     function ensureSession(): CliChatSession {
+      if (!activeSessionId) {
+        activeSessionId = createWebChatSession(
+          options.cwd,
+          options.sessionStoreLocation,
+        ).id
+        sendSessionsUpdated()
+      }
       if (!session) {
         session = new CliChatSession({
           cwd: options.cwd,
           permissionMode: options.permissionMode,
           send,
+          env: buildMidsceneSessionEnv(options.profileLocation),
           spawnFactory: options.spawnFactory,
+          sessionId: activeSessionId,
+          resumeSession: hasWebChatTranscriptMessages(options.cwd, activeSessionId),
         })
       }
       return session
@@ -197,6 +306,65 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
     ws.on('message', data => {
       try {
         const message = parseClientMessage(data)
+        if (message.type === 'new_session') {
+          createAndSelectSession()
+          return
+        }
+        if (message.type === 'refresh_session') {
+          disposeSession()
+          send({ type: 'status', status: 'Ready', detail: 'Session refreshed' })
+          return
+        }
+        if (message.type === 'select_session') {
+          if (!getWebChatSession(options.cwd, message.sessionId, options.sessionStoreLocation)) {
+            send({ type: 'error', message: 'Chat session was not found.' })
+            return
+          }
+          loadActiveSession(message.sessionId)
+          sendSessionsUpdated()
+          return
+        }
+        if (message.type === 'delete_session') {
+          const deleted = deleteWebChatSession(
+            options.cwd,
+            message.sessionId,
+            options.sessionStoreLocation,
+          )
+          if (!deleted) {
+            send({ type: 'error', message: 'Chat session was not found.' })
+            return
+          }
+          const remaining = listWebChatSessions(
+            options.cwd,
+            options.sessionStoreLocation,
+          )
+          if (message.sessionId === activeSessionId) {
+            loadActiveSession(remaining[0]?.id)
+          }
+          sendSessionsUpdated()
+          return
+        }
+        if (message.type === 'send_message') {
+          ensureActiveSessionForMessage(message.text)
+          ensureSession().handleClientMessage(message)
+          return
+        }
+        if (message.type === 'permission_response') {
+          if (!session) {
+            send({ type: 'error', message: 'Permission request is no longer pending.' })
+            return
+          }
+          session.handleClientMessage(message)
+          return
+        }
+        if (message.type === 'abort') {
+          if (!session) {
+            send({ type: 'status', status: 'Ready', detail: 'No running session' })
+            return
+          }
+          session.handleClientMessage(message)
+          return
+        }
         ensureSession().handleClientMessage(message)
       } catch (error) {
         send({
@@ -255,6 +423,8 @@ export async function startWebUi(rawOptions: WebUiServerOptions = {}): Promise<v
     permissionMode,
     token,
     spawnFactory: rawOptions.spawnFactory,
+    profileLocation: rawOptions.profileLocation,
+    sessionStoreLocation: rawOptions.sessionStoreLocation,
   })
   const server = createServer(app.handler)
   server.on('upgrade', app.handleUpgrade)

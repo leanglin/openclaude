@@ -25,3 +25,6 @@ plan/
 .tmp
 .tmp-*
 temp_reference/
+/midscene_run/log
+/midscene_trace
+/midscene_run/report

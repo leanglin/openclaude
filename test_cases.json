@@ -1,0 +1,1251 @@
+{
+  "test_cases": [
+    {
+      "case_id": "TC-M01-F01-001",
+      "title": "入口验证-浙江省用户从运营位进入安防报告页面",
+      "tool": "app_visual",
+      "test_objective": "验证浙江省用户可以从运营位入口正常进入安防报告页面",
+      "steps": [
+        "打开移动爱家APP",
+        "在首页找到浙江安防报告运营位入口",
+        "点击运营位入口",
+        "进入目标页面"
+      ],
+      "action_steps": [
+        {
+          "step_index": 1,
+          "action": "aiAct",
+          "intent": "打开移动爱家APP进入首页",
+          "target": {"text": "移动爱家首页"},
+          "value": "",
+          "source": "workspace_path_map",
+          "navigation_step": true,
+          "page_from": "移动爱家启动页",
+          "page_to": "移动爱家首页",
+          "assert_after": [
+            {
+              "kind": "text_visible",
+              "expected": "移动爱家首页"
+            }
+          ]
+        },
+        {
+          "step_index": 2,
+          "action": "aiAct",
+          "intent": "在移动爱家首页点击浙江安防报告运营位入口",
+          "target": {"text": "浙江安防报告"},
+          "value": "",
+          "source": "testcase_generator",
+          "navigation_step": false,
+          "assert_after": [
+            {
+              "kind": "text_visible",
+              "expected": "专属生活小报"
+            }
+          ]
+        }
+      ],
+      "expected_result": "成功进入安防报告页面，页面标题显示为\"专属生活小报\"",
+      "assertions": [
+        "页面标题正确显示\"专属生活小报\"",
+        "分享按钮可见",
+        "周期选择区域可见",
+        "当前摄像头图片和名称显示正确"
+      ],
+      "priority": "P0",
+      "risk_tags": ["入口验证", "基础展示"],
+      "parameter_overrides": {
+        "test_goal": "验证浙江省用户可以正常进入安防报告页面",
+        "assertions": [
+          "页面标题正确显示\"专属生活小报\"",
+          "分享按钮可见可点击",
+          "周/月周期选择区域显示正常",
+          "当前摄像头图片和名称显示正确"
+        ],
+        "test_steps": [
+          "打开移动爱家APP进入首页",
+          "点击浙江安防报告运营位入口",
+          "验证页面展示"
+        ],
+        "action_steps": [
+        ],
+        "expected_result": "成功进入安防报告页面，各基础元素显示正确",
+        "openclaw_test_instruction": "帮我按照以下步骤执行测试：\n【初始导航】打开移动爱家APP进入首页\n【核心操作】点击浙江安防报告运营位入口\n【预期结果】成功进入安防报告页面，页面标题显示\"专属生活小报\"，分享按钮、周期选择、摄像头信息显示正常"
+      },
+      "coverage_items": ["模块一-页面顶部栏-入口展示", "模块一-页面顶部栏-标题展示"],
+      "source_item_ids": ["MOD-001", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "path_map_source": "knowledge/ydkj_path_map.md",
+        "module_id": "MOD-001",
+        "feature_id": "FEA-001",
+        "case_type": "入口展示"
+      }
+    },
+    {
+      "case_id": "TC-M01-F02-001",
+      "title": "顶部栏-分享功能验证-点击分享生成图片可分享",
+      "tool": "app_visual",
+      "test_objective": "验证点击分享按钮可以生成报告图片并弹出分享选项",
+      "steps": [
+        "进入安防报告页面",
+        "点击右上角分享按钮",
+        "验证分享弹窗"
+      ],
+      "action_steps": [
+        {
+          "step_index": 1,
+          "action": "aiAct",
+          "intent": "进入浙江安防报告页面",
+          "target": {"text": "专属生活小报"},
+          "value": "",
+          "source": "testcase_generator",
+          "navigation_step": false,
+          "assert_after": [
+            {
+              "kind": "text_visible",
+              "expected": "专属生活小报"
+            }
+          ]
+        },
+        {
+          "step_index": 2,
+          "action": "aiAct",
+          "intent": "点击分享按钮",
+          "target": {"text": "分享"},
+          "value": "",
+          "source": "testcase_generator",
+          "navigation_step": false,
+          "assert_after": [
+            {
+              "kind": "popup_visible",
+              "expected": "分享选项弹窗"
+            }
+          ]
+        }
+      ],
+      "expected_result": "点击分享后生成报告图片，弹出分享选项可分享至微信/朋友圈/微博",
+      "assertions": [
+        "分享按钮可点击",
+        "点击后正常生成报告图片",
+        "弹出分享选项菜单",
+        "包含微信、朋友圈、微博等分享选项"
+      ],
+      "priority": "P1",
+      "risk_tags": ["功能交互", "分享"],
+      "coverage_items": ["模块一-页面顶部栏-分享功能"],
+      "source_item_ids": ["MOD-001", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "path_map_source": "knowledge/ydkj_path_map.md",
+        "module_id": "MOD-001",
+        "feature_id": "FEA-002",
+        "case_type": "基础流程"
+      }
+    },
+    {
+      "case_id": "TC-M01-F03-001",
+      "title": "周期选择-默认显示最近一周报告验证",
+      "tool": "app_visual",
+      "test_objective": "验证默认进入页面显示最近一周（非实时）的报告数据",
+      "steps": [
+        "进入安防报告页面",
+        "查看默认选中周期",
+        "验证周期格式"
+      ],
+      "expected_result": "默认选中最近一周，显示格式为\"上周+具体日期跨度\"",
+      "assertions": [
+        "默认维度为周维度",
+        "默认选中最近一周数据",
+        "显示格式符合\"上周YYYY-MM-DD-YYYY-MM-DD\"规范",
+        "报告数据加载完成"
+      ],
+      "priority": "P0",
+      "risk_tags": ["默认状态", "数据加载"],
+      "coverage_items": ["模块一-页面顶部栏-默认周期选择"],
+      "source_item_ids": ["MOD-001", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-001",
+        "feature_id": "FEA-003",
+        "case_type": "默认状态"
+      }
+    },
+    {
+      "case_id": "TC-M01-F03-002",
+      "title": "周期选择-切换月维度验证默认显示上月报告",
+      "tool": "app_visual",
+      "test_objective": "验证切换到月维度时默认显示最近一月报告",
+      "steps": [
+        "进入安防报告页面",
+        "点击月维度标签",
+        "验证显示周期格式"
+      ],
+      "expected_result": "切换到月维度后，默认显示上月，格式为\"上月+具体日期跨度\"",
+      "assertions": [
+        "点击月维度后成功切换",
+        "默认选中最近一月（上月）",
+        "显示格式符合\"上月YYYY-MM\"规范",
+        "月报告数据正确加载"
+      ],
+      "priority": "P0",
+      "risk_tags": ["维度切换", "数据加载"],
+      "coverage_items": ["模块一-页面顶部栏-周期维度切换"],
+      "source_item_ids": ["MOD-001", "FEA-004"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-001",
+        "feature_id": "FEA-004",
+        "case_type": "基础行为"
+      }
+    },
+    {
+      "case_id": "TC-M01-F03-003",
+      "title": "周期选择-周维度历史周期切换验证",
+      "tool": "app_visual",
+      "test_objective": "验证周维度下可以切换查看历史周期数据，最多支持12个周期",
+      "steps": [
+        "进入安防报告页面",
+        "展开历史周期列表",
+        "点击选择历史周期",
+        "验证数据切换"
+      ],
+      "expected_result": "可以展开历史周期列表，点击后切换显示对应周期报告数据",
+      "assertions": [
+        "历史周期列表可展开",
+        "最多显示当年近12个周",
+        "未生成报告的周期置灰不可选",
+        "点击可选周期后数据正确切换"
+      ],
+      "priority": "P1",
+      "risk_tags": ["历史数据", "切换交互"],
+      "coverage_items": ["模块一-页面顶部栏-历史周期切换"],
+      "source_item_ids": ["MOD-001", "FEA-005"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-001",
+        "feature_id": "FEA-005",
+        "case_type": "基础流程"
+      }
+    },
+    {
+      "case_id": "TC-M01-F03-004",
+      "title": "周期选择-未生成报告周期置灰验证",
+      "tool": "app_visual",
+      "test_objective": "验证因特殊情况未生成报告的周期置灰不可选",
+      "steps": [
+        "进入安防报告页面",
+        "展开历史周期列表",
+        "查看未生成周期状态"
+      ],
+      "expected_result": "未生成报告的周期显示置灰，无法点击选择",
+      "assertions": [
+        "未生成报告的周期视觉置灰",
+        "点击置灰周期无响应",
+        "未生成周期仍计入12个周期计数"
+      ],
+      "priority": "P1",
+      "risk_tags": ["异常状态", "边界"],
+      "coverage_items": ["模块一-页面顶部栏-未生成周期处理"],
+      "source_item_ids": ["MOD-001", "FEA-006"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-001",
+        "feature_id": "FEA-006",
+        "case_type": "异常状态"
+      }
+    },
+    {
+      "case_id": "TC-M01-F04-001",
+      "title": "摄像头切换-多设备切换验证",
+      "tool": "app_visual",
+      "test_objective": "验证存在多个设备时支持切换查看不同摄像头的报告",
+      "steps": [
+        "用户绑定多个浙江地区摄像头，进入安防报告页面",
+        "点击摄像头选择区域",
+        "选择另一台摄像头",
+        "验证报告数据切换"
+      ],
+      "expected_result": "切换后显示对应摄像头的报告数据，摄像头名称和图片更新",
+      "assertions": [
+        "显示当前摄像头图片和名称",
+        "支持展开设备列表选择",
+        "切换后报告数据更新为对应设备",
+        "页面标题保持不变"
+      ],
+      "priority": "P1",
+      "risk_tags": ["多设备", "切换交互"],
+      "coverage_items": ["模块一-页面顶部栏-摄像头切换"],
+      "source_item_ids": ["MOD-001", "FEA-007"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-001",
+        "feature_id": "FEA-007",
+        "case_type": "基础流程"
+      }
+    },
+    {
+      "case_id": "TC-M02-F01-001",
+      "title": "本周头条-有数据时显示专属称号和解读文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证统计周期内有数据时，根据使用习惯生成并显示专属称号和行为解读",
+      "steps": [
+        "进入安防报告页面，当前周期设备在线有数据",
+        "查看本周头条模块",
+        "验证称号和文案展示"
+      ],
+      "expected_result": "根据使用习惯匹配场景显示专属称号和解读文案",
+      "assertions": [
+        "显示专属称号",
+        "显示对应的行为解读文案",
+        "优先匹配场景文案，通用文案作为兜底",
+        "模块展示完整，不出现空白"
+      ],
+      "priority": "P0",
+      "risk_tags": ["内容展示", "AI生成"],
+      "coverage_items": ["模块二-本周/月头条-有数据展示"],
+      "source_item_ids": ["MOD-002", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-002",
+        "feature_id": "FEA-001",
+        "case_type": "基础展示"
+      }
+    },
+    {
+      "case_id": "TC-M02-F01-002",
+      "title": "本周头条-设备全周期离线显示离线文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证统计周期内设备全程离线时显示正确离线文案和排障入口",
+      "steps": [
+        "进入安防报告页面，当前周期设备全程离线",
+        "查看本周头条模块展示",
+        "点击AI建议排障入口"
+      ],
+      "expected_result": "显示固定离线文案，点击AI建议可进入自助排障H5页面",
+      "assertions": [
+        "显示离线状态样式",
+        "文案固定显示\"摄像头本周/月失联，这周/月都没人看家！\"",
+        "显示AI建议入口可点击",
+        "点击后成功跳转自助排障H5页面"
+      ],
+      "priority": "P1",
+      "risk_tags": ["空态展示", "离线状态"],
+      "coverage_items": ["模块二-本周/月头条-离线状态展示"],
+      "source_item_ids": ["MOD-002", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-002",
+        "feature_id": "FEA-002",
+        "case_type": "空态展示"
+      }
+    },
+    {
+      "case_id": "TC-M03-F01-001",
+      "title": "精彩时光-有数据显示模块无数据隐藏验证",
+      "tool": "app_visual",
+      "test_objective": "验证统计周期有时光视频数据时显示模块，无数据时隐藏模块",
+      "steps": [
+        "进入安防报告页面，周期内有时光视频数据",
+        "验证精彩时光模块展示",
+        "选择一个无时光视频数据的周期",
+        "验证模块隐藏"
+      ],
+      "expected_result": "有视频数据时模块展示，无视频数据时模块不显示",
+      "assertions": [
+        "有时光视频数据时精彩时光模块正常显示",
+        "无时光视频数据时页面不展示该模块",
+        "其他模块位置不受影响"
+      ],
+      "priority": "P1",
+      "risk_tags": ["条件展示", "动态模块"],
+      "coverage_items": ["模块三-精彩时光-模块显示规则"],
+      "source_item_ids": ["MOD-003", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-001",
+        "case_type": "状态联动"
+      }
+    },
+    {
+      "case_id": "TC-M03-F02-001",
+      "title": "周报告-老人孩子宠物多垂类选择天数最多验证",
+      "tool": "app_visual",
+      "test_objective": "验证周报告中多个垂类都有视频时，选择生成天数最多的垂类拼接",
+      "steps": [
+        "进入周报告，统计周期内同时存在老人和孩子垂类视频",
+        "孩子垂类生成天数多于老人",
+        "验证精彩时光视频生成结果"
+      ],
+      "expected_result": "选择孩子垂类进行视频拼接生成周时光视频",
+      "assertions": [
+        "精彩时光模块显示周时光视频卡片",
+        "拼接的视频来自天数最多的孩子垂类",
+        "视频封面使用第一个视频的封面图",
+        "AI生成轻松有趣的描述文案"
+      ],
+      "priority": "P1",
+      "risk_tags": ["业务规则", "视频拼接"],
+      "coverage_items": ["模块三-精彩时光-周时光视频生成规则-多垂类天数优先"],
+      "source_item_ids": ["MOD-003", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-002",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M03-F02-002",
+      "title": "周报告-天数相同时按优先级小孩>老人>宠物选择验证",
+      "tool": "app_visual",
+      "test_objective": "验证多个垂类生成天数相同时，按优先级小孩>老人>宠物选择",
+      "steps": [
+        "进入周报告，统计周期内老人和孩子垂类生成天数相同",
+        "验证选择结果"
+      ],
+      "expected_result": "按优先级选择小孩垂类生成拼接视频",
+      "assertions": [
+        "选择小孩垂类进行拼接",
+        "视频封面正确使用第一个视频封面",
+        "文案生成正常"
+      ],
+      "priority": "P1",
+      "risk_tags": ["业务规则", "优先级"],
+      "coverage_items": ["模块三-精彩时光-周时光视频生成规则-优先级规则"],
+      "source_item_ids": ["MOD-003", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-003",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M03-F02-003",
+      "title": "周报告-无垂类视频拼接日常视频验证",
+      "tool": "app_visual",
+      "test_objective": "验证周报告无垂类视频时，截取每日日常视频前15秒拼接",
+      "steps": [
+        "进入周报告，统计周期内没有老人/孩子/宠物垂类视频",
+        "只有日常类型视频",
+        "验证拼接结果"
+      ],
+      "expected_result": "截取每天日常视频前15秒拼接成日常周时光视频",
+      "assertions": [
+        "成功拼接生成日常周时光视频",
+        "封面按时光轨迹策略重新生成",
+        "模块正常展示视频卡片"
+      ],
+      "priority": "P1",
+      "risk_tags": ["业务规则", "兜底逻辑"],
+      "coverage_items": ["模块三-精彩时光-周时光视频生成规则-无垂类兜底"],
+      "source_item_ids": ["MOD-003", "FEA-004"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-004",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M03-F03-001",
+      "title": "月报告-按点击量选择垂类视频拼接验证",
+      "tool": "app_visual",
+      "test_objective": "验证月报告每7天挑选点击量最多的垂类视频进行拼接",
+      "steps": [
+        "进入月报告，统计周期内有多个垂类视频分布在多个7天周期",
+        "验证拼接结果"
+      ],
+      "expected_result": "每个7天周期选择点击量最多的1个垂类视频，共4个拼接成月时光视频",
+      "assertions": [
+        "点击量相同时按小孩>老人>宠物优先级选择",
+        "成功拼接生成月时光视频",
+        "封面使用第一个视频的封面图"
+      ],
+      "priority": "P1",
+      "risk_tags": ["业务规则", "月视频生成"],
+      "coverage_items": ["模块三-精彩时光-月时光视频生成规则-按点击量选择"],
+      "source_item_ids": ["MOD-003", "FEA-005"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-005",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M03-F04-001",
+      "title": "精彩时光-点击视频进入H5播放验证",
+      "tool": "app_visual",
+      "test_objective": "验证点击精彩时光视频卡片可进入H5播放页面播放",
+      "steps": [
+        "进入安防报告，精彩时光模块显示视频卡片",
+        "点击视频卡片",
+        "验证跳转和播放功能"
+      ],
+      "expected_result": "成功跳转H5播放页面，视频可正常播放，支持播放控制功能",
+      "assertions": [
+        "点击后跳转H5视频播放页面",
+        "支持播放/暂停功能",
+        "支持音量开关控制",
+        "支持下载视频功能",
+        "支持删除视频功能",
+        "有入口进入对应设备AI时光页面"
+      ],
+      "priority": "P1",
+      "risk_tags": ["页面跳转", "播放功能"],
+      "coverage_items": ["模块三-精彩时光-视频点击播放"],
+      "source_item_ids": ["MOD-003", "FEA-006"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-006",
+        "case_type": "action"
+      }
+    },
+    {
+      "case_id": "TC-M03-F04-002",
+      "title": "精彩时光-删除视频二次确认验证",
+      "tool": "app_visual",
+      "test_objective": "验证删除精彩时光视频时需要二次确认",
+      "steps": [
+        "进入视频H5播放页面",
+        "点击删除按钮",
+        "确认删除",
+        "验证结果"
+      ],
+      "expected_result": "点击删除后弹出二次确认弹窗，确认后视频删除成功",
+      "assertions": [
+        "点击删除弹出\"确认要删除视频吗？\"二次确认",
+        "点击确认后视频成功删除",
+        "视频删除后精彩时光模块不再显示该视频",
+        "点击取消删除操作取消"
+      ],
+      "priority": "P1",
+      "risk_tags": ["删除操作", "二次确认"],
+      "coverage_items": ["模块三-精彩时光-视频删除功能"],
+      "source_item_ids": ["MOD-003", "FEA-007"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页", "视频播放H5"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-007",
+        "case_type": "action"
+      }
+    },
+    {
+      "case_id": "TC-M03-F04-003",
+      "title": "精彩时光-下载视频到本地验证",
+      "tool": "app_visual",
+      "test_objective": "验证点击下载可将视频保存到本地相册",
+      "steps": [
+        "进入视频H5播放页面",
+        "点击下载按钮",
+        "验证下载结果"
+      ],
+      "expected_result": "视频成功下载保存到本地相册",
+      "assertions": [
+        "下载开始有进度提示",
+        "下载完成后可在本地相册找到",
+        "视频文件完整可播放"
+      ],
+      "priority": "P1",
+      "risk_tags": ["下载功能", "本地存储"],
+      "coverage_items": ["模块三-精彩时光-视频下载功能"],
+      "source_item_ids": ["MOD-003", "FEA-008"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页", "视频播放H5"],
+        "module_id": "MOD-003",
+        "feature_id": "FEA-008",
+        "case_type": "action"
+      }
+    },
+    {
+      "case_id": "TC-M03-F05-001",
+      "title": "精彩时光-点击查看每日精彩时光跳转AI时光页验证",
+      "tool": "app_visual",
+      "test_objective": "验证点击\"查看每日精彩时光视频\"按钮可跳转对应设备AI时光页面",
+      "steps": [
+        "进入精彩时光视频播放页",
+        "点击\"查看每日精彩时光视频\"按钮",
+        "验证跳转"
+      ],
+      "expected_result": "成功跳转进入对应设备的AI时光页面",
+      "assertions": [
+        "按钮可见可点击",
+        "跳转后显示的是当前设备的AI时光页面",
+        "返回可回到安防报告页面"
+      ],
+      "priority": "P1",
+      "risk_tags": ["导航跳转"],
+      "coverage_items": ["模块三-精彩时光-跳转AI时光页面"],
+      "source_item_ids": ["MOD-003", "FEA-009"],
+      "parameter_overrides": {
+        "path_map_match_status": "matched",
+        "navigation_route": ["移动爱家首页", "移动看家设备列表页", "直播页", "AI时光页"],
+        "path_map_source": "knowledge/ydkj_path_map.md",
+        "module_id": "MOD-003",
+        "feature_id": "FEA-009",
+        "case_type": "navigation"
+      }
+    },
+    {
+      "case_id": "TC-M04-F01-001",
+      "title": "家庭守护-已开通AI套餐显示场景信息验证",
+      "tool": "app_visual",
+      "test_objective": "验证用户已开通AI套餐时正确显示场景信息和总结数据",
+      "steps": [
+        "进入安防报告，当前用户已开通AI套餐",
+        "查看家庭守护总览模块",
+        "验证场景信息展示"
+      ],
+      "expected_result": "显示统计周期内最后一次使用的场景信息",
+      "assertions": [
+        "场景名称正确显示（婴幼看护/老人看护/家门看护/宠物看护）",
+        "只显示一个场景（浙江省确认每个用户只会有一个场景包套餐）",
+        "不显示通用看护（时光轨迹、设备巡检不展示）"
+      ],
+      "priority": "P0",
+      "risk_tags": ["场景展示", "套餐状态"],
+      "coverage_items": ["模块四-家庭守护总览-已开通AI套餐-场景信息"],
+      "source_item_ids": ["MOD-004", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-004",
+        "feature_id": "FEA-001",
+        "case_type": "display"
+      }
+    },
+    {
+      "case_id": "TC-M04-F01-002",
+      "title": "家庭守护-在线时长计算和个性化文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证设备在线时长计算正确并匹配个性化描述文案",
+      "steps": [
+        "进入安防报告，已开通AI套餐",
+        "查看本周/月总结第一行",
+        "验证在线时长计算和文案匹配"
+      ],
+      "expected_result": "在线时长计算正确，显示X天X小时X分钟，并匹配对应个性化文案",
+      "assertions": [
+        "在线时长统计正确（单次在线时长相加，边界处理正确）",
+        "第一行格式正确：\"本周/月为你守护了X天X小时X分钟，相当于XXX\"",
+        "个性化文案根据在线时长随机匹配自文案库"
+      ],
+      "priority": "P1",
+      "risk_tags": ["数据计算", "统计口径"],
+      "coverage_items": ["模块四-家庭守护总览-已开通AI套餐-本周总结在线时长"],
+      "source_item_ids": ["MOD-004", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-004",
+        "feature_id": "FEA-002",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M04-F01-003",
+      "title": "家庭守护-场景事件数据卡片排序验证",
+      "tool": "app_visual",
+      "test_objective": "验证场景事件卡片按有数据在前顺序排序，遵循文案库顺序",
+      "steps": [
+        "进入安防报告，已开通AI套餐，场景有多个AI事件",
+        "部分事件有数据部分无数据",
+        "查看卡片排序"
+      ],
+      "expected_result": "有数据卡片排在前，无数据排在后，同类别按文案库顺序显示",
+      "assertions": [
+        "所有有数据的卡片排在无数据卡片前面",
+        "顺序符合文案库中列出的每个场景AI事件顺序",
+        "有数据卡片显示事件名称、图标、日均数量等信息",
+        "无数据卡片显示暂无数据，引导去设置"
+      ],
+      "priority": "P1",
+      "risk_tags": ["排序规则", "UI布局"],
+      "coverage_items": ["模块四-家庭守护总览-已开通AI套餐-场景事件卡片排序"],
+      "source_item_ids": ["MOD-004", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-004",
+        "feature_id": "FEA-003",
+        "case_type": "display"
+      }
+    },
+    {
+      "case_id": "TC-M04-F01-004",
+      "title": "家庭守护-奇数个场景卡片最后一个大卡展示验证",
+      "tool": "app_visual",
+      "test_objective": "验证奇数个场景卡片时最后一个卡片通栏大卡展示",
+      "steps": [
+        "进入安防报告，已开通AI套餐，场景事件共3个卡片",
+        "查看布局展示"
+      ],
+      "expected_result": "3个卡片中最后一个卡片通栏大卡展示",
+      "assertions": [
+        "前两个卡片并排展示",
+        "第三个卡片通栏大卡展示",
+        "卡片内容显示完整"
+      ],
+      "priority": "P2",
+      "risk_tags": ["UI布局", "边界"],
+      "coverage_items": ["模块四-家庭守护总览-已开通AI套餐-奇数卡片布局"],
+      "source_item_ids": ["MOD-004", "FEA-004"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-004",
+        "feature_id": "FEA-004",
+        "case_type": "display"
+      }
+    },
+    {
+      "case_id": "TC-M04-F02-001",
+      "title": "家庭守护-未开通AI套餐显示开通引导验证",
+      "tool": "app_visual",
+      "test_objective": "验证用户未开通AI套餐时显示开通引导宣传图",
+      "steps": [
+        "进入安防报告，当前用户未开通AI套餐，主账号",
+        "查看家庭守护模块展示",
+        "点击开通套餐按钮",
+        "验证跳转"
+      ],
+      "expected_result": "显示开通引导宣传图，主账号点击跳转套餐订购页面",
+      "assertions": [
+        "显示引导开通宣传图",
+        "开通套餐按钮可见可点击",
+        "主账号点击后跳转套餐订购页面",
+        "分享账号点击后toast提示\"请联系主账号开通\""
+      ],
+      "priority": "P1",
+      "risk_tags": ["权限差异", "引导展示"],
+      "coverage_items": ["模块四-家庭守护总览-未开通AI套餐-引导展示"],
+      "source_item_ids": ["MOD-004", "FEA-005"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-004",
+        "feature_id": "FEA-005",
+        "case_type": "permission"
+      }
+    },
+    {
+      "case_id": "TC-M05-F01-001",
+      "title": "设备使用-主账号信息展示验证",
+      "tool": "app_visual",
+      "test_objective": "验证主账号设备信息完整展示",
+      "steps": [
+        "主账号进入安防报告页面",
+        "查看设备使用模块头部",
+        "验证信息展示"
+      ],
+      "expected_result": "主账号正确显示设备图片、名称、位置、场景、共享人数",
+      "assertions": [
+        "设备图片显示正确",
+        "设备名称显示正确",
+        "位置信息显示",
+        "统计周期内使用场景信息显示",
+        "显示共享人数",
+        "点击可进入设备管控页面"
+      ],
+      "priority": "P1",
+      "risk_tags": ["主账号权限", "信息展示"],
+      "coverage_items": ["模块五-设备使用-主账号设备信息展示"],
+      "source_item_ids": ["MOD-005", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-001",
+        "case_type": "display"
+      }
+    },
+    {
+      "case_id": "TC-M05-F01-002",
+      "title": "设备使用-分享账号信息展示验证",
+      "tool": "app_visual",
+      "test_objective": "验证分享账号设备信息展示正确",
+      "steps": [
+        "分享账号进入安防报告页面",
+        "查看设备使用模块头部",
+        "验证信息展示"
+      ],
+      "expected_result": "分享账号正确显示设备信息和共享标签",
+      "assertions": [
+        "设备图片显示正确",
+        "设备名称显示正确",
+        "位置信息显示",
+        "显示共享标签",
+        "不显示共享人数统计"
+      ],
+      "priority": "P1",
+      "risk_tags": ["分享账号权限", "权限差异"],
+      "coverage_items": ["模块五-设备使用-分享账号设备信息展示"],
+      "source_item_ids": ["MOD-005", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-002",
+        "case_type": "permission"
+      }
+    },
+    {
+      "case_id": "TC-M05-F02-001",
+      "title": "设备使用-访问时间段判断-次数最多早上验证",
+      "tool": "app_visual",
+      "test_objective":验证根据四个时段访问次数之和，判断并显示最喜欢访问的时间段，次数最多的正确显示,
+      "steps": [
+        "进入安防报告，统计周期内早上访问次数最多",
+        "查看总结文案第一句"
+      ],
+      "expected_result": "文案显示\"你更喜欢在早上看监控\"",
+      "assertions": [
+        "统计正确识别早上访问次数最多",
+        "文案表述正确"
+      ],
+      "priority": "P1",
+      "risk_tags": ["数据统计", "算法判断"],
+      "coverage_items": ["模块五-设备使用-访问时间段判断规则"],
+      "source_item_ids": ["MOD-005", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-003",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M05-F02-002",
+      "title": "设备使用-两个时段次数相同都显示验证",
+      "tool": "app_visual",
+      "test_objective": "验证两个时段次数相同都最多时，两个时段都显示",
+      "steps": [
+        "进入安防报告，统计周期内早上和晚上访问次数相同且最多",
+        "查看总结文案第一句"
+      ],
+      "expected_result": "文案显示\"你更喜欢在早上和晚上看监控\"",
+      "assertions": [
+        "正确识别两个时段次数相同",
+        "文案格式正确同时显示两个时段"
+      ],
+      "priority": "P1",
+      "risk_tags": ["边界", "算法判断"],
+      "coverage_items": ["模块五-设备使用-访问时间段判断-同次数规则"],
+      "source_item_ids": ["MOD-005", "FEA-004"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-004",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M05-F02-003",
+      "title": "设备使用-四个时段次数相同显示全天验证",
+      "tool": "app_visual",
+      "test_objective": "验证四个时段次数都相同时文案显示全天查看",
+      "steps": [
+        "进入安防报告，统计周期内早中晚晚上四个时段访问次数全部相同",
+        "查看总结文案第一句"
+      ],
+      "expected_result": "文案显示\"你全天都会查看监控\"",
+      "assertions": [
+        "正确识别四个时段次数相同",
+        "文案显示正确"
+      ],
+      "priority": "P1",
+      "risk_tags": ["边界", "算法判断"],
+      "coverage_items": ["模块五-设备使用-访问时间段判断-四个同次数规则"],
+      "source_item_ids": ["MOD-005", "FEA-005"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-005",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M05-F03-001",
+      "title": "设备使用-凌晨查看告警显示具体告警类型文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证凌晨00:00-5:00有查看告警视频行为时显示对应文案",
+      "steps": [
+        "进入安防报告，统计周期内凌晨00:12有查看宝宝哭声告警视频",
+        "查看总结文案第二句"
+      ],
+      "expected_result": "文案显示\"x月x日你睡的很晚，hh:mm还在看有宝宝哭声的视频\"，日期显示前一天",
+      "assertions": [
+        "识别到凌晨查看行为",
+        "显示具体告警类型长文案",
+        "日期正确显示为前一天日期",
+        "时间显示正确"
+      ],
+      "priority": "P1",
+      "risk_tags": ["边界时间", "特殊文案"],
+      "coverage_items": ["模块五-设备使用-深夜查看-查看告警类型文案"],
+      "source_item_ids": ["MOD-005", "FEA-006"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-006",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M05-F03-002",
+      "title": "设备使用-凌晨查看页面但无告警点击显示监控文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证凌晨只有页面访问没有告警点击时显示通用文案",
+      "steps": [
+        "进入安防报告，统计周期内凌晨有访问直播页面但没有点击告警视频",
+        "查看总结文案第二句"
+      ],
+      "expected_result": "文案显示\"x月x日你睡的很晚，hh:mm还在看监控\"，日期显示前一天",
+      "assertions": [
+        "识别到凌晨访问行为",
+        "显示通用深夜查看文案",
+        "日期正确显示为前一天"
+      ],
+      "priority": "P1",
+      "risk_tags": ["边界条件", "兜底文案"],
+      "coverage_items": ["模块五-设备使用-深夜查看-无告警点击兜底文案"],
+      "source_item_ids": ["MOD-005", "FEA-007"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-007",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M05-F04-001",
+      "title": "设备使用-最多查看告警类型显示正确文案验证",
+      "tool": "app_visual",
+      "test_objective": "验证显示查看次数最多的告警类型文案和趣味性文案",
+      "steps": [
+        "进入安防报告，统计周期内\"宝宝哭声\"告警查看次数最多",
+        "查看总结文案第三句"
+      ],
+      "expected_result": "显示对应次数和匹配的趣味性文案",
+      "assertions": [
+        "正确识别查看次数最多的告警类型",
+        "AI告警优先于基础告警统计",
+        "文案格式正确显示次数",
+        "匹配正确的趣味性文案来自文案库"
+      ],
+      "priority": "P1",
+      "risk_tags": ["数据统计", "文案匹配"],
+      "coverage_items": ["模块五-设备使用-最多查看告警-统计规则"],
+      "source_item_ids": ["MOD-005", "FEA-008"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-008",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M05-F04-002",
+      "title": "设备使用-多个告警次数相同按优先级显示最多四个验证",
+      "tool": "app_visual",
+      "test_objective": "验证多个告警类型查看次数相同时，按优先级最多显示四个",
+      "steps": [
+        "进入安防报告，有四个告警类型查看次数相同且最多",
+        "查看总结文案第三句"
+      ],
+      "expected_result": "文案同时列出四个告警类型，显示正确格式",
+      "assertions": [
+        "按文案库顺序选择最多四个",
+        "文案格式为\"本周/月你把【a】、【b】、【c】、【d】视频均看了X次，【趣味性文案】\"",
+        "匹配正确的趣味性文案"
+      ],
+      "priority": "P1",
+      "risk_tags": ["边界", "多结果处理"],
+      "coverage_items": ["模块五-设备使用-最多查看告警-多同次数规则"],
+      "source_item_ids": ["MOD-005", "FEA-009"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-009",
+        "case_type": "boundary"
+      }
+    },
+    {
+      "case_id": "TC-M05-F05-001",
+      "title": "设备使用-在线无访问活跃显示空态图验证",
+      "tool": "app_visual",
+      "test_objective": "验证设备在线但统计周期内无任何访问活跃时显示空态图引导",
+      "steps": [
+        "进入安防报告，设备在线但统计周期内没有访问记录",
+        "查看设备使用模块展示"
+      ],
+      "expected_result": "显示空态图，引导用户去查看监控",
+      "assertions": [
+        "空态图正常显示",
+        "显示引导文案",
+        "模块占位正确"
+      ],
+      "priority": "P1",
+      "risk_tags": ["空态展示", "无数据"],
+      "coverage_items": ["模块五-设备使用-无访问空态"],
+      "source_item_ids": ["MOD-005", "FEA-010"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-005",
+        "feature_id": "FEA-010",
+        "case_type": "empty_state"
+      }
+    },
+    {
+      "case_id": "TC-M06-F01-001",
+      "title": "云存储帮你省-已开通显示统计数据验证",
+      "tool": "app_visual",
+      "test_objective": "验证已开通云存储套餐用户显示正确的存储统计和节省成本",
+      "steps": [
+        "主账号已开通云存储，进入安防报告",
+        "查看云存储帮你省模块",
+        "验证数据计算"
+      ],
+      "expected_result": "显示本周/月和当年累计视频个数，按0.015元/个计算节省成本，四舍五入取整",
+      "assertions": [
+        "本周/月存储个数统计正确",
+        "当年累计存储个数统计正确",
+        "节省成本计算正确（视频个数 × 0.015 元四舍五入）",
+        "节省金额匹配对应生活场景文案",
+        "说明文案显示\"以上节省金额为估算值...\""
+      ],
+      "priority": "P1",
+      "risk_tags": ["数据计算", "成本估算"],
+      "coverage_items": ["模块六-云存储帮你省-已开通云存储-数据计算"],
+      "source_item_ids": ["MOD-006", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-006",
+        "feature_id": "FEA-001",
+        "case_type": "data"
+      }
+    },
+    {
+      "case_id": "TC-M06-F01-002",
+      "title": "云存储帮你省-本周节省小于2元不显示本周验证",
+      "tool": "app_visual",
+      "test_objective": "验证本周节省小于2元时不显示本周存储情况",
+      "steps": [
+        "已开通云存储，本周节省金额1元",
+        "进入安防报告查看云存储模块",
+        "验证显示规则"
+      ],
+      "expected_result": "不显示本周存储情况，只显示当年累计（如果累计≥2元）",
+      "assertions": [
+        "本周存储信息不显示",
+        "当年累计≥2元时正常显示",
+        "总结文案只显示当年部分"
+      ],
+      "priority": "P1",
+      "risk_tags": ["条件显示", "过滤规则"],
+      "coverage_items": ["模块六-云存储帮你省-显示规则-小于2元隐藏"],
+      "source_item_ids": ["MOD-006", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-006",
+        "feature_id": "FEA-002",
+        "case_type": "condition"
+      }
+    },
+    {
+      "case_id": "TC-M06-F01-003",
+      "title": "云存储帮你省-当年累计小于2元隐藏整个模块验证",
+      "tool": "app_visual",
+      "test_objective": "验证当年累计节省小于2元时整个模块不显示",
+      "steps": [
+        "已开通云存储，当年累计节省1.5元",
+        "进入安防报告",
+        "验证模块显示"
+      ],
+      "expected_result": "整个云存储帮你省模块不显示",
+      "assertions": [
+        "页面不展示云存储帮你省模块",
+        "其他模块位置正常展示"
+      ],
+      "priority": "P1",
+      "risk_tags": ["条件显示", "模块隐藏"],
+      "coverage_items": ["模块六-云存储帮你省-显示规则-累计小于2元隐藏模块"],
+      "source_item_ids": ["MOD-006", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-006",
+        "feature_id": "FEA-003",
+        "case_type": "condition"
+      }
+    },
+    {
+      "case_id": "TC-M06-F02-001",
+      "title": "云存储帮你省-未开通显示订购引导验证",
+      "tool": "app_visual",
+      "test_objective": "验证未开通云存储时显示订购引导",
+      "steps": [
+        "主账号未开通云存储，进入安防报告",
+        "查看云存储模块",
+        "点击立即开通按钮",
+        "验证跳转"
+      ],
+      "expected_result": "显示订购引导，主账号点击进入套餐订购页面",
+      "assertions": [
+        "显示开通引导内容",
+        "立即开通按钮可见可点击",
+        "主账号点击跳转套餐订购页面",
+        "分享用户不显示该模块"
+      ],
+      "priority": "P1",
+      "risk_tags": ["权限差异", "引导展示"],
+      "coverage_items": ["模块六-云存储帮你省-未开通云存储-引导展示"],
+      "source_item_ids": ["MOD-006", "FEA-004"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-006",
+        "feature_id": "FEA-004",
+        "case_type": "permission"
+      }
+    },
+    {
+      "case_id": "TC-M06-F02-002",
+      "title": "云存储帮你省-分享用户不显示模块验证",
+      "tool": "app_visual",
+      "test_objective": "验证分享账号不显示云存储帮你省模块",
+      "steps": [
+        "分享账号进入安防报告页面",
+        "查看是否显示云存储帮你省模块"
+      ],
+      "expected_result": "分享用户不显示云存储帮你省模块",
+      "assertions": [
+        "页面不展示云存储帮你省模块",
+        "其他模块正常显示"
+      ],
+      "priority": "P1",
+      "risk_tags": ["权限控制", "分享账号"],
+      "coverage_items": ["模块六-云存储帮你省-分享用户不显示"],
+      "source_item_ids": ["MOD-006", "FEA-005"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "MOD-006",
+        "feature_id": "FEA-005",
+        "case_type": "permission"
+      }
+    },
+    {
+      "case_id": "TC-GLOBAL-F01-001",
+      "title": "非浙江省用户不显示入口验证",
+      "tool": "app_visual",
+      "test_objective": "验证仅浙江省用户显示入口，非浙江省用户不显示",
+      "steps": [
+        "非浙江省手机号和非浙江渠道设备用户登录",
+        "查看移动爱家首页运营位"
+      ],
+      "expected_result": "非浙江省用户不显示浙江安防报告运营位入口",
+      "assertions": [
+        "首页运营位不出现浙江安防报告入口",
+        "用户无法进入该功能"
+      ],
+      "priority": "P0",
+      "risk_tags": ["权限控制", "区域限制"],
+      "coverage_items": ["全局规则-仅浙江省用户开放"],
+      "source_item_ids": ["GLOBAL", "FEA-001"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页"],
+        "module_id": "GLOBAL",
+        "feature_id": "FEA-001",
+        "case_type": "permission"
+      }
+    },
+    {
+      "case_id": "TC-GLOBAL-F02-001",
+      "title": "统计周期全离线显示空态图验证",
+      "tool": "app_visual",
+      "test_objective": "验证统计周期设备全离线显示空态图引导上线",
+      "steps": [
+        "进入安防报告，当前统计周期设备全程离线",
+        "查看页面展示"
+      ],
+      "expected_result": "显示空态图样式，引导用户上线设备",
+      "assertions": [
+        "头条模块显示离线文案",
+        "其他无数据模块正确处理",
+        "空态图显示完整引导文案",
+        "引导用户上线设备"
+      ],
+      "priority": "P1",
+      "risk_tags": ["空态展示", "离线全周期"],
+      "coverage_items": ["全局规则-全离线空态处理"],
+      "source_item_ids": ["GLOBAL", "FEA-002"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "GLOBAL",
+        "feature_id": "FEA-002",
+        "case_type": "empty_state"
+      }
+    },
+    {
+      "case_id": "TC-GLOBAL-F03-001",
+      "title": "网络异常时页面加载失败提示验证",
+      "tool": "app_visual",
+      "test_objective": "验证网络异常时页面加载失败给出正确提示",
+      "steps": [
+        "切断网络，进入安防报告页面",
+        "查看加载状态和提示"
+      ],
+      "expected_result": "显示加载失败提示，提供重试操作",
+      "assertions": [
+        "不显示空白页面",
+        "显示网络异常提示",
+        "提供重试按钮可点击重新加载"
+      ],
+      "priority": "P2",
+      "risk_tags": ["网络异常", "异常处理"],
+      "coverage_items": ["全局异常-网络异常处理"],
+      "source_item_ids": ["GLOBAL", "FEA-003"],
+      "parameter_overrides": {
+        "path_map_match_status": "unmatched",
+        "navigation_route": ["移动爱家首页", "浙江安防报告页"],
+        "module_id": "GLOBAL",
+        "feature_id": "FEA-003",
+        "case_type": "exception"
+      }
+    }
+  ]
+}

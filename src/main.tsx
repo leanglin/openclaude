@@ -3813,6 +3813,25 @@ async function run(): Promise<CommanderCommand> {
     await mcpResetChoicesHandler();
   });
 
+  program.command('web').description('Start the local OpenCat web chat UI').option('--host <string>', 'Bind address', '127.0.0.1').option('--port <number>', 'HTTP port', '0').option('--cwd <dir>', 'Working directory for chat sessions').addOption(new Option('--permission-mode <mode>', 'Permission mode for chat sessions').default('acceptEdits').choices(PERMISSION_MODES)).option('--no-open', 'Do not open a browser automatically').action(async (opts: {
+    host: string;
+    port: string;
+    cwd?: string;
+    permissionMode: string;
+    open?: boolean;
+  }) => {
+    const {
+      startWebUi
+    } = await import('./webui/server.js');
+    await startWebUi({
+      host: opts.host,
+      port: opts.port,
+      cwd: opts.cwd,
+      permissionMode: opts.permissionMode,
+      openBrowser: opts.open !== false
+    });
+  });
+
   // claude server
   if (feature('DIRECT_CONNECT')) {
     program.command('server').description('Start an OpenClaude session server').option('--port <number>', 'HTTP port', '0').option('--host <string>', 'Bind address', '0.0.0.0').option('--auth-token <token>', 'Bearer token for auth').option('--unix <path>', 'Listen on a unix domain socket').option('--workspace <dir>', 'Default working directory for sessions that do not specify cwd').option('--idle-timeout <ms>', 'Idle timeout for detached sessions in ms (0 = never expire)', '600000').option('--max-sessions <n>', 'Maximum concurrent sessions (0 = unlimited)', '32').action(async (opts: {

@@ -18,6 +18,7 @@
     "bin/",
     "dist/cli.mjs",
     "dist/sdk.mjs",
+    "src/webui/assets/opencat.ico",
     "src/entrypoints/sdk.d.ts",
     "src/entrypoints/sdk/coreTypes.generated.ts",
     "scripts/windows/openclaude-aliases.ps1",

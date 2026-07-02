@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.22.0](https://github.com/Gitlawb/openclaude/compare/v0.21.0...v0.22.0) (2026-07-02)
+
+
+### Features
+
+* **lsp:** expose captured diagnostics ([#1813](https://github.com/Gitlawb/openclaude/issues/1813)) ([5b1db55](https://github.com/Gitlawb/openclaude/commit/5b1db554fde3fa9651ab38b53f773231d6df8b7e))
+* **report:** render task reports as markdown ([#1826](https://github.com/Gitlawb/openclaude/issues/1826)) ([8182a46](https://github.com/Gitlawb/openclaude/commit/8182a46441793a33aebb5837bd759e9dc0a38eff))
+* **resume:** group branched sessions in picker ([#1824](https://github.com/Gitlawb/openclaude/issues/1824)) ([166d0ce](https://github.com/Gitlawb/openclaude/commit/166d0ce7843f33d355caddf9c49473d9d1133446))
+
+
+### Bug Fixes
+
+* **bash:** surface rolled-output file path on non-zero exit ([#1359](https://github.com/Gitlawb/openclaude/issues/1359)) ([#1392](https://github.com/Gitlawb/openclaude/issues/1392)) ([0c9b814](https://github.com/Gitlawb/openclaude/commit/0c9b81493a0780d9debb245fbff66a32c37c5fc2))
+* **format:** show sub-second durations with one decimal instead of "0s" ([#1820](https://github.com/Gitlawb/openclaude/issues/1820)) ([784d9a9](https://github.com/Gitlawb/openclaude/commit/784d9a92ef3b59daa948ca1a11e8fa7707f85fd9))
+* **memoryscan:** abort remaining workers when one throws on iterator … ([#1836](https://github.com/Gitlawb/openclaude/issues/1836)) ([b73a879](https://github.com/Gitlawb/openclaude/commit/b73a879c546fcf632d9ad946ee8b0b2c038fe2a8))
+* **openai-shim:** recover stalled provider streams ([#1817](https://github.com/Gitlawb/openclaude/issues/1817)) ([67227cf](https://github.com/Gitlawb/openclaude/commit/67227cf7723beb53f09e38dece2e4ba09a1f8f10))
+* **openai-shim:** strip `store` when baseUrl points at Mistral ([#1047](https://github.com/Gitlawb/openclaude/issues/1047)) ([deb4176](https://github.com/Gitlawb/openclaude/commit/deb41761c100ffdebddb43fa38fc341d0915c52f)), closes [#739](https://github.com/Gitlawb/openclaude/issues/739)
+* **openai-shim:** wire stream controller abort ([#1828](https://github.com/Gitlawb/openclaude/issues/1828)) ([bb61d84](https://github.com/Gitlawb/openclaude/commit/bb61d8430bd14f75e7054f2099c2c1eb71c221d5))
+
 ## [0.21.0](https://github.com/Gitlawb/openclaude/compare/v0.20.1...v0.21.0) (2026-06-30)
 
 

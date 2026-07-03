@@ -9,7 +9,8 @@ use std::{
   time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{
-  path::BaseDirectory, AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder,
+  path::BaseDirectory, AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder,
+  WindowEvent,
 };
 
 type SharedState = Arc<Mutex<LauncherState>>;
@@ -133,18 +134,37 @@ fn hide_window(command: &mut Command) {
 fn hide_window(_command: &mut Command) {}
 
 fn open_web_window_with_url(app: &AppHandle, url: &str) -> Result<(), String> {
+  let parsed: Url = url
+    .parse()
+    .map_err(|error| format!("Invalid Web URL: {error}"))?;
+
   if let Some(window) = app.get_webview_window("opencat-web") {
-    window.set_focus().map_err(|error| error.to_string())?;
-    return Ok(());
+    match window
+      .navigate(parsed.clone())
+      .and_then(|_| window.show())
+      .and_then(|_| window.set_focus())
+    {
+      Ok(()) => return Ok(()),
+      Err(_) => {
+        let _ = window.destroy();
+      }
+    }
   }
 
-  let parsed = url.parse().map_err(|error| format!("Invalid Web URL: {error}"))?;
-  WebviewWindowBuilder::new(app, "opencat-web", WebviewUrl::External(parsed))
+  let window = WebviewWindowBuilder::new(app, "opencat-web", WebviewUrl::External(parsed))
     .title("OpenCat Web")
     .inner_size(1280.0, 820.0)
     .min_inner_size(900.0, 620.0)
     .build()
     .map_err(|error| error.to_string())?;
+  let window_on_close = window.clone();
+  window.on_window_event(move |event| {
+    if let WindowEvent::CloseRequested { api, .. } = event {
+      api.prevent_close();
+      let _ = window_on_close.hide();
+    }
+  });
+  window.set_focus().map_err(|error| error.to_string())?;
   Ok(())
 }
 

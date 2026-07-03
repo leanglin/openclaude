@@ -64,8 +64,13 @@ button:disabled {
   height: 52px;
   display: grid;
   place-items: center;
-  color: #f05a00;
   margin-bottom: 18px;
+}
+
+.railBrand img {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .railButton {

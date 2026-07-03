@@ -75,7 +75,42 @@ describe('webui page', () => {
     expect(html).toContain("sendWs({ type: 'select_session', sessionId })")
     expect(html).toContain("sendWs({ type: 'delete_session', sessionId })")
     expect(html).not.toContain('Current chat controls will appear here.')
-    expect(html).toContain('还没有对话。点击加号按钮开始一个新对话。')
+    expect(html).toContain('还没有对话')
+    expect(html).toContain('data-chat-new')
+  })
+
+  test('includes shared motion utilities and reduced-motion handling', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('--oc-duration-fast')
+    expect(html).toContain('.oc-skeleton')
+    expect(html).toContain('.oc-typing-dots')
+    expect(html).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(html).toContain('class="toastStack"')
+  })
+
+  test('binds primary navigation once and avoids forced layout on menu render', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('function initNavControls()')
+    expect(html).toContain("document.querySelector('.rail')")
+    expect(html).toContain("const button = target.closest('.navButton[data-menu]')")
+    expect(html).toContain('initNavControls()')
+    expect(html).not.toContain("button.addEventListener('click', () => selectMenu(menu))")
+    expect(html).toContain('const isCurrentMenu = menu === state.activeMenu')
+    expect(html).toContain('if (state.secondaryCollapsed)')
+    expect(html).toContain('window.requestAnimationFrame(() =>')
+    expect(html).not.toContain('void activeView.offsetWidth')
+  })
+
+  test('renders attachment chips and structured tool activity affordances', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('id="attachButton"')
+    expect(html).toContain('class="attachmentChip"')
+    expect(html).toContain('function renderMarkdownContent(content)')
+    expect(html).toContain('class="statusBadge')
+    expect(html).toContain('function renderToolSummary(tool)')
   })
 
   test('topbar plus creates a chat and switches the secondary panel to Chat', () => {

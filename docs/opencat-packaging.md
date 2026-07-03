@@ -15,6 +15,31 @@ the Web UI inside a Tauri WebView.
 
 Run from the repository root:
 
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\opencat\package-windows.ps1
+```
+
+The script checks prerequisites, repairs the local Tauri NSIS cache when needed,
+builds the CLI and launcher, prepares the bundled runtime, and prints the NSIS
+installer path with its SHA256 hash.
+
+To check or prepare packaging tools without building:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\opencat\package-windows.ps1 -CheckOnly
+```
+
+Useful flags:
+
+- `-CheckOnly` checks and prepares tools without running the package build.
+- `-SkipToolInstall` fails fast instead of installing missing Bun, Rust, or NSIS cache files.
+- `-SkipBuildToolsInstall` skips automatic Microsoft C++ Build Tools installation.
+
+The package log is written to
+`launcher/src-tauri/target/opencat-package-windows.log`.
+
+Manual fallback commands:
+
 ```bash
 bun install
 npm.cmd --prefix packages/app-test-runner install

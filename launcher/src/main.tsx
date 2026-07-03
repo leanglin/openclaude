@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 import {
   Activity,
   BarChart3,
-  Cat,
   CheckCircle2,
   ExternalLink,
   Home,
@@ -16,6 +15,7 @@ import {
   Square,
   Terminal,
 } from 'lucide-react'
+import opencatIconUrl from '../../src/webui/assets/opencat.ico'
 import './styles.css'
 
 type LauncherStatus = 'stopped' | 'starting' | 'ready' | 'stopping' | 'error'
@@ -57,7 +57,8 @@ const initialSnapshot: LauncherSnapshot = {
 }
 
 function isTauriUnavailable(error: unknown): boolean {
-  return String(error).includes('__TAURI_INTERNALS__')
+  const message = String(error)
+  return message.includes('__TAURI_INTERNALS__') || message.includes("undefined (reading 'invoke')")
 }
 
 async function callLauncher<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -236,7 +237,7 @@ function App() {
   return (
     <main className="appShell">
       <aside className="sideRail" aria-label="OpenCat sections">
-        <div className="railBrand"><Cat size={26} /></div>
+        <div className="railBrand"><img src={opencatIconUrl} alt="" aria-hidden="true" /></div>
         <IconButton active label="Home"><Home size={25} /></IconButton>
         <IconButton label="Settings"><Settings size={25} /></IconButton>
         <IconButton label="Metrics"><BarChart3 size={25} /></IconButton>

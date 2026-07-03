@@ -413,6 +413,7 @@ export function renderWebUiPage(): string {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      position: relative;
     }
 
     .primaryButton:hover {
@@ -469,6 +470,7 @@ export function renderWebUiPage(): string {
       display: flex;
       flex-direction: column;
       gap: 14px;
+      animation: ocFadeIn var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .empty {
@@ -476,6 +478,12 @@ export function renderWebUiPage(): string {
       width: min(520px, 100%);
       text-align: center;
       color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--oc-radius-sm);
+      background: rgba(255,255,255,0.72);
+      padding: 28px;
+      box-shadow: var(--oc-shadow-soft);
+      animation: ocScaleIn var(--oc-duration-normal) var(--oc-ease-emphasized);
     }
 
     .emptyTitle {
@@ -492,11 +500,14 @@ export function renderWebUiPage(): string {
       gap: 10px;
       align-items: start;
       max-width: 900px;
+      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
+      will-change: transform, opacity;
     }
 
     .message.user {
       align-self: flex-end;
       grid-template-columns: minmax(0, 1fr) 34px;
+      animation-name: ocSoftPop;
     }
 
     .avatar {
@@ -528,29 +539,82 @@ export function renderWebUiPage(): string {
       box-shadow: 0 8px 25px rgba(23, 33, 38, 0.04);
     }
 
+    .bubble:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
     .message.user .bubble {
-      background: #f0f2ff;
+      background: linear-gradient(180deg, #f7f8ff 0%, #edf1ff 100%);
       border-color: #ced4f2;
+    }
+
+    .bubble.streaming {
+      position: relative;
+      border-color: #a7d5cf;
+      box-shadow: var(--oc-shadow-soft);
+    }
+
+    .bubble.streaming::after {
+      content: "";
+      display: inline-block;
+      width: 7px;
+      height: 16px;
+      margin-left: 3px;
+      vertical-align: -3px;
+      border-radius: 999px;
+      background: var(--accent);
+      animation: ocPulse 1s infinite var(--oc-ease-standard);
+    }
+
+    .bubble.markdownBody {
+      white-space: normal;
     }
 
     .toolRow {
       max-width: 900px;
-      display: flex;
-      align-items: center;
+      display: grid;
       gap: 8px;
-      min-height: 34px;
-      padding: 7px 10px;
+      min-height: 44px;
+      padding: 10px 12px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #fbfbf9;
       color: var(--muted);
       font-size: 13px;
       overflow: hidden;
+      border-left: 3px solid var(--accent);
+      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
+      box-shadow: 0 8px 22px rgba(23, 33, 38, 0.04);
     }
 
     .toolRow strong {
       color: var(--text);
       font-weight: 700;
+    }
+
+    .toolHeader,
+    .toolMeta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .toolTitle {
+      color: var(--text);
+      font-weight: 760;
+    }
+
+    .toolDetail {
+      max-height: 260px;
+      overflow: auto;
+      border-radius: 8px;
+      background: #f8faf9;
+      border: 1px solid var(--border);
+      padding: 10px;
     }
 
     .composer {
@@ -562,11 +626,21 @@ export function renderWebUiPage(): string {
 
     .composerBox {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 40px;
+      grid-template-columns: 40px minmax(0, 1fr) 40px;
       gap: 10px;
       max-width: 980px;
       margin: 0 auto;
       align-items: end;
+    }
+
+    .attachmentTray {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-height: 0;
+      animation: ocSlideDown var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     textarea {
@@ -584,7 +658,16 @@ export function renderWebUiPage(): string {
 
     textarea:focus, input:focus, select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(20,125,116,0.16);
+      box-shadow: var(--oc-ring), var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    #composerInput {
+      transition:
+        min-height var(--oc-duration-normal) var(--oc-ease-standard),
+        border-color var(--oc-duration-fast) var(--oc-ease-standard),
+        box-shadow var(--oc-duration-fast) var(--oc-ease-standard),
+        transform var(--oc-duration-fast) var(--oc-ease-standard);
     }
 
     .sendButton {
@@ -595,15 +678,124 @@ export function renderWebUiPage(): string {
       place-items: center;
       background: var(--accent);
       color: white;
+      position: relative;
     }
 
-    .sendButton:hover { background: #0f6962; }
+    .sendButton:hover {
+      background: #0f6962;
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    .sendButton.isLoading svg {
+      opacity: 0;
+    }
+
+    .sendButton.isLoading::after,
+    .buttonLoading::after,
+    .attachmentSpinner {
+      content: "";
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.45);
+      border-top-color: currentColor;
+      animation: ocSpin 780ms linear infinite;
+    }
+
+    .attachButton {
+      align-self: end;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .attachButton:hover {
+      color: var(--accent);
+      border-color: #a7d5cf;
+      background: var(--accent-soft);
+    }
+
+    .attachmentChip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 30px;
+      max-width: 260px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 0 7px 0 9px;
+      box-shadow: 0 6px 18px rgba(23, 33, 38, 0.04);
+      animation: ocScaleIn var(--oc-duration-normal) var(--oc-ease-emphasized);
+    }
+
+    .attachmentChip:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    .attachmentName {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .attachmentStatus {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .statusDot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--muted);
+    }
+
+    .attachmentChip[data-status="uploading"] .statusDot,
+    .attachmentChip[data-status="parsing"] .statusDot {
+      background: var(--accent);
+      animation: ocPulse 1s infinite var(--oc-ease-standard);
+    }
+
+    .attachmentChip[data-status="parsed"] .statusDot { background: #25845f; }
+    .attachmentChip[data-status="failed"] {
+      border-color: #f0c2c8;
+      background: #fff1f2;
+    }
+    .attachmentChip[data-status="failed"] .statusDot { background: var(--danger); }
+
+    .attachmentRemove {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+    }
+
+    .attachmentRemove:hover {
+      color: var(--danger);
+      background: #f6e7e9;
+    }
 
     .activity {
       border-left: 1px solid var(--border);
       background: #faf8f3;
       overflow: hidden;
       min-width: 0;
+      transition:
+        width var(--oc-duration-slow) var(--oc-ease-standard),
+        opacity var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .activityInner {
@@ -632,6 +824,78 @@ export function renderWebUiPage(): string {
       border-radius: 8px;
       padding: 10px;
       font-size: 13px;
+      animation: ocSlideDown var(--oc-duration-normal) var(--oc-ease-standard);
+      box-shadow: 0 7px 18px rgba(86, 64, 28, 0.04);
+      border-left: 3px solid #d5c6a8;
+      transition:
+        border-color var(--oc-duration-fast) var(--oc-ease-standard),
+        box-shadow var(--oc-duration-fast) var(--oc-ease-standard),
+        transform var(--oc-duration-fast) var(--oc-ease-standard);
+    }
+
+    .activityItem:hover {
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    .activityItem.kind-error {
+      border-color: #f0c2c8;
+      border-left-color: var(--danger);
+      background: #fff8f8;
+    }
+
+    .activityItem.kind-permission { border-left-color: var(--indigo); }
+    .activityItem.kind-read,
+    .activityItem.kind-grep,
+    .activityItem.kind-edit { border-left-color: var(--coral); }
+    .activityItem.kind-thinking,
+    .activityItem.kind-preflight { border-left-color: var(--accent); }
+    .activityItem.kind-result { border-left-color: #25845f; }
+
+    .activityBadge,
+    .statusBadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 22px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      padding: 0 8px;
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .activityBadge.error,
+    .statusBadge.error {
+      color: var(--danger);
+      border-color: #f0c2c8;
+      background: #fff1f2;
+    }
+
+    .activityBadge.running,
+    .statusBadge.running {
+      color: #0b514c;
+      border-color: #a7d5cf;
+      background: var(--accent-soft);
+    }
+
+    .activityBadge.success,
+    .statusBadge.success {
+      color: #1d684e;
+      border-color: #b8dcc8;
+      background: #e7f6ed;
+    }
+
+    .pulseDot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: currentColor;
+      animation: ocPulse 1s infinite var(--oc-ease-standard);
     }
 
     .activityItemTitle {
@@ -644,11 +908,28 @@ export function renderWebUiPage(): string {
       line-height: 18px;
     }
 
+    .activityItemTitle > span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .activityDetail {
       margin-top: 4px;
       color: var(--muted);
       overflow-wrap: anywhere;
       line-height: 18px;
+    }
+
+    .activityDetail details {
+      overflow: hidden;
+    }
+
+    .activityDetail summary {
+      cursor: pointer;
+      color: var(--accent);
+      font-weight: 700;
     }
 
     .field {
@@ -689,6 +970,12 @@ export function renderWebUiPage(): string {
       min-width: 0;
       overflow: hidden;
       overflow-wrap: anywhere;
+    }
+
+    .profileSummary:hover,
+    .workspaceCard:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--oc-shadow-soft);
     }
 
     .profileSummary strong {
@@ -745,6 +1032,10 @@ export function renderWebUiPage(): string {
       display: none;
     }
 
+    .sectionFields {
+      animation: ocFadeIn var(--oc-duration-normal) var(--oc-ease-standard);
+    }
+
     .secondaryAction {
       width: 100%;
       height: 38px;
@@ -756,13 +1047,19 @@ export function renderWebUiPage(): string {
 
     .secondaryAction:hover {
       background: #0f6962;
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
     }
 
     .ghostState {
       color: var(--muted);
-      padding: 22px 4px;
+      padding: 18px;
       line-height: 21px;
       font-size: 14px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.62);
+      animation: ocFadeIn var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .workspaceView {
@@ -770,6 +1067,7 @@ export function renderWebUiPage(): string {
       min-height: 0;
       overflow: auto;
       padding: 22px max(20px, 4vw);
+      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .workspaceHeader {
@@ -802,6 +1100,7 @@ export function renderWebUiPage(): string {
       box-shadow: 0 8px 25px rgba(23, 33, 38, 0.04);
       min-width: 0;
       margin-bottom: 14px;
+      animation: ocScaleIn var(--oc-duration-normal) var(--oc-ease-emphasized);
     }
 
     .toolbarRow {
@@ -821,11 +1120,18 @@ export function renderWebUiPage(): string {
       padding: 0 10px;
       font-size: 13px;
       font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      position: relative;
     }
 
     .miniButton:hover {
       border-color: var(--border-strong);
       background: var(--surface-soft);
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
     }
 
     .miniButton.active {
@@ -843,6 +1149,18 @@ export function renderWebUiPage(): string {
       opacity: 0.55;
     }
 
+    .buttonLoading {
+      pointer-events: none;
+    }
+
+    .buttonLoading::after {
+      width: 13px;
+      height: 13px;
+      border-color: color-mix(in srgb, currentColor 32%, transparent);
+      border-top-color: currentColor;
+      flex: 0 0 auto;
+    }
+
     .splitFields {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -857,6 +1175,39 @@ export function renderWebUiPage(): string {
       font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
       line-height: 1.55;
+    }
+
+    .editorTabs {
+      display: inline-flex;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      margin-bottom: 12px;
+    }
+
+    .previewPane,
+    .contentPanel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fbfbf9;
+      padding: 14px;
+      min-height: 220px;
+      overflow: auto;
+      animation: ocFadeIn var(--oc-duration-normal) var(--oc-ease-standard);
+    }
+
+    .unsavedNotice {
+      border: 1px solid #ead79a;
+      border-radius: 8px;
+      background: #fff9df;
+      color: #7b5f14;
+      padding: 9px 11px;
+      font-size: 13px;
+      line-height: 18px;
+      margin-bottom: 12px;
+      animation: ocSlideDown var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .readonlyNotice, .errorBox {
@@ -880,6 +1231,12 @@ export function renderWebUiPage(): string {
       border: 1px solid #f0c2c8;
     }
 
+    .errorBox .miniButton {
+      margin-top: 8px;
+      color: var(--danger);
+      border-color: #f0c2c8;
+    }
+
     .itemList {
       display: flex;
       flex-direction: column;
@@ -895,11 +1252,20 @@ export function renderWebUiPage(): string {
       background: var(--surface);
       padding: 9px 10px;
       min-width: 0;
+      position: relative;
+      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .listItem.active {
       border-color: #a7d5cf;
       background: var(--accent-soft);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .listItem:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
     }
 
     .listItem strong, .listItem span {
@@ -934,6 +1300,55 @@ export function renderWebUiPage(): string {
       line-height: 16px;
     }
 
+    .tag.success {
+      border-color: #b8dcc8;
+      background: #e7f6ed;
+      color: #1d684e;
+    }
+
+    .tag.warning {
+      border-color: #ead79a;
+      background: #fff9df;
+      color: #7b5f14;
+    }
+
+    .tag.danger {
+      border-color: #f0c2c8;
+      background: #fff1f2;
+      color: var(--danger);
+    }
+
+    .listItemHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .listItemHeader strong {
+      min-width: 0;
+    }
+
+    .fileIcon {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+      color: var(--accent);
+      margin-right: 7px;
+      vertical-align: -5px;
+    }
+
+    .fileIcon svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2;
+    }
+
     .graphTabs {
       display: flex;
       gap: 6px;
@@ -956,6 +1371,14 @@ export function renderWebUiPage(): string {
       overflow-wrap: anywhere;
     }
 
+    .graphTable tr {
+      transition: background-color var(--oc-duration-fast) var(--oc-ease-standard);
+    }
+
+    .graphTable tr:hover {
+      background: rgba(20,125,116,0.06);
+    }
+
     .sessionList {
       display: flex;
       flex-direction: column;
@@ -975,11 +1398,29 @@ export function renderWebUiPage(): string {
       background: var(--surface);
       text-align: left;
       min-width: 0;
+      animation: ocSlideDown var(--oc-duration-normal) var(--oc-ease-standard);
+      position: relative;
     }
 
     .sessionItem.active {
       border-color: #a7d5cf;
       background: var(--accent-soft);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .sessionItem:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    .sessionItem .sessionDelete {
+      opacity: 0.42;
+    }
+
+    .sessionItem:hover .sessionDelete,
+    .sessionItem:focus-within .sessionDelete {
+      opacity: 1;
     }
 
     .sessionSelect {
@@ -1031,16 +1472,24 @@ export function renderWebUiPage(): string {
     .permissionModal {
       position: fixed;
       inset: 0;
-      display: none;
+      display: flex;
       align-items: center;
       justify-content: center;
       background: rgba(16,25,29,0.36);
       padding: 20px;
       z-index: 20;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity var(--oc-duration-normal) var(--oc-ease-standard),
+        visibility var(--oc-duration-normal) var(--oc-ease-standard);
     }
 
     .permissionModal.open {
-      display: flex;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
     }
 
     .permissionBox {
@@ -1050,6 +1499,16 @@ export function renderWebUiPage(): string {
       box-shadow: var(--shadow);
       border: 1px solid var(--border);
       padding: 18px;
+      transform: translateY(8px) scale(0.98);
+      transition:
+        transform var(--oc-duration-normal) var(--oc-ease-emphasized),
+        opacity var(--oc-duration-normal) var(--oc-ease-standard);
+      opacity: 0;
+    }
+
+    .permissionModal.open .permissionBox {
+      transform: translateY(0) scale(1);
+      opacity: 1;
     }
 
     .permissionBox h3 {
@@ -1105,6 +1564,206 @@ export function renderWebUiPage(): string {
       color: white;
     }
 
+    .textButton:hover,
+    .dangerButton:hover,
+    .allowButton:hover {
+      box-shadow: var(--oc-shadow-soft);
+      transform: translateY(-1px);
+    }
+
+    .markdownBody h1,
+    .markdownBody h2,
+    .markdownBody h3 {
+      margin: 0.75em 0 0.35em;
+      line-height: 1.25;
+    }
+
+    .markdownBody p {
+      margin: 0.45em 0;
+    }
+
+    .markdownBody a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .markdownBody a:hover {
+      text-decoration: underline;
+    }
+
+    .markdownBody code:not(pre code) {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-soft);
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .codeBlock,
+    .jsonBlock {
+      margin: 0.7em 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #10191d;
+      color: #e6f2f0;
+      overflow: hidden;
+    }
+
+    .codeHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      color: #a9c4bf;
+      font-size: 11px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    .codeBlock pre,
+    .jsonBlock {
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .markdownBody blockquote,
+    .quoteBox {
+      margin: 0.75em 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: #0b514c;
+    }
+
+    .markdownBody ul,
+    .markdownBody ol {
+      margin: 0.5em 0 0.5em 1.2em;
+      padding: 0;
+    }
+
+    .tableWrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .markdownBody table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 420px;
+      font-size: 13px;
+    }
+
+    .markdownBody th,
+    .markdownBody td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .markdownBody tr:hover {
+      background: rgba(20,125,116,0.06);
+    }
+
+    .metaGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .metaCard {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .metaCard span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 15px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    .metaCard strong {
+      display: block;
+      margin-top: 3px;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+      line-height: 18px;
+    }
+
+    .skeletonStack {
+      display: grid;
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .skeletonStack .oc-skeleton:nth-child(1) { width: 82%; height: 18px; }
+    .skeletonStack .oc-skeleton:nth-child(2) { width: 100%; height: 42px; }
+    .skeletonStack .oc-skeleton:nth-child(3) { width: 64%; height: 18px; }
+
+    .toastStack {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 30;
+      display: grid;
+      gap: 10px;
+      width: min(360px, calc(100vw - 36px));
+      pointer-events: none;
+    }
+
+    .toast {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--oc-shadow-hover);
+      padding: 11px 12px;
+      font-size: 13px;
+      line-height: 18px;
+      color: var(--text);
+      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
+    }
+
+    .toast.error {
+      border-left-color: var(--danger);
+      background: #fff8f8;
+    }
+
+    .toast.warning {
+      border-left-color: #b88a16;
+      background: #fff9df;
+    }
+
+    .toast.success {
+      border-left-color: #25845f;
+      background: #f3fbf6;
+    }
+
+    .toast.leaving {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
     .srOnly {
       position: absolute;
       width: 1px;
@@ -1115,6 +1774,30 @@ export function renderWebUiPage(): string {
       clip: rect(0, 0, 0, 0);
       white-space: nowrap;
       border: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
+      }
+
+      .navButton:hover,
+      .iconButton:hover,
+      .sendButton:hover,
+      .miniButton:hover,
+      .listItem:hover,
+      .sessionItem:hover,
+      .bubble:hover,
+      textarea:focus,
+      input:focus,
+      select:focus {
+        transform: none;
+      }
     }
 
     @media (max-width: 900px) {
@@ -1145,6 +1828,10 @@ export function renderWebUiPage(): string {
 
       .topMeta .pill {
         max-width: 150px;
+      }
+
+      .composerBox {
+        grid-template-columns: 38px minmax(0, 1fr) 38px;
       }
 
       .splitFields {
@@ -1233,6 +1920,9 @@ export function renderWebUiPage(): string {
 
       <footer id="composer" class="composer">
         <form id="composerForm" class="composerBox">
+          <button id="attachButton" class="iconButton attachButton" type="button" title="添加附件" aria-label="添加附件"></button>
+          <input id="attachmentInput" type="file" multiple hidden>
+          <div id="attachmentTray" class="attachmentTray" hidden></div>
           <label class="srOnly" for="composerInput">向 OpenCat 提问</label>
           <textarea id="composerInput" placeholder="向 OpenCat 提问..." rows="1"></textarea>
           <button id="sendButton" class="sendButton" title="发送" aria-label="发送"></button>
@@ -1264,6 +1954,8 @@ export function renderWebUiPage(): string {
     </div>
   </div>
 
+  <div id="toastStack" class="toastStack" aria-live="polite" aria-atomic="true"></div>
+
   <script>
   (() => {
     const iconSvg = {
@@ -1280,7 +1972,15 @@ export function renderWebUiPage(): string {
       plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
       square: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>',
       send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>',
-      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>'
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>',
+      paperclip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.4 11.6-8.5 8.5a6 6 0 0 1-8.5-8.5l8.8-8.8a4 4 0 1 1 5.7 5.7l-8.8 8.8a2 2 0 0 1-2.8-2.8l8.1-8.1"/></svg>',
+      x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+      file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+      book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>',
+      calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>',
+      lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+      pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m16 3 5 5L8 21H3v-5z"/><path d="M15 4 20 9"/></svg>',
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m20 6-11 11-5-5"/></svg>'
     };
 
     const app = document.getElementById('app');
@@ -1299,6 +1999,11 @@ export function renderWebUiPage(): string {
     const permissionPreview = document.getElementById('permissionPreview');
     const composerInput = document.getElementById('composerInput');
     const stopSession = document.getElementById('stopSession');
+    const sendButton = document.getElementById('sendButton');
+    const attachButton = document.getElementById('attachButton');
+    const attachmentInput = document.getElementById('attachmentInput');
+    const attachmentTray = document.getElementById('attachmentTray');
+    const toastStack = document.getElementById('toastStack');
 
     const state = {
       token: getToken(),
@@ -1307,11 +2012,14 @@ export function renderWebUiPage(): string {
       activeChatSessionId: null,
       requestedStoredSession: false,
       activeMenu: 'providers',
+      mainViewWorkspaceActive: null,
+      mainViewAnimationFrame: 0,
       secondaryCollapsed: false,
       activityCollapsed: false,
       running: false,
       stopping: false,
       streams: new Map(),
+      attachments: [],
       pendingPermission: null,
       providerEditorOpen: { chat: false, midscene: false },
       memory: {
@@ -1324,7 +2032,12 @@ export function renderWebUiPage(): string {
         search: '',
         searchResults: [],
         error: '',
-        newDraft: false
+        newDraft: false,
+        loading: false,
+        saving: false,
+        editorMode: 'edit',
+        draftContent: '',
+        unsaved: false
       },
       assets: {
         list: [],
@@ -1336,7 +2049,10 @@ export function renderWebUiPage(): string {
         source: '',
         error: '',
         newDraft: false,
-        editing: false
+        editing: false,
+        loading: false,
+        saving: false,
+        reloading: false
       }
     };
 
@@ -1357,6 +2073,179 @@ export function renderWebUiPage(): string {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[ch]);
+    }
+
+    function renderInlineMarkdown(value) {
+      const tick = String.fromCharCode(96);
+      const inlineCode = new RegExp(tick + '([^' + tick + ']+)' + tick, 'g');
+      return escapeHtml(value)
+        .replace(inlineCode, '<code>$1</code>')
+        .replace(/\\[([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    }
+
+    function tryFormatJson(value) {
+      const text = String(value ?? '').trim();
+      if (!text || !/^[\\[{]/.test(text)) return null;
+      try {
+        return JSON.stringify(JSON.parse(text), null, 2);
+      } catch {
+        return null;
+      }
+    }
+
+    function renderCodeBlock(code, language) {
+      const label = language && language.trim() ? language.trim() : 'code';
+      return '<div class="codeBlock"><div class="codeHeader"><span>' + escapeHtml(label) + '</span><span>CODE</span></div><pre><code>' + escapeHtml(code) + '</code></pre></div>';
+    }
+
+    function splitTableRow(line) {
+      return line.trim().replace(/^\\|/, '').replace(/\\|$/, '').split('|').map(cell => cell.trim());
+    }
+
+    function renderMarkdownTable(lines) {
+      const header = splitTableRow(lines[0] || '');
+      const body = lines.slice(2).filter(line => line.includes('|')).map(splitTableRow);
+      return '<div class="tableWrap"><table><thead><tr>' +
+        header.map(cell => '<th>' + renderInlineMarkdown(cell) + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        body.map(row => '<tr>' + row.map(cell => '<td>' + renderInlineMarkdown(cell) + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table></div>';
+    }
+
+    function renderMarkdownPlain(block) {
+      const lines = String(block || '').split(/\\r?\\n/);
+      const output = [];
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index] || '';
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (line.includes('|') && lines[index + 1] && /\\|?\\s*:?-{3,}:?\\s*(\\||$)/.test(lines[index + 1])) {
+          const tableLines = [line, lines[index + 1]];
+          index += 2;
+          while (index < lines.length && lines[index].includes('|')) {
+            tableLines.push(lines[index]);
+            index += 1;
+          }
+          index -= 1;
+          output.push(renderMarkdownTable(tableLines));
+          continue;
+        }
+        if (/^#{1,3}\\s+/.test(trimmed)) {
+          const level = Math.min(3, trimmed.match(/^#+/)?.[0].length || 3);
+          output.push('<h' + level + '>' + renderInlineMarkdown(trimmed.replace(/^#{1,3}\\s+/, '')) + '</h' + level + '>');
+          continue;
+        }
+        if (trimmed.startsWith('>')) {
+          output.push('<blockquote>' + renderInlineMarkdown(trimmed.replace(/^>\\s?/, '')) + '</blockquote>');
+          continue;
+        }
+        if (/^[-*]\\s+/.test(trimmed)) {
+          const items = [];
+          while (index < lines.length && /^[-*]\\s+/.test((lines[index] || '').trim())) {
+            items.push('<li>' + renderInlineMarkdown((lines[index] || '').trim().replace(/^[-*]\\s+/, '')) + '</li>');
+            index += 1;
+          }
+          index -= 1;
+          output.push('<ul>' + items.join('') + '</ul>');
+          continue;
+        }
+        output.push('<p>' + renderInlineMarkdown(line) + '</p>');
+      }
+      return output.join('');
+    }
+
+    function renderMarkdownContent(content) {
+      const source = String(content ?? '');
+      if (!source.trim()) {
+        return '<span class="oc-typing-dots" aria-label="正在生成"><span></span><span></span><span></span></span>';
+      }
+      const json = tryFormatJson(source);
+      if (json) return '<pre class="jsonBlock">' + escapeHtml(json) + '</pre>';
+      const fence = String.fromCharCode(96, 96, 96);
+      const parts = source.split(fence);
+      return parts.map((part, index) => {
+        if (index % 2 === 0) return renderMarkdownPlain(part);
+        const lines = part.replace(/^\\r?\\n/, '').split(/\\r?\\n/);
+        const first = lines[0] || '';
+        const hasLanguage = first.trim() && !/\\s/.test(first.trim()) && lines.length > 1;
+        const language = hasLanguage ? first.trim() : 'code';
+        const code = hasLanguage ? lines.slice(1).join('\\n') : lines.join('\\n');
+        return renderCodeBlock(code, language);
+      }).join('');
+    }
+
+    function skeletonStack() {
+      return '<div class="skeletonStack" aria-busy="true"><div class="oc-skeleton"></div><div class="oc-skeleton"></div><div class="oc-skeleton"></div></div>';
+    }
+
+    function showToast(message, type) {
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (type || 'success');
+      toast.textContent = message;
+      toastStack.appendChild(toast);
+      window.setTimeout(() => {
+        toast.classList.add('leaving');
+        window.setTimeout(() => toast.remove(), 220);
+      }, 2600);
+    }
+
+    function attachmentStatusLabel(status) {
+      return {
+        uploading: '上传中',
+        parsing: '解析中',
+        parsed: '已解析',
+        failed: '失败'
+      }[status] || '准备中';
+    }
+
+    function renderAttachments() {
+      attachmentTray.hidden = state.attachments.length === 0;
+      attachmentTray.innerHTML = state.attachments.map(item => [
+        '<span class="attachmentChip" data-status="' + escapeHtml(item.status) + '" title="' + escapeHtml(item.error || item.name) + '">',
+        '<span class="attachmentName">' + escapeHtml(item.name) + '</span>',
+        '<span class="attachmentStatus"><span class="statusDot"></span>' + escapeHtml(attachmentStatusLabel(item.status)) + '</span>',
+        '<button class="attachmentRemove" type="button" aria-label="移除附件" data-attachment-remove="' + escapeHtml(item.id) + '">' + iconSvg.x + '</button>',
+        '</span>'
+      ].join('')).join('');
+      attachmentTray.querySelectorAll('[data-attachment-remove]').forEach(button => {
+        button.addEventListener('click', () => {
+          const id = button.dataset.attachmentRemove;
+          state.attachments = state.attachments.filter(item => item.id !== id);
+          renderAttachments();
+        });
+      });
+    }
+
+    function updateAttachmentStatus(id, status, error) {
+      const item = state.attachments.find(candidate => candidate.id === id);
+      if (!item) return;
+      item.status = status;
+      item.error = error || '';
+      renderAttachments();
+    }
+
+    function addComposerFiles(files) {
+      Array.from(files || []).forEach(file => {
+        const id = 'att-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        state.attachments.push({
+          id,
+          name: file.name,
+          size: file.size,
+          status: 'uploading',
+          error: ''
+        });
+        window.setTimeout(() => updateAttachmentStatus(id, 'parsing'), 160);
+        window.setTimeout(() => {
+          if (file.size === 0) {
+            updateAttachmentStatus(id, 'failed', '空文件无法解析。');
+          } else if (file.size > 15 * 1024 * 1024) {
+            updateAttachmentStatus(id, 'failed', '附件超过 15 MB。');
+          } else {
+            updateAttachmentStatus(id, 'parsed');
+          }
+        }, 520);
+      });
+      renderAttachments();
     }
 
     const menuLabels = {
@@ -1432,6 +2321,8 @@ export function renderWebUiPage(): string {
     function setRunning(running) {
       state.running = running;
       if (!running) state.stopping = false;
+      sendButton.classList.toggle('isLoading', running);
+      sendButton.setAttribute('aria-busy', running ? 'true' : 'false');
       updateStopControl();
     }
 
@@ -1485,11 +2376,28 @@ export function renderWebUiPage(): string {
       return menu === 'memory' || menu === 'assets';
     }
 
+    function animateMainView(activeView) {
+      if (state.mainViewAnimationFrame) {
+        window.cancelAnimationFrame(state.mainViewAnimationFrame);
+      }
+      activeView.classList.remove('oc-slide-up');
+      state.mainViewAnimationFrame = window.requestAnimationFrame(() => {
+        activeView.classList.add('oc-slide-up');
+        state.mainViewAnimationFrame = 0;
+      });
+    }
+
     function renderMainView() {
       const workspaceActive = isWorkspaceMenu(state.activeMenu);
+      const viewChanged = state.mainViewWorkspaceActive !== workspaceActive;
+      state.mainViewWorkspaceActive = workspaceActive;
       workspaceView.hidden = !workspaceActive;
       messages.hidden = workspaceActive;
       composer.hidden = workspaceActive;
+      const activeView = workspaceActive ? workspaceView : messages;
+      if (viewChanged) {
+        animateMainView(activeView);
+      }
       if (state.activeMenu === 'memory') {
         renderMemoryWorkspace();
       } else if (state.activeMenu === 'assets') {
@@ -1542,11 +2450,30 @@ export function renderWebUiPage(): string {
         const icon = state.bootstrap?.primaryMenus?.find(item => item.id === menu)?.icon;
         button.innerHTML = iconSvg[icon] || '';
         button.classList.toggle('active', menu === state.activeMenu);
-        button.addEventListener('click', () => selectMenu(menu));
+      });
+    }
+
+    function initNavControls() {
+      const rail = document.querySelector('.rail');
+      rail?.addEventListener('click', event => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const button = target.closest('.navButton[data-menu]');
+        if (!button || !rail.contains(button)) return;
+        selectMenu(button.dataset.menu);
       });
     }
 
     function selectMenu(menu) {
+      if (!menu) return;
+      const isCurrentMenu = menu === state.activeMenu;
+      if (isCurrentMenu) {
+        if (state.secondaryCollapsed) {
+          state.secondaryCollapsed = false;
+          renderLayout();
+        }
+        return;
+      }
       state.activeMenu = menu;
       state.secondaryCollapsed = false;
       renderLayout();
@@ -1589,6 +2516,9 @@ export function renderWebUiPage(): string {
     async function refreshMemory() {
       try {
         state.memory.error = '';
+        state.memory.loading = true;
+        renderSecondary();
+        renderMainView();
         const status = await api('/api/memory/status');
         const files = await api('/api/memory/files');
         state.memory.status = status;
@@ -1596,12 +2526,14 @@ export function renderWebUiPage(): string {
         if (!state.memory.selectedId && state.memory.files.length) {
           state.memory.selectedId = state.memory.files[0].id;
         }
+        state.memory.loading = false;
         renderSecondary();
         renderMainView();
         if (state.memory.selectedId && !state.memory.selectedFile && !state.memory.newDraft) {
           await loadMemoryFile(state.memory.selectedId);
         }
       } catch (error) {
+        state.memory.loading = false;
         state.memory.error = getErrorMessage(error);
         renderSecondary();
         renderMainView();
@@ -1616,6 +2548,9 @@ export function renderWebUiPage(): string {
         state.memory.selectedId = fileId;
         const result = await api('/api/memory/files/' + encodeURIComponent(fileId));
         state.memory.selectedFile = result.file || null;
+        state.memory.draftContent = state.memory.selectedFile?.content || '';
+        state.memory.unsaved = false;
+        state.memory.editorMode = 'edit';
         renderSecondary();
         renderMainView();
       } catch (error) {
@@ -1658,22 +2593,23 @@ export function renderWebUiPage(): string {
       const indexFiles = files.filter(file => file.kind === 'index');
       const topicFiles = files.filter(file => file.kind === 'topic' || file.kind === 'other');
       const dailyLogs = files.filter(file => file.kind === 'daily-log');
+      const fileIcon = file => file.kind === 'index' ? iconSvg.book : file.kind === 'daily-log' ? iconSvg.calendar : iconSvg.file;
       const fileButton = file => [
         '<button class="listItem ' + (state.memory.selectedId === file.id ? 'active' : '') + '" data-memory-file="' + escapeHtml(file.id) + '">',
-        '<strong>' + escapeHtml(file.title || file.name) + '</strong>',
+        '<div class="listItemHeader"><strong><span class="fileIcon">' + fileIcon(file) + '</span>' + escapeHtml(file.title || file.name) + '</strong><span class="statusBadge">' + escapeHtml(file.kind) + '</span></div>',
         '<span>' + escapeHtml(file.relativePath) + '</span>',
         '<span>' + escapeHtml([file.kind, formatBytes(file.sizeBytes), shortTime(file.updatedAt)].filter(Boolean).join(' / ')) + '</span>',
         '</button>'
       ].join('');
       const searchResults = state.memory.searchResults || [];
       secondaryBody.innerHTML = [
-        state.memory.error ? '<div class="errorBox">' + escapeHtml(state.memory.error) + '</div>' : '',
+        state.memory.error ? '<div class="errorBox"><strong>记忆加载失败</strong><div>' + escapeHtml(state.memory.error) + '</div><button class="miniButton" type="button" data-memory-refresh>重试</button></div>' : '',
         '<div class="profileSummary">',
         status ? [
-          '<strong class="summaryLine">' + escapeHtml(status.autoMemoryEnabled ? '自动记忆已启用' : '自动记忆已禁用') + '</strong>',
+          '<strong class="summaryLine">' + escapeHtml(status.autoMemoryEnabled ? '自动记忆已启用' : '自动记忆已禁用') + ' <span class="statusBadge ' + (status.autoMemoryEnabled ? 'success' : '') + '">' + (status.autoMemoryEnabled ? 'Enabled' : 'Disabled') + '</span></strong>',
           '<span class="summaryLine">' + escapeHtml(status.memoryDir || '') + '</span>',
           '<span class="summaryLine">' + escapeHtml((status.memoryFileCount || 0) + ' 个文件 / ' + formatBytes(status.totalBytes || 0)) + '</span>'
-        ].join('') : '正在加载记忆状态...',
+        ].join('') : skeletonStack(),
         '</div>',
         '<div class="toolbarRow">',
         '<button class="miniButton" type="button" data-memory-refresh>刷新</button>',
@@ -1687,7 +2623,8 @@ export function renderWebUiPage(): string {
           '<span>' + escapeHtml(result.snippet) + '</span>',
           '</button>'
         ].join('')).join('') + '</div></section>' : '',
-        '<section class="formSection"><div class="sectionHeader"><h3>索引</h3></div><div class="itemList">' + indexFiles.map(fileButton).join('') + '</div></section>',
+        state.memory.loading ? skeletonStack() : '',
+        '<section class="formSection"><div class="sectionHeader"><h3>索引</h3></div><div class="itemList">' + (indexFiles.length ? indexFiles.map(fileButton).join('') : '<div class="ghostState">还没有 MEMORY.md。</div>') + '</div></section>',
         '<section class="formSection"><div class="sectionHeader"><h3>主题文件</h3></div><div class="itemList">' + (topicFiles.length ? topicFiles.map(fileButton).join('') : '<div class="ghostState">还没有主题记忆。</div>') + '</div></section>',
         dailyLogs.length ? '<section class="formSection"><div class="sectionHeader"><h3>每日日志</h3></div><div class="itemList">' + dailyLogs.map(fileButton).join('') + '</div></section>' : '',
         '<section class="formSection"><div class="sectionHeader"><h3>知识</h3></div><div class="itemList"><button class="listItem ' + (state.memory.selectedId === 'knowledge-graph' ? 'active' : '') + '" data-memory-graph><strong>Knowledge Graph</strong><span>' + escapeHtml(status ? String(status.knowledgeGraphStats.entityCount) + ' 个实体 / ' + String(status.knowledgeGraphStats.summaryCount) + ' 条摘要' : '图谱状态') + '</span></button></div></section>'
@@ -1701,12 +2638,15 @@ export function renderWebUiPage(): string {
           if (event.key === 'Enter') runMemorySearch();
         });
       }
-      secondaryBody.querySelector('[data-memory-refresh]')?.addEventListener('click', () => refreshMemory());
+      secondaryBody.querySelectorAll('[data-memory-refresh]').forEach(button => button.addEventListener('click', () => refreshMemory()));
       secondaryBody.querySelector('[data-memory-new]')?.addEventListener('click', () => {
         state.memory.newDraft = true;
         state.memory.selectedId = null;
         state.memory.selectedFile = null;
         state.memory.graph = null;
+        state.memory.draftContent = '';
+        state.memory.unsaved = false;
+        state.memory.editorMode = 'edit';
         renderMainView();
       });
       secondaryBody.querySelector('[data-memory-search]')?.addEventListener('click', () => runMemorySearch());
@@ -1729,12 +2669,13 @@ export function renderWebUiPage(): string {
           '<div class="field"><label for="memoryDescription">描述</label><input id="memoryDescription" autocomplete="off"></div>',
           '<div class="field"><label for="memoryContent">内容</label><textarea id="memoryContent" class="editorArea"></textarea></div>',
           '<label class="toolbarRow"><input id="memoryAddToIndex" type="checkbox" checked style="width:auto;height:auto"> 添加到 MEMORY.md</label>',
-          '<button class="primaryButton" type="submit">创建记忆</button>',
+          '<button class="primaryButton ' + (state.memory.saving ? 'buttonLoading' : '') + '" type="submit" aria-busy="' + String(state.memory.saving) + '">' + (state.memory.saving ? '创建中' : '创建记忆') + '</button>',
           '</form>'
         ].join('');
         document.getElementById('memoryCreateForm').addEventListener('submit', async event => {
           event.preventDefault();
           try {
+            state.memory.saving = true;
             const result = await api('/api/memory/files', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1750,10 +2691,16 @@ export function renderWebUiPage(): string {
             state.memory.newDraft = false;
             state.memory.selectedId = result.file.id;
             state.memory.selectedFile = result.file;
+            state.memory.draftContent = result.file.content || '';
+            state.memory.unsaved = false;
+            state.memory.saving = false;
             await refreshMemory();
+            showToast('记忆已创建', 'success');
           } catch (error) {
+            state.memory.saving = false;
             state.memory.error = getErrorMessage(error);
             renderSecondary();
+            showToast('创建记忆失败', 'error');
           }
         });
         return;
@@ -1770,31 +2717,59 @@ export function renderWebUiPage(): string {
         return;
       }
       const readonly = file.readonly;
+      const draftContent = state.memory.draftContent !== undefined ? state.memory.draftContent : (file.content || '');
+      const editorActive = state.memory.editorMode !== 'preview';
       workspaceView.innerHTML = [
         '<div class="workspaceHeader"><div><h2>' + escapeHtml(file.title || file.name) + '</h2><div class="workspaceMeta">' + escapeHtml(file.relativePath) + '</div></div>',
         '<div class="toolbarRow">',
-        '<button class="miniButton" type="button" data-memory-save ' + (readonly ? 'disabled' : '') + '>保存</button>',
+        '<button class="miniButton ' + (state.memory.saving ? 'buttonLoading' : '') + '" type="button" data-memory-save aria-busy="' + String(state.memory.saving) + '" ' + (readonly || state.memory.saving ? 'disabled' : '') + '>' + (state.memory.saving ? '保存中' : '保存') + '</button>',
         file.kind !== 'index' && file.kind !== 'daily-log' ? '<button class="miniButton danger" type="button" data-memory-delete>删除</button>' : '',
         '</div></div>',
         (file.warnings || []).map(warning => '<div class="readonlyNotice">' + escapeHtml(warning) + '</div>').join(''),
         readonly ? '<div class="readonlyNotice">此记忆文件在 Web UI 中为只读。</div>' : '',
+        state.memory.unsaved ? '<div class="unsavedNotice">有未保存更改。</div>' : '',
         '<div class="workspaceCard">',
         '<div class="tagRow"><span class="tag">' + escapeHtml(file.kind) + '</span><span class="tag">' + escapeHtml(formatBytes(file.sizeBytes)) + '</span><span class="tag">' + escapeHtml(shortTime(file.updatedAt)) + '</span></div>',
-        '<div class="field" style="margin-top:12px"><label for="memoryEditor">Markdown</label><textarea id="memoryEditor" class="editorArea" ' + (readonly ? 'readonly' : '') + '>' + escapeHtml(file.content || '') + '</textarea></div>',
+        '<div class="field" style="margin-top:12px"><label>Markdown</label><div class="editorTabs"><button class="miniButton ' + (editorActive ? 'active' : '') + '" type="button" data-memory-editor-tab="edit">编辑</button><button class="miniButton ' + (!editorActive ? 'active' : '') + '" type="button" data-memory-editor-tab="preview">预览</button></div>' +
+          (editorActive ? '<textarea id="memoryEditor" class="editorArea" ' + (readonly ? 'readonly' : '') + '>' + escapeHtml(draftContent) + '</textarea>' : '<div class="previewPane markdownBody">' + renderMarkdownContent(draftContent) + '</div>') +
+        '</div>',
         '</div>'
       ].join('');
+      workspaceView.querySelectorAll('[data-memory-editor-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.memory.editorMode = button.dataset.memoryEditorTab || 'edit';
+          const editor = document.getElementById('memoryEditor');
+          if (editor) state.memory.draftContent = editor.value;
+          renderMemoryWorkspace();
+        });
+      });
+      document.getElementById('memoryEditor')?.addEventListener('input', event => {
+        state.memory.draftContent = event.target.value;
+        state.memory.unsaved = state.memory.draftContent !== (file.content || '');
+        const notice = workspaceView.querySelector('.unsavedNotice');
+        if (!notice && state.memory.unsaved) renderMemoryWorkspace();
+      });
       workspaceView.querySelector('[data-memory-save]')?.addEventListener('click', async () => {
         try {
+          state.memory.saving = true;
+          renderMemoryWorkspace();
           const result = await api('/api/memory/files/' + encodeURIComponent(file.id), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: document.getElementById('memoryEditor').value })
+            body: JSON.stringify({ content: state.memory.draftContent })
           });
           state.memory.selectedFile = result.file;
+          state.memory.draftContent = result.file.content || '';
+          state.memory.unsaved = false;
+          state.memory.saving = false;
           await refreshMemory();
+          showToast('记忆已保存', 'success');
         } catch (error) {
+          state.memory.saving = false;
           state.memory.error = getErrorMessage(error);
           renderSecondary();
+          renderMemoryWorkspace();
+          showToast('保存记忆失败', 'error');
         }
       });
       workspaceView.querySelector('[data-memory-delete]')?.addEventListener('click', async () => {
@@ -1808,9 +2783,11 @@ export function renderWebUiPage(): string {
           state.memory.selectedId = null;
           state.memory.selectedFile = null;
           await refreshMemory();
+          showToast('记忆已删除', 'success');
         } catch (error) {
           state.memory.error = getErrorMessage(error);
           renderSecondary();
+          showToast('删除记忆失败', 'error');
         }
       });
     }
@@ -1856,9 +2833,11 @@ export function renderWebUiPage(): string {
             body: JSON.stringify({ enabled: !graph.enabled })
           });
           await refreshMemory();
+          showToast(graph.enabled ? '知识图谱已禁用' : '知识图谱已启用', 'success');
         } catch (error) {
           state.memory.error = getErrorMessage(error);
           renderSecondary();
+          showToast('知识图谱更新失败', 'error');
         }
       });
       workspaceView.querySelector('[data-graph-clear]')?.addEventListener('click', async () => {
@@ -1870,9 +2849,11 @@ export function renderWebUiPage(): string {
             body: JSON.stringify({ confirm: true })
           });
           await refreshMemory();
+          showToast('知识图谱已清空', 'success');
         } catch (error) {
           state.memory.error = getErrorMessage(error);
           renderSecondary();
+          showToast('清空知识图谱失败', 'error');
         }
       });
       workspaceView.querySelectorAll('[data-graph-tab]').forEach(button => {
@@ -1886,6 +2867,9 @@ export function renderWebUiPage(): string {
     async function refreshAssets(loadSelected) {
       try {
         state.assets.error = '';
+        state.assets.loading = true;
+        renderSecondary();
+        renderMainView();
         const params = new URLSearchParams();
         if (state.assets.query.trim()) params.set('q', state.assets.query.trim());
         if (state.assets.kind) params.set('kind', state.assets.kind);
@@ -1897,12 +2881,14 @@ export function renderWebUiPage(): string {
           state.assets.selectedId = state.assets.list[0]?.id || null;
           state.assets.selectedAsset = null;
         }
+        state.assets.loading = false;
         renderSecondary();
         renderMainView();
         if (loadSelected !== false && state.assets.selectedId && !state.assets.selectedAsset && !state.assets.newDraft) {
           await loadAssetDetail(state.assets.selectedId);
         }
       } catch (error) {
+        state.assets.loading = false;
         state.assets.error = getErrorMessage(error);
         renderSecondary();
         renderMainView();
@@ -1930,14 +2916,15 @@ export function renderWebUiPage(): string {
       const assets = state.assets.list || [];
       const kinds = Array.from(new Set(assets.map(asset => asset.kind))).sort();
       const sources = Array.from(new Set(assets.map(asset => asset.source))).sort();
+      const sourceClass = source => source === 'project' ? 'success' : source === 'user' ? 'running' : '';
       secondaryBody.innerHTML = [
-        state.assets.error ? '<div class="errorBox">' + escapeHtml(state.assets.error) + '</div>' : '',
+        state.assets.error ? '<div class="errorBox"><strong>资产加载失败</strong><div>' + escapeHtml(state.assets.error) + '</div><button class="miniButton" type="button" data-assets-reload>重试</button></div>' : '',
         '<div class="profileSummary">',
         '<strong class="summaryLine">' + escapeHtml(String(assets.length)) + ' 个资产</strong>',
         state.assets.roots ? '<span class="summaryLine">用户：' + escapeHtml(state.assets.roots.userSkillsDir || '') + '</span><span class="summaryLine">项目：' + escapeHtml(state.assets.roots.projectSkillsDir || '') + '</span>' : '',
         '</div>',
         '<div class="toolbarRow">',
-        '<button class="miniButton" type="button" data-assets-reload>重新加载</button>',
+        '<button class="miniButton ' + (state.assets.reloading ? 'buttonLoading' : '') + '" type="button" data-assets-reload aria-busy="' + String(state.assets.reloading) + '">' + (state.assets.reloading ? '加载中' : '重新加载') + '</button>',
         '<button class="miniButton" type="button" data-assets-new>新建 Skill</button>',
         '<button class="miniButton" type="button" data-assets-import>导入 SKILL.md</button>',
         '<input id="assetImportFile" type="file" accept=".md,text/markdown" hidden>',
@@ -1949,13 +2936,14 @@ export function renderWebUiPage(): string {
         '</div>',
         '<button class="secondaryAction" type="button" data-assets-filter>应用筛选</button>',
         '<div class="itemList" style="margin-top:14px">',
+        state.assets.loading ? skeletonStack() : '',
         assets.length ? assets.map(asset => [
           '<button class="listItem ' + (state.assets.selectedId === asset.id ? 'active' : '') + '" data-asset-id="' + escapeHtml(asset.id) + '">',
-          '<strong>' + escapeHtml(asset.displayName || asset.name) + '</strong>',
-          '<span>' + escapeHtml(asset.kind + ' / ' + asset.source + (asset.readonly ? ' / 只读' : ' / 可编辑')) + '</span>',
+          '<div class="listItemHeader"><strong>' + escapeHtml(asset.displayName || asset.name) + '</strong><span class="statusBadge ' + sourceClass(asset.source) + '">' + escapeHtml(asset.source || 'unknown') + '</span></div>',
+          '<span>' + (asset.readonly ? '<span class="fileIcon">' + iconSvg.lock + '</span>只读' : '<span class="fileIcon">' + iconSvg.pencil + '</span>可编辑') + ' / ' + escapeHtml(asset.kind) + '</span>',
           '<span>' + escapeHtml(asset.description || '') + '</span>',
           '</button>'
-        ].join('')).join('') : '<div class="ghostState">没有匹配当前筛选条件的资产。</div>',
+        ].join('')).join('') : (state.assets.loading ? '' : '<div class="ghostState">没有匹配当前筛选条件的资产。<div style="margin-top:10px"><button class="miniButton" type="button" data-assets-new>新建 Skill</button></div></div>'),
         '</div>'
       ].join('');
       const search = document.getElementById('assetSearch');
@@ -1974,22 +2962,29 @@ export function renderWebUiPage(): string {
         state.assets.source = source.value;
       });
       secondaryBody.querySelector('[data-assets-filter]')?.addEventListener('click', () => refreshAssets());
-      secondaryBody.querySelector('[data-assets-reload]')?.addEventListener('click', async () => {
+      secondaryBody.querySelectorAll('[data-assets-reload]').forEach(button => button.addEventListener('click', async () => {
         try {
+          state.assets.reloading = true;
+          renderAssetsPanel();
           await api('/api/assets/reload', { method: 'POST' });
           await refreshAssets(false);
+          state.assets.reloading = false;
+          renderAssetsPanel();
+          showToast('资产已重新加载', 'success');
         } catch (error) {
+          state.assets.reloading = false;
           state.assets.error = getErrorMessage(error);
           renderAssetsPanel();
+          showToast('重新加载资产失败', 'error');
         }
-      });
-      secondaryBody.querySelector('[data-assets-new]')?.addEventListener('click', () => {
+      }));
+      secondaryBody.querySelectorAll('[data-assets-new]').forEach(button => button.addEventListener('click', () => {
         state.assets.newDraft = true;
         state.assets.editing = false;
         state.assets.selectedId = null;
         state.assets.selectedAsset = null;
         renderMainView();
-      });
+      }));
       secondaryBody.querySelector('[data-assets-import]')?.addEventListener('click', () => {
         document.getElementById('assetImportFile')?.click();
       });
@@ -2012,9 +3007,11 @@ export function renderWebUiPage(): string {
             state.assets.selectedAsset = result.asset;
             await refreshAssets(false);
             renderMainView();
+            showToast('Skill 已导入', 'success');
           } catch (error) {
             state.assets.error = getErrorMessage(error);
             renderAssetsPanel();
+            showToast('导入 Skill 失败', 'error');
           }
         };
         reader.readAsText(file);
@@ -2029,7 +3026,8 @@ export function renderWebUiPage(): string {
       const content = isEdit ? asset?.content || '' : '';
       workspaceView.innerHTML = [
         '<div class="workspaceHeader"><div><h2>' + (isEdit ? '编辑 Skill' : '新建 Skill') + '</h2><div class="workspaceMeta">' + (isEdit ? escapeHtml(asset.path || '') : '创建用户级或项目级 Skill。') + '</div></div></div>',
-        '<form id="skillForm" class="workspaceCard">',
+        state.assets.error ? '<div class="errorBox">' + escapeHtml(state.assets.error) + '</div>' : '',
+        '<form id="skillForm" class="workspaceCard oc-scale-in">',
         isEdit ? '' : '<div class="field"><label for="skillScope">范围</label><select id="skillScope"><option value="project">项目</option><option value="user">用户</option></select></div>',
         isEdit ? '' : '<div class="field"><label for="skillName">名称</label><input id="skillName" autocomplete="off"></div>',
         isEdit ? '' : '<div class="field"><label for="skillDescription">描述</label><input id="skillDescription" autocomplete="off"></div>',
@@ -2037,12 +3035,13 @@ export function renderWebUiPage(): string {
         isEdit ? '' : '<div class="splitFields"><div class="field"><label for="skillTools">允许的工具</label><input id="skillTools" autocomplete="off" placeholder="Read, Grep, Bash"></div><div class="field"><label for="skillContext">上下文</label><select id="skillContext"><option value="">未设置</option><option value="inline">Inline</option><option value="fork">Fork</option></select></div></div>',
         isEdit ? '' : '<div class="field"><label for="skillModel">模型</label><input id="skillModel" autocomplete="off" placeholder="inherit"></div>',
         '<div class="field"><label for="skillContent">SKILL.md</label><textarea id="skillContent" class="editorArea">' + escapeHtml(content) + '</textarea></div>',
-        '<button class="primaryButton" type="submit">' + (isEdit ? '保存 Skill' : '创建 Skill') + '</button>',
+        '<button class="primaryButton ' + (state.assets.saving ? 'buttonLoading' : '') + '" type="submit" aria-busy="' + String(state.assets.saving) + '" ' + (state.assets.saving ? 'disabled' : '') + '>' + (state.assets.saving ? '保存中' : (isEdit ? '保存 Skill' : '创建 Skill')) + '</button>',
         '</form>'
       ].join('');
       document.getElementById('skillForm').addEventListener('submit', async event => {
         event.preventDefault();
         try {
+          state.assets.saving = true;
           let result;
           if (isEdit) {
             result = await api('/api/assets/skills/' + encodeURIComponent(asset.id), {
@@ -2070,11 +3069,16 @@ export function renderWebUiPage(): string {
           state.assets.editing = false;
           state.assets.selectedId = result.asset.id;
           state.assets.selectedAsset = result.asset;
+          state.assets.saving = false;
           await refreshAssets(false);
           renderMainView();
+          showToast(isEdit ? 'Skill 已保存' : 'Skill 已创建', 'success');
         } catch (error) {
+          state.assets.saving = false;
           state.assets.error = getErrorMessage(error);
           renderSecondary();
+          renderSkillForm(kind, asset);
+          showToast('保存 Skill 失败', 'error');
         }
       });
     }
@@ -2093,6 +3097,7 @@ export function renderWebUiPage(): string {
         renderSkillForm('edit', asset);
         return;
       }
+      const enabledClass = asset.enabled ? 'success' : 'warning';
       workspaceView.innerHTML = [
         '<div class="workspaceHeader"><div><h2>' + escapeHtml(asset.displayName || asset.name) + '</h2><div class="workspaceMeta">' + escapeHtml(asset.path || asset.description || '') + '</div></div>',
         '<div class="toolbarRow">',
@@ -2103,15 +3108,17 @@ export function renderWebUiPage(): string {
         asset.readonly ? '<div class="readonlyNotice">此资产来自 ' + escapeHtml(asset.source) + '，因此为只读。</div>' : '',
         (asset.warnings || []).map(warning => '<div class="readonlyNotice">' + escapeHtml(warning) + '</div>').join(''),
         '<div class="workspaceCard">',
-        '<div class="tagRow"><span class="tag">' + escapeHtml(asset.kind) + '</span><span class="tag">' + escapeHtml(asset.source) + '</span><span class="tag">' + escapeHtml(asset.enabled ? '已启用' : '已禁用') + '</span></div>',
-        '<div class="profileSummary" style="margin-top:12px">',
-        '<strong class="summaryLine">' + escapeHtml(asset.description || '暂无描述') + '</strong>',
-        asset.whenToUse ? '<span class="summaryLine">' + escapeHtml(asset.whenToUse) + '</span>' : '',
-        asset.allowedTools?.length ? '<span class="summaryLine">工具：' + escapeHtml(asset.allowedTools.join(', ')) + '</span>' : '',
-        asset.model ? '<span class="summaryLine">模型：' + escapeHtml(asset.model) + '</span>' : '',
-        asset.context ? '<span class="summaryLine">上下文：' + escapeHtml(asset.context) + '</span>' : '',
+        '<div class="tagRow"><span class="tag">' + escapeHtml(asset.kind) + '</span><span class="tag">' + escapeHtml(asset.source) + '</span><span class="tag ' + enabledClass + '">' + escapeHtml(asset.enabled ? '已启用' : '已禁用') + '</span><span class="tag ' + (asset.readonly ? 'warning' : 'success') + '">' + (asset.readonly ? '只读' : '可编辑') + '</span></div>',
+        '<div class="metaGrid">',
+        '<div class="metaCard"><span>Kind</span><strong>' + escapeHtml(asset.kind || 'skill') + '</strong></div>',
+        '<div class="metaCard"><span>Source</span><strong>' + escapeHtml(asset.source || 'unknown') + '</strong></div>',
+        '<div class="metaCard"><span>Model</span><strong>' + escapeHtml(asset.model || 'inherit') + '</strong></div>',
+        '<div class="metaCard"><span>Context</span><strong>' + escapeHtml(asset.context || '未设置') + '</strong></div>',
         '</div>',
-        asset.content !== undefined ? '<div class="field"><label for="assetContent">内容</label><textarea id="assetContent" class="editorArea" readonly>' + escapeHtml(asset.content || '') + '</textarea></div>' : '<div class="ghostState">此资产没有可显示的文件内容。</div>',
+        '<div class="profileSummary" style="margin-top:12px"><strong class="summaryLine">' + escapeHtml(asset.description || '暂无描述') + '</strong></div>',
+        asset.whenToUse ? '<div class="quoteBox"><strong>when_to_use</strong><br>' + escapeHtml(asset.whenToUse) + '</div>' : '',
+        asset.allowedTools?.length ? '<div class="tagRow">' + asset.allowedTools.map(tool => '<span class="tag">' + escapeHtml(tool) + '</span>').join('') + '</div>' : '',
+        asset.content !== undefined ? '<div class="field" style="margin-top:12px"><label>内容</label><div class="contentPanel markdownBody">' + renderMarkdownContent(asset.content || '') + '</div></div>' : '<div class="ghostState">此资产没有可显示的文件内容。</div>',
         '</div>'
       ].join('');
       workspaceView.querySelector('[data-asset-edit]')?.addEventListener('click', () => {
@@ -2129,10 +3136,12 @@ export function renderWebUiPage(): string {
           state.assets.selectedId = null;
           state.assets.selectedAsset = null;
           await refreshAssets();
+          showToast('Skill 已删除', 'success');
         } catch (error) {
           state.assets.error = getErrorMessage(error);
           renderSecondary();
           renderMainView();
+          showToast('删除 Skill 失败', 'error');
         }
       });
     }
@@ -2152,7 +3161,8 @@ export function renderWebUiPage(): string {
     function renderChatPanel() {
       const sessions = state.bootstrap?.chatSessions || [];
       if (!sessions.length) {
-        secondaryBody.innerHTML = '<div class="ghostState">还没有对话。点击加号按钮开始一个新对话。</div>';
+        secondaryBody.innerHTML = '<div class="ghostState"><strong>还没有对话</strong><div>点击加号按钮开始一个新对话。</div><div style="margin-top:10px"><button class="miniButton" type="button" data-chat-new>新建对话</button></div></div>';
+        secondaryBody.querySelector('[data-chat-new]')?.addEventListener('click', () => document.getElementById('newChat').click());
         return;
       }
       secondaryBody.innerHTML = [
@@ -2373,7 +3383,7 @@ export function renderWebUiPage(): string {
       avatar.textContent = role === 'user' ? '你' : 'OC';
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
-      bubble.textContent = content;
+      setBubbleContent(bubble, content || '', false);
       if (role === 'user') {
         message.appendChild(bubble);
         message.appendChild(avatar);
@@ -2386,30 +3396,105 @@ export function renderWebUiPage(): string {
       return bubble;
     }
 
+    function setBubbleContent(bubble, content, streaming) {
+      const raw = String(content ?? '');
+      bubble.dataset.rawContent = raw;
+      bubble.classList.toggle('streaming', Boolean(streaming));
+      bubble.setAttribute('aria-busy', streaming ? 'true' : 'false');
+      if (streaming) {
+        bubble.classList.remove('markdownBody');
+        if (raw.trim()) {
+          bubble.textContent = raw;
+        } else {
+          bubble.innerHTML = '<span class="oc-typing-dots" aria-label="正在生成"><span></span><span></span><span></span></span>';
+        }
+        return;
+      }
+      bubble.classList.add('markdownBody');
+      bubble.innerHTML = renderMarkdownContent(raw);
+    }
+
     function ensureStream(id) {
       let bubble = state.streams.get(id);
       if (!bubble) {
         bubble = addMessage('assistant', '', id);
+        setBubbleContent(bubble, '', true);
         state.streams.set(id, bubble);
       }
       return bubble;
     }
 
+    function toolStatusClass(status) {
+      if (status === 'completed' || status === 'success') return 'success';
+      if (status === 'started' || status === 'progress' || status === 'running') return 'running';
+      if (status === 'failed' || status === 'error') return 'error';
+      return '';
+    }
+
+    function renderJsonBlock(value) {
+      if (value === undefined || value === null) return '';
+      try {
+        return '<pre class="jsonBlock">' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>';
+      } catch {
+        return '<pre class="jsonBlock">' + escapeHtml(String(value)) + '</pre>';
+      }
+    }
+
+    function renderToolSummary(tool) {
+      const parts = [];
+      if (tool.summary) parts.push('<span>' + escapeHtml(tool.summary) + '</span>');
+      if (tool.input !== undefined) {
+        parts.push('<details class="toolDetail"><summary>查看输入</summary>' + renderJsonBlock(tool.input) + '</details>');
+      }
+      return parts.join('');
+    }
+
     function addToolRow(tool) {
       emptyState.style.display = 'none';
       const row = document.createElement('div');
-      row.className = 'toolRow';
-      row.innerHTML = '<strong>' + escapeHtml(tool.name || '工具') + '</strong><span>' + escapeHtml(localizeStatus(tool.status || '')) + '</span><span>' + escapeHtml(tool.summary || '') + '</span>';
+      const status = tool.status || 'started';
+      const running = status === 'started' || status === 'progress';
+      row.className = 'toolRow status-' + escapeHtml(status);
+      row.setAttribute('aria-busy', running ? 'true' : 'false');
+      row.innerHTML = [
+        '<div class="toolHeader">',
+        '<span class="toolTitle">Tool: ' + escapeHtml(tool.name || '工具') + '</span>',
+        '<span class="statusBadge ' + toolStatusClass(status) + '">' + (running ? '<span class="pulseDot"></span>' : '') + escapeHtml(localizeStatus(status)) + '</span>',
+        '</div>',
+        '<div class="toolMeta">' + renderToolSummary(tool) + '</div>'
+      ].join('');
       messages.appendChild(row);
       messages.scrollTop = messages.scrollHeight;
     }
 
+    function activityBadgeMeta(activity) {
+      const title = String(activity.title || '');
+      const kind = activity.kind || 'status';
+      if (kind === 'error') return { label: 'error', className: 'error', running: false };
+      if (/AppTest|app-test/i.test(title)) return { label: 'app-test', className: 'running', running: kind === 'preflight' };
+      if (kind === 'read' || kind === 'grep' || kind === 'edit') return { label: 'file', className: '', running: false };
+      if (kind === 'permission') return { label: 'tool', className: 'running', running: true };
+      if (kind === 'result') return { label: 'success', className: 'success', running: false };
+      if (kind === 'thinking' || kind === 'preflight' || kind === 'status') return { label: kind === 'preflight' ? 'check' : 'model', className: 'running', running: kind !== 'status' };
+      return { label: kind, className: '', running: false };
+    }
+
+    function renderActivityDetail(detail) {
+      const text = localizeCommonText(detail || '');
+      if (!text) return '';
+      if (text.length > 180) {
+        return '<div class="activityDetail"><details><summary>查看详情</summary><div>' + escapeHtml(text) + '</div></details></div>';
+      }
+      return '<div class="activityDetail">' + escapeHtml(text) + '</div>';
+    }
+
     function addActivity(activity) {
       const item = document.createElement('div');
-      item.className = 'activityItem';
+      const meta = activityBadgeMeta(activity);
+      item.className = 'activityItem kind-' + escapeHtml(activity.kind || 'status');
       const time = activity.at ? new Date(activity.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      item.innerHTML = '<div class="activityItemTitle"><span>' + escapeHtml(localizeCommonText(activity.title || activity.kind || 'Activity')) + '</span><span>' + escapeHtml(time) + '</span></div>' +
-        (activity.detail ? '<div class="activityDetail">' + escapeHtml(localizeCommonText(activity.detail)) + '</div>' : '');
+      item.innerHTML = '<div class="activityItemTitle"><span>' + escapeHtml(localizeCommonText(activity.title || activity.kind || 'Activity')) + '</span><span class="activityBadge ' + meta.className + '">' + (meta.running ? '<span class="pulseDot"></span>' : '') + escapeHtml(meta.label) + '</span><span>' + escapeHtml(time) + '</span></div>' +
+        renderActivityDetail(activity.detail);
       activityList.prepend(item);
       while (activityList.children.length > 80) activityList.lastChild.remove();
     }
@@ -2485,15 +3570,16 @@ export function renderWebUiPage(): string {
         setRunning(true);
       } else if (event.type === 'stream_delta') {
         const bubble = ensureStream(event.messageId);
-        bubble.textContent += event.delta || '';
+        const nextContent = (bubble.dataset.rawContent || '') + (event.delta || '');
+        setBubbleContent(bubble, nextContent, true);
         messages.scrollTop = messages.scrollHeight;
       } else if (event.type === 'stream_end') {
         const bubble = ensureStream(event.messageId);
-        if (event.content) bubble.textContent = event.content;
+        setBubbleContent(bubble, event.content || bubble.dataset.rawContent || '', false);
         state.streams.delete(event.messageId);
       } else if (event.type === 'chat_message') {
         const existing = messages.querySelector('[data-message-id="' + CSS.escape(event.messageId) + '"] .bubble');
-        if (existing) existing.textContent = event.content || '';
+        if (existing) setBubbleContent(existing, event.content || '', false);
         else addMessage(event.role || 'assistant', event.content || '', event.messageId);
       } else if (event.type === 'tool') {
         addToolRow(event);
@@ -2513,6 +3599,8 @@ export function renderWebUiPage(): string {
       setIcon('newChat', 'plus');
       setIcon('stopSession', 'square');
       setIcon('sendButton', 'send');
+      setIcon('attachButton', 'paperclip');
+      initNavControls();
 
       document.getElementById('secondaryCollapse').addEventListener('click', () => {
         state.secondaryCollapsed = true;
@@ -2550,10 +3638,19 @@ export function renderWebUiPage(): string {
         event.preventDefault();
         const text = composerInput.value.trim();
         if (!text) return;
+        if (state.attachments.length) {
+          const hasFailed = state.attachments.some(item => item.status === 'failed');
+          showToast(hasFailed ? '有附件解析失败，当前仅发送文本。' : '附件已在输入区准备，当前仅发送文本。', hasFailed ? 'warning' : 'success');
+        }
         addMessage('user', text, 'user-' + Date.now());
         composerInput.value = '';
         setRunning(true);
         sendWs({ type: 'send_message', text });
+      });
+      attachButton.addEventListener('click', () => attachmentInput.click());
+      attachmentInput.addEventListener('change', event => {
+        addComposerFiles(event.target.files);
+        attachmentInput.value = '';
       });
       composerInput.addEventListener('keydown', event => {
         if (event.key === 'Enter' && !event.shiftKey) {

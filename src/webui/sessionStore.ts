@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -218,6 +219,57 @@ export function deleteWebChatSession(
 
 export function getWebChatTranscriptPath(cwd: string, sessionId: string): string {
   return join(getProjectDir(normalizeCwd(cwd)), `${sessionId}.jsonl`)
+}
+
+export function migrateWebChatSessionsToCwd(
+  targetCwd: string,
+  legacyCwds: readonly string[],
+  location: WebChatSessionStoreLocation = {},
+): number {
+  const normalizedTargetCwd = normalizeCwd(targetCwd)
+  const normalizedLegacyCwds = new Set(
+    legacyCwds
+      .map(cwd => normalizeCwd(cwd))
+      .filter(cwd => cwd && cwd !== normalizedTargetCwd),
+  )
+  if (!normalizedLegacyCwds.size) return 0
+
+  const store = readStore(location)
+  let migrated = 0
+
+  for (const session of store.sessions) {
+    if (session.deletedAt || !normalizedLegacyCwds.has(session.cwd)) continue
+    const alreadyMigrated = store.sessions.some(other =>
+      other !== session &&
+      other.id === session.id &&
+      other.cwd === normalizedTargetCwd &&
+      !other.deletedAt,
+    )
+    if (alreadyMigrated) continue
+
+    const oldTranscriptPath = getWebChatTranscriptPath(session.cwd, session.id)
+    const newTranscriptPath = getWebChatTranscriptPath(
+      normalizedTargetCwd,
+      session.id,
+    )
+    if (existsSync(oldTranscriptPath) && !existsSync(newTranscriptPath)) {
+      try {
+        mkdirSync(dirname(newTranscriptPath), { recursive: true })
+        copyFileSync(oldTranscriptPath, newTranscriptPath)
+      } catch {
+        continue
+      }
+    }
+
+    session.cwd = normalizedTargetCwd
+    migrated += 1
+  }
+
+  if (migrated > 0) {
+    writeStore(store, location)
+  }
+
+  return migrated
 }
 
 function extractTextContent(content: unknown): string {

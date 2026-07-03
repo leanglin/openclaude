@@ -1,12 +1,14 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { dirname, join, resolve } from 'node:path'
+import { delimiter, dirname, join, resolve } from 'node:path'
 import type { Duplex } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../constants/product.js'
 import { openBrowser as openSystemBrowser } from '../utils/browser.js'
+import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 import { PERMISSION_MODES } from '../utils/permissions/PermissionMode.js'
 import type { ProfileFileLocation } from '../utils/providerProfile.js'
 import { CliChatSession, type SpawnFactory } from './chatSession.js'
@@ -45,6 +47,7 @@ import {
   hasWebChatTranscriptMessages,
   listWebChatSessions,
   loadWebChatMessages,
+  migrateWebChatSessionsToCwd,
   touchWebChatSessionWithUserMessage,
   type WebChatSessionStoreLocation,
 } from './sessionStore.js'
@@ -65,6 +68,8 @@ type WebUiServerOptions = {
   spawnFactory?: SpawnFactory
   profileLocation?: ProfileFileLocation
   sessionStoreLocation?: WebChatSessionStoreLocation
+  legacyCwds?: readonly string[]
+  bootstrapUserDirs?: boolean
 }
 
 type WebUiAppOptions = {
@@ -74,6 +79,8 @@ type WebUiAppOptions = {
   spawnFactory?: SpawnFactory
   profileLocation?: ProfileFileLocation
   sessionStoreLocation?: WebChatSessionStoreLocation
+  legacyCwds?: readonly string[]
+  bootstrapUserDirs?: boolean
 }
 
 type WebUiApp = {
@@ -92,6 +99,45 @@ function normalizePermissionMode(mode: string | undefined): WebUiPermissionMode 
   return (PERMISSION_MODES as readonly string[]).includes(candidate)
     ? candidate as WebUiPermissionMode
     : 'acceptEdits'
+}
+
+export type WebUiBootstrapDirs = {
+  configDir: string
+  workspaceDir: string
+  userSkillsDir: string
+  projectsDir: string
+  webuiDir: string
+  projectSkillsDir: string
+}
+
+export function ensureWebUiBootstrapDirs(cwd: string): WebUiBootstrapDirs {
+  const configDir = resolve(getClaudeConfigHomeDir())
+  const workspaceDir = resolve(cwd)
+  const dirs: WebUiBootstrapDirs = {
+    configDir,
+    workspaceDir,
+    userSkillsDir: join(configDir, 'skills'),
+    projectsDir: join(configDir, 'projects'),
+    webuiDir: join(configDir, 'webui'),
+    projectSkillsDir: join(
+      workspaceDir,
+      PRODUCT_PROJECT_CONFIG_DIR_NAME,
+      'skills',
+    ),
+  }
+
+  for (const dir of Object.values(dirs)) {
+    mkdirSync(dir, { recursive: true })
+  }
+
+  return dirs
+}
+
+function parseLegacyCwdEnv(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(delimiter)
+    .map(part => part.trim())
+    .filter(Boolean)
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
@@ -337,6 +383,17 @@ function formatWebRuntimeDetail(chatCwd: string): string {
 }
 
 export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
+  if (options.bootstrapUserDirs) {
+    ensureWebUiBootstrapDirs(options.cwd)
+  }
+  if (options.legacyCwds?.length) {
+    migrateWebChatSessionsToCwd(
+      options.cwd,
+      options.legacyCwds,
+      options.sessionStoreLocation,
+    )
+  }
+
   const wss = new WebSocketServer({ noServer: true })
   const iconPath = resolveIconPath()
 
@@ -608,6 +665,13 @@ export async function startWebUi(rawOptions: WebUiServerOptions = {}): Promise<v
   const cwd = resolve(rawOptions.cwd ?? process.cwd())
   const permissionMode = normalizePermissionMode(rawOptions.permissionMode)
   const token = randomBytes(24).toString('base64url')
+  const legacyCwds = [
+    ...(rawOptions.legacyCwds ?? []),
+    ...parseLegacyCwdEnv(process.env.OPENCAT_LEGACY_WEB_CWD),
+  ]
+  const bootstrapUserDirs =
+    rawOptions.bootstrapUserDirs ??
+    process.env.OPENCAT_BOOTSTRAP_WEB_DIRS === '1'
   const app = createWebUiApp({
     cwd,
     permissionMode,
@@ -615,6 +679,8 @@ export async function startWebUi(rawOptions: WebUiServerOptions = {}): Promise<v
     spawnFactory: rawOptions.spawnFactory,
     profileLocation: rawOptions.profileLocation,
     sessionStoreLocation: rawOptions.sessionStoreLocation,
+    legacyCwds,
+    bootstrapUserDirs,
   })
   const server = createServer(app.handler)
   server.on('upgrade', app.handleUpgrade)

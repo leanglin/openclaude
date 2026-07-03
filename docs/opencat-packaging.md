@@ -74,6 +74,21 @@ browser cache corruption is suspected.
 The launcher sets `PLAYWRIGHT_BROWSERS_PATH`, `OPENCAT_APP_TEST_RUNNER`, and
 `OPENCAT_APP_TEST_NODE` before starting the hidden Web server.
 
+## Installed Data Layout
+
+The installed launcher keeps the bundled runtime read-only and creates user data
+under `%APPDATA%\OpenCat` before starting the hidden Web server:
+
+- `%APPDATA%\OpenCat\workspace` - default Web chat working directory.
+- `%APPDATA%\OpenCat\skills` - user-level custom Skills shared across projects.
+- `%APPDATA%\OpenCat\workspace\.opencat\skills` - project-level custom Skills for the installed default workspace.
+- `%APPDATA%\OpenCat\projects` - transcript and project-scoped CLI state.
+- `%APPDATA%\OpenCat\webui\sessions.json` - Web chat session list.
+
+The launcher starts `opencat web` with `--cwd %APPDATA%\OpenCat\workspace` and
+sets `OPENCAT_CONFIG_DIR=%APPDATA%\OpenCat`, so sessions and custom Skills
+survive restarts and runtime upgrades.
+
 ## ADB
 
 ADB is not bundled. The launcher checks a saved path, `OPENCAT_ADB_PATH`,
@@ -82,6 +97,22 @@ path in the launcher.
 
 ## Updates
 
-The launcher exposes a manual update check. Set `OPENCAT_UPDATE_MANIFEST_URL`
-at build time to enable a configured source. Without it, the launcher reports
-`No update source configured`.
+The launcher exposes a manual update check. It resolves the update center base
+URL in this order:
+
+1. `OPENCAT_UPDATE_BASE_URL`
+2. `%APPDATA%\OpenCat\config.json` or `%APPDATA%\OpenCat\config\config.json`
+   with `update.platform_base_url`
+3. the same config files with `server.protocol`, `server.host`, and
+   `server.port`
+4. the default OpenCat platform URL
+
+The check calls
+`/api/system/download_center/check_update/?product_key=opencat&current_version=<version>&platform=windows&channel=stable`.
+When a newer version is available, the launcher shows the installer name, size,
+and release notes, then downloads the installer only after user confirmation.
+Downloads are written to `%APPDATA%\OpenCat\downloads` through a `.part` file
+and are SHA256-verified when the update response includes a checksum.
+
+The launcher never replaces the running app automatically. After download, run
+the downloaded `OpenCat_Setup` installer manually to complete the update.

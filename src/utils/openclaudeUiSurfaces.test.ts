@@ -9,9 +9,11 @@ import {
 import { isInGlobalClaudeFolder } from '../components/permissions/FilePermissionDialog/permissionOptions.tsx'
 import { getDisplayPath } from './file.ts'
 import { getDefaultPermissionModeOptions } from './permissions/defaultPermissionModeOptions.ts'
+import { getClaudeConfigHomeDir } from './envUtils.ts'
 import {
   getClaudeSkillScope,
   isClaudeSettingsPath,
+  toPosixPath,
 } from './permissions/filesystem.ts'
 import { getValidationTip } from './settings/validationTips.ts'
 
@@ -25,6 +27,7 @@ beforeEach(async () => {
   delete process.env.CLAUDE_CONFIG_DIR
   delete process.env.OPENCAT_CONFIG_DIR
   delete process.env.OPENCLAUDE_CONFIG_DIR
+  getClaudeConfigHomeDir.cache?.clear?.()
 })
 
 afterEach(() => {
@@ -44,10 +47,16 @@ afterEach(() => {
     } else {
       process.env.OPENCLAUDE_CONFIG_DIR = originalOpenClaudeConfigDir
     }
+    getClaudeConfigHomeDir.cache?.clear?.()
   } finally {
     releaseSharedMutationLock()
   }
 })
+
+function permissionPatternPrefixForDir(dir: string): string {
+  const normalized = toPosixPath(dir).replace(/\/+$/, '')
+  return normalized.startsWith('/') ? `/${normalized}/` : `${normalized}/`
+}
 
 describe('OpenClaude settings path surfaces', () => {
   test('isClaudeSettingsPath recognizes project .opencat settings files', () => {
@@ -148,6 +157,20 @@ describe('OpenClaude settings path surfaces', () => {
     ).toEqual({
       skillName: 'demo',
       pattern: '/.opencat/skills/demo/**',
+    })
+  })
+
+  test('global skill scope recognizes OpenCat config skills', () => {
+    const customConfigDir = join(homedir(), 'custom-opencat')
+    const skillsDir = join(customConfigDir, 'skills')
+    process.env.OPENCAT_CONFIG_DIR = customConfigDir
+    getClaudeConfigHomeDir.cache?.clear?.()
+
+    expect(
+      getClaudeSkillScope(join(skillsDir, 'demo', 'SKILL.md')),
+    ).toEqual({
+      skillName: 'demo',
+      pattern: `${permissionPatternPrefixForDir(skillsDir)}demo/**`,
     })
   })
 

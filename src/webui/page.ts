@@ -675,7 +675,7 @@ export function renderWebUiPage(): string {
       gap: 10px;
       max-width: 980px;
       margin: 0 auto;
-      align-items: end;
+      align-items: center;
     }
 
     .attachmentTray {
@@ -721,15 +721,23 @@ export function renderWebUiPage(): string {
       border-radius: 8px;
       display: grid;
       place-items: center;
-      background: var(--accent);
+      background: #2563eb;
       color: white;
       position: relative;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
     }
 
     .sendButton:hover {
-      background: #0f6962;
-      box-shadow: var(--oc-shadow-soft);
+      background: #1d4ed8;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
       transform: translateY(-1px);
+    }
+
+    .sendButton:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.22),
+        0 10px 24px rgba(37, 99, 235, 0.22);
     }
 
     .sendButton.isLoading svg {
@@ -740,16 +748,25 @@ export function renderWebUiPage(): string {
     .buttonLoading::after,
     .attachmentSpinner {
       content: "";
-      width: 15px;
-      height: 15px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       border: 2px solid rgba(255,255,255,0.45);
       border-top-color: currentColor;
       animation: ocSpin 780ms linear infinite;
     }
 
+    .sendButton.isLoading::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin: -8px 0 0 -8px;
+    }
+
     .attachButton {
-      align-self: end;
+      align-self: center;
+      width: 40px;
+      height: 40px;
       color: var(--muted);
       border: 1px solid var(--border);
       background: var(--surface);
@@ -1822,26 +1839,8 @@ export function renderWebUiPage(): string {
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        animation-duration: 1ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 1ms !important;
+      html:focus-within {
         scroll-behavior: auto !important;
-      }
-
-      .navButton:hover,
-      .iconButton:hover,
-      .sendButton:hover,
-      .miniButton:hover,
-      .listItem:hover,
-      .sessionItem:hover,
-      .bubble:hover,
-      textarea:focus,
-      input:focus,
-      select:focus {
-        transform: none;
       }
     }
 

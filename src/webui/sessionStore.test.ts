@@ -10,6 +10,7 @@ import {
   hasWebChatTranscriptMessages,
   listWebChatSessions,
   loadWebChatMessages,
+  migrateWebChatSessionsToCwd,
   touchWebChatSessionWithUserMessage,
 } from './sessionStore.js'
 import {
@@ -111,6 +112,61 @@ describe('webui session store', () => {
       expect(loadWebChatMessages(cwd, sessionId)).toEqual([
         { messageId: 'user-1', role: 'user', content: 'hello' },
         { messageId: 'assistant-1', role: 'assistant', content: 'hi there' },
+      ])
+    } finally {
+      setClaudeConfigHomeDirForTesting(previousConfigDir)
+      getClaudeConfigHomeDir.cache?.clear?.()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('migrates installed Web sessions from the legacy runtime cwd to the workspace cwd', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-migrate-'))
+    const previousConfigDir = getClaudeConfigHomeDirOverrideForTesting()
+    try {
+      const configDir = join(dir, 'config')
+      setClaudeConfigHomeDirForTesting(configDir)
+      getClaudeConfigHomeDir.cache?.clear?.()
+      const legacyCwd = resolve(join(dir, 'runtime'))
+      const workspaceCwd = resolve(join(configDir, 'workspace'))
+      const location = { filePath: join(configDir, 'webui', 'sessions.json') }
+      const session = createWebChatSession(
+        legacyCwd,
+        location,
+        new Date('2026-07-03T00:00:00.000Z'),
+      )
+      touchWebChatSessionWithUserMessage(
+        legacyCwd,
+        session.id,
+        'old installed chat',
+        location,
+        new Date('2026-07-03T00:01:00.000Z'),
+      )
+      const oldTranscriptPath = getWebChatTranscriptPath(legacyCwd, session.id)
+      mkdirSync(dirname(oldTranscriptPath), { recursive: true })
+      writeFileSync(
+        oldTranscriptPath,
+        JSON.stringify({
+          type: 'user',
+          uuid: 'legacy-user',
+          message: { role: 'user', content: 'old installed chat' },
+        }),
+      )
+
+      expect(listWebChatSessions(workspaceCwd, location)).toEqual([])
+      expect(migrateWebChatSessionsToCwd(workspaceCwd, [legacyCwd], location)).toBe(1)
+
+      expect(listWebChatSessions(workspaceCwd, location).map(item => item.id)).toEqual([
+        session.id,
+      ])
+      expect(listWebChatSessions(legacyCwd, location)).toEqual([])
+      expect(hasWebChatTranscriptMessages(workspaceCwd, session.id)).toBe(true)
+      expect(loadWebChatMessages(workspaceCwd, session.id)).toEqual([
+        {
+          messageId: 'legacy-user',
+          role: 'user',
+          content: 'old installed chat',
+        },
       ])
     } finally {
       setClaudeConfigHomeDirForTesting(previousConfigDir)

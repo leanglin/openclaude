@@ -103,9 +103,9 @@ export function normalizeCaseForComparison(path: string): string {
 }
 
 /**
- * If filePath is inside a .opencat/skills/{name}/ directory (project) or
- * .openclaude/skills/{name}/ directory (global), plus the legacy global
- * .claude/skills path, return the skill name and a session-allow pattern
+ * If filePath is inside a .opencat/skills/{name}/ directory (project), the
+ * current OpenCat config skills directory, or legacy .openclaude/.claude global
+ * skill paths, return the skill name and a session-allow pattern
  * scoped to just that skill.
  * Used to offer a narrower "allow edits to this skill only" option in the
  * permission dialog and SDK suggestions, so iterating on one skill doesn't
@@ -117,6 +117,7 @@ export function getClaudeSkillScope(
   const absolutePath = expandPath(filePath)
   const absolutePathLower = normalizeCaseForComparison(absolutePath)
 
+  const openCatGlobalSkills = getOpenCatConfigSkillBase()
   const bases = [
     {
       dir: expandPath(
@@ -124,6 +125,7 @@ export function getClaudeSkillScope(
       ),
       prefix: `/${PRODUCT_PROJECT_CONFIG_DIR_NAME}/skills/`,
     },
+    ...(openCatGlobalSkills ? [openCatGlobalSkills] : []),
     {
       dir: expandPath(join(homedir(), '.openclaude', 'skills')),
       prefix: '~/.openclaude/skills/',
@@ -173,6 +175,32 @@ export function getClaudeSkillScope(
   }
 
   return null
+}
+
+function shouldUseOpenCatConfigSkillScope(): boolean {
+  return Boolean(process.env.OPENCAT_CONFIG_DIR) ||
+    (!process.env.OPENCLAUDE_CONFIG_DIR && !process.env.CLAUDE_CONFIG_DIR)
+}
+
+function permissionPatternPrefixForAbsoluteDir(dir: string): string {
+  const normalized = toPosixPath(expandPath(dir)).replace(/\/+$/, '')
+  return posix.isAbsolute(normalized)
+    ? `/${normalized}/`
+    : `${normalized}/`
+}
+
+function getOpenCatConfigSkillBase(): { dir: string; prefix: string } | null {
+  if (!shouldUseOpenCatConfigSkillScope()) return null
+  const dir = expandPath(join(getClaudeConfigHomeDir(), 'skills'))
+  return {
+    dir,
+    prefix: permissionPatternPrefixForAbsoluteDir(dir),
+  }
+}
+
+function isOpenCatConfigSkillPermissionPattern(ruleContent: string): boolean {
+  const base = getOpenCatConfigSkillBase()
+  return Boolean(base && ruleContent.startsWith(base.prefix))
 }
 
 // Always use / as the path separator per gitignore spec
@@ -1369,10 +1397,11 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
     'allow',
   )
   if (claudeFolderAllowRule) {
-    // Check if this rule is scoped under a Claude config folder.
+    // Check if this rule is scoped under a Claude/OpenCat config folder.
     // Accepts broad project/global patterns ('/.claude/**',
     // '~/.openclaude/**', and legacy '~/.claude/**') plus narrowed skill
-    // patterns like '~/.openclaude/skills/my-skill/**' so users can grant
+    // patterns like an OpenCat config-dir skill or '~/.openclaude/skills/my-skill/**'
+    // so users can grant
     // session access to a single skill without also exposing settings.json
     // or hooks/. The rule already matched the path via matchingRuleForInput;
     // this is an additional scope check. Reject '..' to prevent a rule like
@@ -1386,7 +1415,8 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
         ) ||
         ruleContent.startsWith(
           LEGACY_GLOBAL_CLAUDE_FOLDER_PERMISSION_PATTERN.slice(0, -2),
-        )) &&
+        ) ||
+        isOpenCatConfigSkillPermissionPattern(ruleContent)) &&
       !ruleContent.includes('..') &&
       ruleContent.endsWith('/**')
     ) {

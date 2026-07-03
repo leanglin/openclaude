@@ -1,13 +1,13 @@
 import { EventEmitter } from 'node:events'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { createWebUiApp } from './server.js'
+import { createWebUiApp, ensureWebUiBootstrapDirs } from './server.js'
 import { buildMidsceneSessionEnv } from './providerProfile.js'
 import { createWebChatSession } from './sessionStore.js'
 import type { ServerEvent } from './types.js'
@@ -195,6 +195,26 @@ function createWsEventReader(ws: WebSocket) {
 }
 
 describe('webui server', () => {
+  test('creates installed Web workspace, session, and skill directories', () => {
+    const { cwd, configDir } = setupIsolatedApiState()
+
+    const dirs = ensureWebUiBootstrapDirs(cwd)
+
+    expect(dirs).toEqual({
+      configDir,
+      workspaceDir: cwd,
+      userSkillsDir: join(configDir, 'skills'),
+      projectsDir: join(configDir, 'projects'),
+      webuiDir: join(configDir, 'webui'),
+      projectSkillsDir: join(cwd, '.opencat', 'skills'),
+    })
+    expect(existsSync(dirs.workspaceDir)).toBe(true)
+    expect(existsSync(dirs.userSkillsDir)).toBe(true)
+    expect(existsSync(dirs.projectsDir)).toBe(true)
+    expect(existsSync(dirs.webuiDir)).toBe(true)
+    expect(existsSync(dirs.projectSkillsDir)).toBe(true)
+  })
+
   test('serves the icon asset with image/x-icon', async () => {
     await withServer(async baseUrl => {
       const response = await fetch(`${baseUrl}/assets/opencat.ico`)

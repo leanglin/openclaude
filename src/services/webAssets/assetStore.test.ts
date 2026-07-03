@@ -83,6 +83,26 @@ test('creates, edits, lists, and deletes project skills', async () => {
   expect(existsSync(skillPath)).toBe(false)
 })
 
+test('creates user skills under the OpenCat config skills directory', async () => {
+  const { cwd, configDir } = setupTempAssets()
+  const created = await createSkillAsset(cwd, {
+    scope: 'user',
+    name: 'Shared Helper',
+    description: 'Shared across projects',
+    whenToUse: 'Use for reusable project help.',
+    allowedTools: ['Read'],
+    content: 'Reusable guidance.',
+  })
+
+  expect(created.source).toBe('user')
+  expect(created.readonly).toBe(false)
+  const skillPath = join(configDir, 'skills', 'shared-helper', 'SKILL.md')
+  expect(readFileSync(skillPath, 'utf8')).toContain('Shared across projects')
+
+  await deleteSkillAsset(cwd, created.id, true)
+  expect(existsSync(skillPath)).toBe(false)
+})
+
 test('refuses to edit read-only MCP placeholder assets', async () => {
   const { cwd } = setupTempAssets()
   const mcpAsset = (await listAssets(cwd)).find(asset => asset.source === 'mcp')

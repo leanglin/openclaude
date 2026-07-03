@@ -58,6 +58,8 @@ const MIDSCENE_ENV_KEYS = [
   'MIDSCENE_MODEL_API_KEY',
   'MIDSCENE_MODEL_FAMILY',
 ] as const
+const MIDSCENE_CONFIG_SOURCE_ENV = 'OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE'
+const MIDSCENE_CONFIG_PRESENT_KEYS_ENV = 'OPENCAT_APP_TEST_MIDSCENE_PRESENT_KEYS'
 
 export const PRIMARY_MENUS: PrimaryMenuOption[] = [
   { id: 'chat', label: 'Chat', icon: 'message-square' },
@@ -166,7 +168,14 @@ export function extractMidsceneEnv(
 export function buildMidsceneSessionEnv(
   location?: ProfileFileLocation,
 ): NodeJS.ProcessEnv {
-  return { ...extractMidsceneEnv(loadProfileFile(location)?.env) }
+  const env = extractMidsceneEnv(loadProfileFile(location)?.env)
+  const presentKeys = MIDSCENE_ENV_KEYS.filter(key => Boolean(env[key]))
+  if (presentKeys.length === 0) return env
+  return {
+    ...env,
+    [MIDSCENE_CONFIG_SOURCE_ENV]: 'saved-profile',
+    [MIDSCENE_CONFIG_PRESENT_KEYS_ENV]: presentKeys.join(','),
+  }
 }
 
 export function summarizeMidsceneProfile(

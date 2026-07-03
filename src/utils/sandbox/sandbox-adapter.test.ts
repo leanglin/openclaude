@@ -56,20 +56,14 @@ describe('convertToSandboxRuntimeConfig', () => {
     }
   })
 
-  test('denies canonical OpenClaude settings files in changed cwd', () => {
+  test('denies canonical OpenCat settings files in changed cwd', () => {
     const config = convertToSandboxRuntimeConfig({} as SettingsJson)
 
     expect(config.filesystem.denyWrite).toContain(
-      resolve(activeCwd, '.openclaude', 'settings.json'),
+      resolve(activeCwd, '.opencat', 'settings.json'),
     )
     expect(config.filesystem.denyWrite).toContain(
-      resolve(activeCwd, '.openclaude', 'settings.local.json'),
-    )
-    expect(config.filesystem.denyWrite).toContain(
-      resolve(activeCwd, '.claude', 'settings.json'),
-    )
-    expect(config.filesystem.denyWrite).toContain(
-      resolve(activeCwd, '.claude', 'settings.local.json'),
+      resolve(activeCwd, '.opencat', 'settings.local.json'),
     )
   })
 })

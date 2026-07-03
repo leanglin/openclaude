@@ -1,6 +1,7 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import * as platformPath from 'path'
 import { getAdditionalDirectoriesForClaudeMd } from '../../bootstrap/state.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../../constants/product.js'
 import {
   clearCommandMemoizationCaches,
   clearCommandsCache,
@@ -204,7 +205,7 @@ async function getWatchablePaths(): Promise<string[]> {
   const fs = dependencies.getFsImplementation()
   const paths: string[] = []
 
-  // User skills directory (~/.openclaude/skills)
+  // User skills directory (OpenCat config home/skills)
   const userSkillsPath = dependencies.getSkillsPath('userSettings', 'skills')
   if (userSkillsPath) {
     try {
@@ -215,7 +216,7 @@ async function getWatchablePaths(): Promise<string[]> {
     }
   }
 
-  // User commands directory (~/.openclaude/commands)
+  // User commands directory (OpenCat config home/commands)
   const userCommandsPath = dependencies.getSkillsPath(
     'userSettings',
     'commands',
@@ -229,7 +230,7 @@ async function getWatchablePaths(): Promise<string[]> {
     }
   }
 
-  // Project skills directory (.claude/skills)
+  // Project skills directory (.opencat/skills)
   const projectSkillsPath = dependencies.getSkillsPath(
     'projectSettings',
     'skills',
@@ -245,7 +246,7 @@ async function getWatchablePaths(): Promise<string[]> {
     }
   }
 
-  // Project commands directory (.claude/commands)
+  // Project commands directory (.opencat/commands)
   const projectCommandsPath = dependencies.getSkillsPath(
     'projectSettings',
     'commands',
@@ -263,7 +264,11 @@ async function getWatchablePaths(): Promise<string[]> {
 
   // Additional directories (--add-dir) skills
   for (const dir of getAdditionalDirectoriesForClaudeMd()) {
-    const additionalSkillsPath = platformPath.join(dir, '.claude', 'skills')
+    const additionalSkillsPath = platformPath.join(
+      dir,
+      PRODUCT_PROJECT_CONFIG_DIR_NAME,
+      'skills',
+    )
     try {
       await fs.stat(additionalSkillsPath)
       paths.push(additionalSkillsPath)

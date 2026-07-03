@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import {
   copyFile,
@@ -18,12 +19,28 @@ const require = createRequire(import.meta.url)
 const rootDir = resolve(import.meta.dirname, '..', '..')
 const runtimeDir = join(rootDir, 'launcher', 'src-tauri', 'resources', 'opencat-runtime')
 const packageJsonPath = join(rootDir, 'package.json')
+const defaultBuildCacheDir = process.env.LOCALAPPDATA
+  ? join(process.env.LOCALAPPDATA, 'OpenCatBuildCache')
+  : join(rootDir, '.opencat-build-cache')
+const buildCacheDir = resolve(process.env.OPENCAT_BUILD_CACHE_DIR ?? defaultBuildCacheDir)
+const runtimeNodeModulesCacheDir = join(buildCacheDir, 'runtime-node_modules')
+const runtimeNodeModulesCacheMetaPath = join(buildCacheDir, 'runtime-node_modules.json')
+const runtimePackageLockCachePath = join(buildCacheDir, 'runtime-package-lock.json')
+const playwrightBuildCacheDir = join(buildCacheDir, 'ms-playwright')
+const cleanRuntimeCache = process.env.OPENCAT_CLEAN_RUNTIME_CACHE === '1'
+const cleanPlaywrightCache = process.env.OPENCAT_CLEAN_PLAYWRIGHT_CACHE === '1'
+const runtimeNodeModulesCacheVersion = '2'
 const visibleLeakPattern = /OpenClaude|Open Claude|openclaude/g
 
 type CopyEntry = {
   from: string
   to: string
   required?: boolean
+}
+
+type RuntimeNodeModulesCacheMeta = {
+  hash?: string
+  version?: string
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -33,6 +50,18 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function hasDirectoryEntries(path: string): Promise<boolean> {
+  try {
+    return (await readdir(path)).length > 0
+  } catch {
+    return false
+  }
+}
+
+function samePath(left: string, right: string): boolean {
+  return resolve(left).toLowerCase() === resolve(right).toLowerCase()
 }
 
 async function copyPath(entry: CopyEntry): Promise<void> {
@@ -90,28 +119,100 @@ function playwrightCacheCandidates(): string[] {
   return candidates.filter((candidate): candidate is string => Boolean(candidate))
 }
 
-async function copyOrInstallPlaywrightChromium(): Promise<void> {
-  const target = join(runtimeDir, 'ms-playwright')
-  await mkdir(target, { recursive: true })
-  for (const candidate of playwrightCacheCandidates()) {
-    if (await exists(candidate)) {
-      await cp(candidate, target, { recursive: true, force: true })
-      return
-    }
+async function hasPlaywrightChromiumCache(path: string): Promise<boolean> {
+  try {
+    return (await readdir(path, { withFileTypes: true }))
+      .some(entry => entry.name.toLowerCase().startsWith('chromium'))
+  } catch {
+    return false
+  }
+}
+
+async function hydratePlaywrightCacheFromExistingRuntime(): Promise<void> {
+  const existingRuntimeCache = join(runtimeDir, 'ms-playwright')
+  if (
+    cleanPlaywrightCache ||
+    await hasPlaywrightChromiumCache(playwrightBuildCacheDir) ||
+    !(await hasPlaywrightChromiumCache(existingRuntimeCache))
+  ) {
+    return
   }
 
+  console.log(`Saving existing staged Playwright Chromium cache to ${playwrightBuildCacheDir}`)
+  await mkdir(buildCacheDir, { recursive: true })
+  await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+  await cp(existingRuntimeCache, playwrightBuildCacheDir, {
+    recursive: true,
+    force: true,
+    dereference: true,
+  })
+}
+
+async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
+  for (const candidate of playwrightCacheCandidates()) {
+    if (samePath(candidate, playwrightBuildCacheDir)) {
+      continue
+    }
+    if (!(await hasPlaywrightChromiumCache(candidate))) {
+      continue
+    }
+
+    console.log(`Caching existing Playwright Chromium from ${candidate}`)
+    await mkdir(buildCacheDir, { recursive: true })
+    await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+    await cp(candidate, playwrightBuildCacheDir, {
+      recursive: true,
+      force: true,
+      dereference: true,
+    })
+    return true
+  }
+  return false
+}
+
+async function installPlaywrightChromiumToCache(): Promise<void> {
+  console.log(`Installing Playwright Chromium into ${playwrightBuildCacheDir}`)
+  await mkdir(buildCacheDir, { recursive: true })
+  await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+  await mkdir(playwrightBuildCacheDir, { recursive: true })
   const result = spawnSync(detectNodeExecutable(), [playwrightCliPath(), 'install', 'chromium'], {
     cwd: rootDir,
     stdio: 'inherit',
     env: {
       ...process.env,
-      PLAYWRIGHT_BROWSERS_PATH: target,
+      PLAYWRIGHT_BROWSERS_PATH: playwrightBuildCacheDir,
     },
     windowsHide: true,
   })
   if (result.status !== 0) {
     throw new Error('Failed to install bundled Playwright Chromium.')
   }
+  if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
+    throw new Error(`Playwright Chromium cache was not created at ${playwrightBuildCacheDir}.`)
+  }
+}
+
+async function copyOrInstallPlaywrightChromium(): Promise<void> {
+  const target = join(runtimeDir, 'ms-playwright')
+  if (cleanPlaywrightCache) {
+    console.log(`Cleaning OpenCat Playwright cache at ${playwrightBuildCacheDir}`)
+    await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+  }
+
+  if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
+    const seeded = await seedPlaywrightCacheFromCandidates()
+    if (!seeded) {
+      await installPlaywrightChromiumToCache()
+    }
+  }
+
+  console.log(`Using cached Playwright Chromium from ${playwrightBuildCacheDir}`)
+  await rm(target, { recursive: true, force: true })
+  await cp(playwrightBuildCacheDir, target, {
+    recursive: true,
+    force: true,
+    dereference: true,
+  })
 }
 
 function npmCommand(): string {
@@ -119,6 +220,19 @@ function npmCommand(): string {
 }
 
 async function installRuntimeNodeModules(): Promise<void> {
+  const dependencyHash = await runtimeDependencyHash()
+  if (cleanRuntimeCache) {
+    console.log(`Cleaning OpenCat runtime dependency cache at ${runtimeNodeModulesCacheDir}`)
+    await rm(runtimeNodeModulesCacheDir, { recursive: true, force: true })
+    await rm(runtimeNodeModulesCacheMetaPath, { force: true })
+    await rm(runtimePackageLockCachePath, { force: true })
+  }
+
+  if (await copyRuntimeNodeModulesFromCache(dependencyHash)) {
+    return
+  }
+
+  console.log('Installing OpenCat runtime production dependencies')
   const result = spawnSync(npmCommand(), ['install', '--omit=dev'], {
     cwd: runtimeDir,
     stdio: 'inherit',
@@ -129,6 +243,92 @@ async function installRuntimeNodeModules(): Promise<void> {
   }
   await materializeRuntimeFileDependencies()
   await pruneRuntimeNodeModules()
+  await saveRuntimeNodeModulesCache(dependencyHash)
+}
+
+async function runtimeDependencyHash(): Promise<string> {
+  const hash = createHash('sha256')
+  const hashInputs = [
+    packageJsonPath,
+    join(rootDir, 'bun.lock'),
+    join(rootDir, 'bun.lockb'),
+    join(rootDir, 'package-lock.json'),
+    join(rootDir, 'vendor', 'node-domexception-shim', 'package.json'),
+  ]
+
+  hash.update(`opencat-runtime-node-modules-cache:${runtimeNodeModulesCacheVersion}\n`)
+  for (const path of hashInputs) {
+    if (!(await exists(path))) {
+      continue
+    }
+    hash.update(path)
+    hash.update('\0')
+    hash.update(await readFile(path))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+async function readRuntimeNodeModulesCacheMeta(): Promise<RuntimeNodeModulesCacheMeta | null> {
+  try {
+    return JSON.parse(await readFile(runtimeNodeModulesCacheMetaPath, 'utf8')) as RuntimeNodeModulesCacheMeta
+  } catch {
+    return null
+  }
+}
+
+async function copyRuntimeNodeModulesFromCache(expectedHash: string): Promise<boolean> {
+  const meta = await readRuntimeNodeModulesCacheMeta()
+  if (
+    meta?.version !== runtimeNodeModulesCacheVersion ||
+    meta.hash !== expectedHash ||
+    !(await hasDirectoryEntries(runtimeNodeModulesCacheDir))
+  ) {
+    return false
+  }
+
+  console.log(`Using cached OpenCat runtime production dependencies from ${runtimeNodeModulesCacheDir}`)
+  await rm(join(runtimeDir, 'node_modules'), { recursive: true, force: true })
+  await cp(runtimeNodeModulesCacheDir, join(runtimeDir, 'node_modules'), {
+    recursive: true,
+    force: true,
+    dereference: true,
+  })
+  if (await exists(runtimePackageLockCachePath)) {
+    await copyFile(runtimePackageLockCachePath, join(runtimeDir, 'package-lock.json'))
+  }
+  return true
+}
+
+async function saveRuntimeNodeModulesCache(hash: string): Promise<void> {
+  const nodeModules = join(runtimeDir, 'node_modules')
+  if (!(await hasDirectoryEntries(nodeModules))) {
+    throw new Error('Runtime node_modules was not created.')
+  }
+
+  console.log(`Saving OpenCat runtime production dependencies to ${runtimeNodeModulesCacheDir}`)
+  await mkdir(buildCacheDir, { recursive: true })
+  await rm(runtimeNodeModulesCacheDir, { recursive: true, force: true })
+  await cp(nodeModules, runtimeNodeModulesCacheDir, {
+    recursive: true,
+    force: true,
+    dereference: true,
+  })
+  const runtimePackageLockPath = join(runtimeDir, 'package-lock.json')
+  if (await exists(runtimePackageLockPath)) {
+    await copyFile(runtimePackageLockPath, runtimePackageLockCachePath)
+  } else {
+    await rm(runtimePackageLockCachePath, { force: true })
+  }
+  await writeFile(
+    runtimeNodeModulesCacheMetaPath,
+    `${JSON.stringify({
+      version: runtimeNodeModulesCacheVersion,
+      hash,
+      preparedAt: new Date().toISOString(),
+    }, null, 2)}\n`,
+    'utf8',
+  )
 }
 
 async function materializeRuntimeFileDependencies(): Promise<void> {
@@ -290,6 +490,7 @@ async function scanVisibleLeaks(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await hydratePlaywrightCacheFromExistingRuntime()
   await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
 

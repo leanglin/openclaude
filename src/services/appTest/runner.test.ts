@@ -34,6 +34,8 @@ process.stdin.on('end', () => {
       android_sdk_configured: false,
       missing_android_env_keys: ['ANDROID_HOME', 'ANDROID_SDK_ROOT'],
       midscene_model_configured: false,
+      midscene_config_source: 'missing',
+      configured_midscene_env_keys: [],
       missing_midscene_env_keys: ['MIDSCENE_MODEL_NAME'],
       midscene_api_key: 'super-secret-key'
     }
@@ -149,6 +151,8 @@ describe('runAppTest', () => {
       platform: 'android',
       adb_available: true,
       connected_devices: ['device-1'],
+      midscene_config_source: 'missing',
+      configured_midscene_env_keys: [],
       missing_midscene_env_keys: ['MIDSCENE_MODEL_NAME'],
       midscene_api_key: '[redacted]',
     })

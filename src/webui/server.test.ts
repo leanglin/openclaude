@@ -1,12 +1,16 @@
+import { EventEmitter } from 'node:events'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
+import { WebSocket } from 'ws'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { createWebUiApp } from './server.js'
 import { buildMidsceneSessionEnv } from './providerProfile.js'
 import { createWebChatSession } from './sessionStore.js'
+import type { ServerEvent } from './types.js'
 import { getAutoMemPath } from '../memdir/paths.js'
 import { clearCommandsCache } from '../commands.js'
 import {
@@ -85,7 +89,108 @@ async function withServer<T>(
   } finally {
     app.close()
     sockets.forEach(socket => socket.destroy())
-    await new Promise<void>(resolve => server.close(() => resolve()))
+    const closeAll = server as Server & {
+      closeAllConnections?: () => void
+      closeIdleConnections?: () => void
+      unref?: () => void
+    }
+    closeAll.closeAllConnections?.()
+    closeAll.closeIdleConnections?.()
+    closeAll.unref?.()
+    await new Promise<void>(resolve => {
+      const timeout = setTimeout(resolve, 500)
+      timeout.unref?.()
+      server.close(() => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
+  }
+}
+
+function createMockChild() {
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: PassThrough
+    stdout: PassThrough
+    stderr: PassThrough
+    killed: boolean
+    kill: (signal?: NodeJS.Signals | number) => boolean
+  }
+  child.stdin = new PassThrough()
+  child.stdout = new PassThrough()
+  child.stderr = new PassThrough()
+  child.killed = false
+  child.kill = signal => {
+    child.killed = true
+    child.stdin.end()
+    child.stdout.destroy()
+    child.stderr.destroy()
+    child.emit('close', 0, signal)
+    return true
+  }
+  return child
+}
+
+async function terminateWebSocket(ws: WebSocket): Promise<void> {
+  if (ws.readyState === WebSocket.CLOSED) return
+  await new Promise<void>(resolve => {
+    const timeout = setTimeout(resolve, 250)
+    timeout.unref?.()
+    ws.once('close', () => {
+      clearTimeout(timeout)
+      resolve()
+    })
+    ws.terminate()
+  })
+}
+
+async function connectWebSocket(baseUrl: string): Promise<{
+  ws: WebSocket
+  reader: ReturnType<typeof createWsEventReader>
+}> {
+  const ws = new WebSocket(`${baseUrl.replace(/^http/, 'ws')}/ws?token=test-token`)
+  const reader = createWsEventReader(ws)
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Timed out opening WebSocket.')), 2000)
+    timeout.unref?.()
+    ws.once('open', resolve)
+    ws.once('error', reject)
+    ws.once('open', () => clearTimeout(timeout))
+    ws.once('error', () => clearTimeout(timeout))
+  })
+  return { ws, reader }
+}
+
+function createWsEventReader(ws: WebSocket) {
+  const events: ServerEvent[] = []
+  const waiters = new Set<() => void>()
+  ws.on('message', data => {
+    events.push(JSON.parse(String(data)) as ServerEvent)
+    for (const notify of waiters) notify()
+  })
+  return {
+    waitFor(
+      predicate: (event: ServerEvent) => boolean,
+      timeoutMs = 2000,
+    ): Promise<ServerEvent> {
+      const existing = events.find(predicate)
+      if (existing) return Promise.resolve(existing)
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          waiters.delete(check)
+          reject(new Error('Timed out waiting for WebSocket event.'))
+        }, timeoutMs)
+        const check = () => {
+          const event = events.find(predicate)
+          if (!event) return
+          clearTimeout(timeout)
+          waiters.delete(check)
+          resolve(event)
+        }
+        waiters.add(check)
+      })
+    },
+    events,
   }
 }
 
@@ -157,9 +262,97 @@ describe('webui server', () => {
           expect(env.MIDSCENE_MODEL_BASE_URL).toBe('https://vision.example.test/v1')
           expect(env.MIDSCENE_MODEL_FAMILY).toBe('doubao-vision')
           expect(env.MIDSCENE_MODEL_API_KEY).toBe(key)
+          expect(env.OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE).toBe('saved-profile')
+          expect(env.OPENCAT_APP_TEST_MIDSCENE_PRESENT_KEYS?.split(',').sort()).toEqual([
+            'MIDSCENE_MODEL_API_KEY',
+            'MIDSCENE_MODEL_BASE_URL',
+            'MIDSCENE_MODEL_FAMILY',
+            'MIDSCENE_MODEL_NAME',
+          ])
         },
         {
           profileLocation: { filePath },
+        },
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('refresh_session sends latest bootstrap and next CLI child receives saved Midscene env', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-server-refresh-'))
+    try {
+      const cwd = join(dir, 'project')
+      mkdirSync(cwd, { recursive: true })
+      const filePath = join(dir, 'profile.json')
+      const sessionStoreLocation = { filePath: join(dir, 'sessions.json') }
+      let capturedEnv: NodeJS.ProcessEnv | undefined
+      let resolveSpawned: (() => void) | undefined
+      const spawned = new Promise<void>(resolve => {
+        resolveSpawned = resolve
+      })
+
+      await withServer(
+        async baseUrl => {
+          const key = 'midscene-secret-after-refresh'
+          const { ws, reader } = await connectWebSocket(baseUrl)
+          try {
+            await reader.waitFor(event => event.type === 'ready')
+
+            const save = await fetch(`${baseUrl}/api/provider-profile`, {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer test-token',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider: 'ollama',
+                baseUrl: 'http://127.0.0.1:11434',
+                model: 'llama3.2:3b',
+                midscene: {
+                  baseUrl: 'https://vision.example.test/v1',
+                  model: 'doubao-vision-pro',
+                  modelFamily: 'doubao-vision',
+                  apiKey: key,
+                },
+              }),
+            })
+            expect(save.status).toBe(200)
+
+            ws.send(JSON.stringify({ type: 'refresh_session' }))
+            const refreshed = await reader.waitFor(event =>
+              event.type === 'ready' &&
+              event.bootstrap.midsceneProfile?.model === 'doubao-vision-pro',
+            )
+            expect(JSON.stringify(refreshed)).not.toContain(key)
+
+            ws.send(JSON.stringify({ type: 'send_message', text: 'run app test' }))
+            await Promise.race([
+              spawned,
+              new Promise((_resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timed out waiting for CLI child spawn.')), 2000)
+                timeout.unref?.()
+              }),
+            ])
+
+            expect(capturedEnv?.MIDSCENE_MODEL_NAME).toBe('doubao-vision-pro')
+            expect(capturedEnv?.MIDSCENE_MODEL_BASE_URL).toBe('https://vision.example.test/v1')
+            expect(capturedEnv?.MIDSCENE_MODEL_FAMILY).toBe('doubao-vision')
+            expect(capturedEnv?.MIDSCENE_MODEL_API_KEY).toBe(key)
+            expect(capturedEnv?.OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE).toBe('saved-profile')
+          } finally {
+            await terminateWebSocket(ws)
+          }
+        },
+        {
+          cwd,
+          profileLocation: { filePath },
+          sessionStoreLocation,
+          spawnFactory: (_command, _args, options) => {
+            capturedEnv = options.env
+            resolveSpawned?.()
+            return createMockChild()
+          },
         },
       )
     } finally {
@@ -379,5 +572,5 @@ describe('webui server', () => {
         sessionStoreLocation: { filePath: join(cwd, 'sessions.json') },
       },
     )
-  })
+  }, 15000)
 })

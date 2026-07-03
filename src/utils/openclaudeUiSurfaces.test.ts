@@ -50,16 +50,16 @@ afterEach(() => {
 })
 
 describe('OpenClaude settings path surfaces', () => {
-  test('isClaudeSettingsPath recognizes project .openclaude settings files', () => {
+  test('isClaudeSettingsPath recognizes project .opencat settings files', () => {
     expect(
       isClaudeSettingsPath(
-        join(process.cwd(), '.openclaude', 'settings.json'),
+        join(process.cwd(), '.opencat', 'settings.json'),
       ),
     ).toBe(true)
 
     expect(
       isClaudeSettingsPath(
-        join(process.cwd(), '.openclaude', 'settings.local.json'),
+        join(process.cwd(), '.opencat', 'settings.local.json'),
       ),
     ).toBe(true)
   })
@@ -99,20 +99,20 @@ describe('OpenClaude settings path surfaces', () => {
     expect(getCustomCommandsTipContent()).toContain(customSkillPath)
   })
 
-  test('permission save destinations point project settings to .openclaude', async () => {
+  test('permission save destinations point project settings to .opencat', async () => {
     const { optionForPermissionSaveDestination } = await import(
       '../components/permissions/rules/AddPermissionRules.tsx'
     )
 
     expect(optionForPermissionSaveDestination('projectSettings')).toEqual({
       label: 'Project settings',
-      description: 'Checked in at .openclaude/settings.json',
+      description: 'Checked in at .opencat/settings.json',
       value: 'projectSettings',
     })
 
     expect(optionForPermissionSaveDestination('localSettings')).toEqual({
       label: 'Project settings (local)',
-      description: 'Saved in .openclaude/settings.local.json',
+      description: 'Saved in .opencat/settings.local.json',
       value: 'localSettings',
     })
   })
@@ -138,6 +138,17 @@ describe('OpenClaude settings path surfaces', () => {
         join(homedir(), 'custom-openclaude', 'settings.json'),
       ),
     ).toBe(false)
+  })
+
+  test('project skill scope recognizes .opencat skills', () => {
+    expect(
+      getClaudeSkillScope(
+        join(process.cwd(), '.opencat', 'skills', 'demo', 'SKILL.md'),
+      ),
+    ).toEqual({
+      skillName: 'demo',
+      pattern: '/.opencat/skills/demo/**',
+    })
   })
 
   test('global skill scope recognizes ~/.openclaude and legacy ~/.claude skills', () => {

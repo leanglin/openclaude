@@ -60,6 +60,12 @@ const TEST_DIR = __dirname;
 const PACKAGE_ROOT = resolve(TEST_DIR, '..');
 const SOURCE_PATH = join(PACKAGE_ROOT, 'src', 'cli.ts');
 const DIST_CLI_PATH = join(PACKAGE_ROOT, 'dist', 'cli.js');
+const MIDSCENE_MODEL_ENV_KEYS = [
+  'MIDSCENE_MODEL_API_KEY',
+  'MIDSCENE_MODEL_BASE_URL',
+  'MIDSCENE_MODEL_FAMILY',
+  'MIDSCENE_MODEL_NAME',
+];
 
 function tempTraceDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'midscene-runner-test-'));
@@ -131,6 +137,11 @@ test('preflight keeps connected ADB evidence when Android SDK env is missing', (
   assert.equal(preflight.target_device_connected, true);
   assert.equal(preflight.android_sdk_configured, false);
   assert.deepEqual(preflight.missing_android_env_keys, ['ANDROID_HOME', 'ANDROID_SDK_ROOT']);
+  assert.equal(preflight.midscene_model_configured, true);
+  assert.equal(preflight.midscene_config_source, 'process-env');
+  assert.deepEqual([...preflight.configured_midscene_env_keys].sort(), MIDSCENE_MODEL_ENV_KEYS);
+  assert.deepEqual(preflight.missing_midscene_env_keys, []);
+  assert.doesNotMatch(JSON.stringify(preflight), /test-key/);
   assert.equal(formatAndroidPreflightFailure(preflight), null);
 });
 
@@ -145,9 +156,38 @@ test('preflight reports missing Midscene model config without claiming device lo
   });
   const failure = formatAndroidPreflightFailure(preflight);
 
+  assert.equal(preflight.midscene_model_configured, false);
+  assert.equal(preflight.midscene_config_source, 'partial-env');
+  assert.deepEqual([...preflight.configured_midscene_env_keys].sort(), [
+    'MIDSCENE_MODEL_API_KEY',
+    'MIDSCENE_MODEL_BASE_URL',
+    'MIDSCENE_MODEL_FAMILY',
+  ]);
+  assert.deepEqual(preflight.missing_midscene_env_keys, ['MIDSCENE_MODEL_NAME']);
+  assert.doesNotMatch(JSON.stringify(preflight), /test-key/);
   assert.match(String(failure), /Midscene model configuration is incomplete/);
   assert.match(String(failure), /MIDSCENE_MODEL_NAME/);
   assert.doesNotMatch(String(failure), /No connected Android device/i);
+});
+
+test('preflight reports saved profile source without leaking Midscene values', () => {
+  const preflight = buildAndroidMidscenePreflight({
+    env: completeMidsceneEnv({
+      OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE: 'saved-profile',
+    }),
+    execFile(_file, args) {
+      if (args?.[0] === 'version') return 'Android Debug Bridge version 1.0.41';
+      if (args?.[0] === 'devices') return 'List of devices attached\nAREMUT5226001251\tdevice\n';
+      return '';
+    },
+  });
+
+  assert.equal(preflight.midscene_model_configured, true);
+  assert.equal(preflight.midscene_config_source, 'saved-profile');
+  assert.deepEqual([...preflight.configured_midscene_env_keys].sort(), MIDSCENE_MODEL_ENV_KEYS);
+  assert.deepEqual(preflight.missing_midscene_env_keys, []);
+  assert.doesNotMatch(JSON.stringify(preflight), /test-key/);
+  assert.doesNotMatch(JSON.stringify(preflight), /vision\.example\.test/);
 });
 
 test('preflight reports ADB availability failures distinctly', () => {

@@ -74,6 +74,36 @@ export function renderWebUiPage(): string {
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
 
+    @keyframes ocAssistantBubbleIn {
+      0% { opacity: 0; transform: translateX(-12px) translateY(14px) scale(0.985); }
+      70% { opacity: 1; }
+      100% { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+    }
+
+    @keyframes ocUserBubbleIn {
+      0% { opacity: 0; transform: translateX(12px) translateY(14px) scale(0.985); }
+      70% { opacity: 1; }
+      100% { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+    }
+
+    @keyframes ocAvatarIn {
+      0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes ocToolCardIn {
+      0% {
+        opacity: 0;
+        transform: translateY(12px);
+        box-shadow: 0 2px 8px rgba(23, 33, 38, 0.02);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+        box-shadow: 0 8px 22px rgba(23, 33, 38, 0.04);
+      }
+    }
+
     @keyframes ocShimmer {
       100% { transform: translateX(100%); }
     }
@@ -500,14 +530,11 @@ export function renderWebUiPage(): string {
       gap: 10px;
       align-items: start;
       max-width: 900px;
-      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
-      will-change: transform, opacity;
     }
 
     .message.user {
       align-self: flex-end;
       grid-template-columns: minmax(0, 1fr) 34px;
-      animation-name: ocSoftPop;
     }
 
     .avatar {
@@ -550,6 +577,20 @@ export function renderWebUiPage(): string {
       border-color: #ced4f2;
     }
 
+    .message.isNew .bubble {
+      animation: ocAssistantBubbleIn var(--oc-duration-slow) var(--oc-ease-standard) both;
+      will-change: transform, opacity;
+    }
+
+    .message.isNew.user .bubble {
+      animation-name: ocUserBubbleIn;
+    }
+
+    .message.isNew .avatar {
+      animation: ocAvatarIn var(--oc-duration-slow) var(--oc-ease-emphasized) both;
+      will-change: transform, opacity;
+    }
+
     .bubble.streaming {
       position: relative;
       border-color: #a7d5cf;
@@ -585,8 +626,12 @@ export function renderWebUiPage(): string {
       font-size: 13px;
       overflow: hidden;
       border-left: 3px solid var(--accent);
-      animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);
       box-shadow: 0 8px 22px rgba(23, 33, 38, 0.04);
+    }
+
+    .toolRow.isNew {
+      animation: ocToolCardIn var(--oc-duration-slow) var(--oc-ease-standard) both;
+      will-change: transform, opacity;
     }
 
     .toolRow strong {
@@ -3366,17 +3411,23 @@ export function renderWebUiPage(): string {
     function renderLoadedMessages(loadedMessages) {
       clearChatMessages();
       (loadedMessages || []).forEach(message => {
-        addMessage(message.role || 'assistant', message.content || '', message.messageId || ('restored-' + Date.now() + '-' + Math.random()));
+        addMessage(
+          message.role || 'assistant',
+          message.content || '',
+          message.messageId || ('restored-' + Date.now() + '-' + Math.random()),
+          { animate: false }
+        );
       });
       if ((loadedMessages || []).length) {
         emptyState.style.display = 'none';
       }
     }
 
-    function addMessage(role, content, id) {
+    function addMessage(role, content, id, options) {
       emptyState.style.display = 'none';
       const message = document.createElement('article');
-      message.className = 'message ' + role;
+      const animate = options?.animate !== false;
+      message.className = 'message ' + role + (animate ? ' isNew' : '');
       message.dataset.messageId = id;
       const avatar = document.createElement('div');
       avatar.className = 'avatar';
@@ -3454,7 +3505,7 @@ export function renderWebUiPage(): string {
       const row = document.createElement('div');
       const status = tool.status || 'started';
       const running = status === 'started' || status === 'progress';
-      row.className = 'toolRow status-' + escapeHtml(status);
+      row.className = 'toolRow isNew status-' + escapeHtml(status);
       row.setAttribute('aria-busy', running ? 'true' : 'false');
       row.innerHTML = [
         '<div class="toolHeader">',

@@ -319,6 +319,23 @@ function parseClientMessage(data: RawData): ClientMessage {
   return parsed as ClientMessage
 }
 
+function createStatusActivity(title: string, detail?: string): ServerEvent {
+  return {
+    type: 'activity',
+    activity: {
+      id: `activity-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: 'status',
+      title,
+      detail,
+      at: Date.now(),
+    },
+  }
+}
+
+function formatWebRuntimeDetail(chatCwd: string): string {
+  return `webProcessCwd=${process.cwd()}; cliBundle=${process.argv[1] || '(unknown)'}; chatCwd=${chatCwd}`
+}
+
 export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
   const wss = new WebSocketServer({ noServer: true })
   const iconPath = resolveIconPath()
@@ -382,6 +399,7 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
     let activeSessionId = bootstrap(options).activeChatSessionId
     const send = (event: ServerEvent): void => sendWs(ws, event)
     send({ type: 'ready', bootstrap: bootstrap(options) })
+    send(createStatusActivity('Web runtime', formatWebRuntimeDetail(options.cwd)))
 
     if (activeSessionId) {
       send({
@@ -484,6 +502,7 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
         if (message.type === 'refresh_session') {
           disposeSession()
           send({ type: 'status', status: 'Ready', detail: 'Session refreshed' })
+          send({ type: 'ready', bootstrap: bootstrap(options) })
           return
         }
         if (message.type === 'select_session') {
@@ -571,8 +590,8 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
     handler,
     handleUpgrade,
     close: () => {
-      wss.clients.forEach(client => client.close())
-      wss.close()
+      wss.clients.forEach(client => client.terminate())
+      wss.close(() => {})
     },
   }
 }

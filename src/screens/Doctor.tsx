@@ -17,6 +17,7 @@ import { useSettingsErrors } from '../hooks/notifs/useSettingsErrors.js';
 import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js';
 import { Box, Text } from '../ink.js';
 import { useKeybindings } from '../keybindings/useKeybinding.js';
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../constants/product.js';
 import { useAppState } from '../state/AppState.js';
 import { assembleToolPool } from '../tools.js';
 import type { Tools } from '../Tool.js';
@@ -166,7 +167,7 @@ export function Doctor(t0: Props) {
     );
     (async () => {
       const userAgentsDir = join(getClaudeConfigHomeDir(), "agents");
-      const projectAgentsDir = join(getOriginalCwd(), ".claude", "agents");
+      const projectAgentsDir = join(getOriginalCwd(), PRODUCT_PROJECT_CONFIG_DIR_NAME, "agents");
       const {
         activeAgents,
         allAgents,

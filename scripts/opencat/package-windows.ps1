@@ -1,7 +1,10 @@
 param(
   [switch]$CheckOnly,
   [switch]$SkipToolInstall,
-  [switch]$SkipBuildToolsInstall
+  [switch]$SkipBuildToolsInstall,
+  [switch]$CleanRuntimeCache,
+  [switch]$CleanPlaywrightCache,
+  [switch]$NoKillOldTests
 )
 
 Set-StrictMode -Version Latest
@@ -28,6 +31,7 @@ $TargetDir = Join-Path $RepoRoot 'launcher\src-tauri\target'
 $LogPath = Join-Path $TargetDir 'opencat-package-windows.log'
 $ToolsCacheDir = Join-Path $TargetDir 'opencat-package-tools'
 $RuntimeDir = Join-Path $RepoRoot 'launcher\src-tauri\resources\opencat-runtime'
+$BuildCacheDir = Join-Path $env:LOCALAPPDATA 'OpenCatBuildCache'
 $NsisCacheRoot = Join-Path $env:LOCALAPPDATA 'tauri'
 $NsisCacheDir = Join-Path $NsisCacheRoot 'NSIS'
 
@@ -416,6 +420,159 @@ function Ensure-Prerequisites {
   Ensure-NsisCache
 }
 
+function Test-StagedOpenCatBackendProcess($ProcessInfo) {
+  $runtimeNode = Join-Path $RuntimeDir 'node\node.exe'
+  $runtimeCli = Join-Path $RuntimeDir 'dist\cli.mjs'
+  $executablePath = [string]$ProcessInfo.ExecutablePath
+  $commandLine = [string]$ProcessInfo.CommandLine
+
+  if (
+    -not [string]::IsNullOrWhiteSpace($executablePath) -and
+    [string]::Equals($executablePath, $runtimeNode, [StringComparison]::OrdinalIgnoreCase)
+  ) {
+    return $true
+  }
+
+  if ([string]::IsNullOrWhiteSpace($commandLine)) {
+    return $false
+  }
+
+  return (
+    $commandLine.IndexOf($RuntimeDir, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+    (
+      $commandLine.IndexOf($runtimeCli, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+      $commandLine.IndexOf('dist\cli.mjs', [StringComparison]::OrdinalIgnoreCase) -ge 0
+    ) -and
+    $commandLine.IndexOf(' web ', [StringComparison]::OrdinalIgnoreCase) -ge 0
+  )
+}
+
+function Get-StagedOpenCatBackendProcesses {
+  @(
+    Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
+      Where-Object { Test-StagedOpenCatBackendProcess $_ }
+  )
+}
+
+function Format-CommandSummary([string]$CommandLine) {
+  if ([string]::IsNullOrWhiteSpace($CommandLine)) {
+    return '<no command line>'
+  }
+  $singleLine = $CommandLine -replace '\s+', ' '
+  if ($singleLine.Length -le 180) {
+    return $singleLine
+  }
+  return "$($singleLine.Substring(0, 177))..."
+}
+
+function Test-OldBunTestProcess($ProcessInfo) {
+  $commandLine = [string]$ProcessInfo.CommandLine
+  if ([string]::IsNullOrWhiteSpace($commandLine)) {
+    return $false
+  }
+
+  if (
+    $commandLine.IndexOf('opencat:prepare-runtime', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+    $commandLine.IndexOf('tauri build', [StringComparison]::OrdinalIgnoreCase) -ge 0
+  ) {
+    return $false
+  }
+
+  return $commandLine -match '(?i)\bbun(?:\.exe)?"?\s+test\b'
+}
+
+function Get-OldBunTestProcesses {
+  @(
+    Get-CimInstance Win32_Process -Filter "Name = 'bun.exe'" |
+      Where-Object { Test-OldBunTestProcess $_ }
+  )
+}
+
+function Stop-OldBunTests {
+  Write-Step 'Stopping old bun test processes'
+  if ($NoKillOldTests) {
+    Write-Info 'Skipped because -NoKillOldTests was specified.'
+    return
+  }
+
+  $processes = @(Get-OldBunTestProcesses)
+  if ($processes.Count -eq 0) {
+    Write-Info 'No old bun test process is running.'
+    return
+  }
+
+  foreach ($process in $processes) {
+    $summary = Format-CommandSummary $process.CommandLine
+    Write-Info "Stopping PID $($process.ProcessId), parent PID $($process.ParentProcessId): $summary"
+    try {
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+    } catch {
+      Fail "Failed to stop old bun test PID $($process.ProcessId): $($_.Exception.Message)"
+    }
+  }
+
+  Start-Sleep -Seconds 2
+  $remaining = @(Get-OldBunTestProcesses)
+  if ($remaining.Count -gt 0) {
+    $remainingIds = ($remaining | ForEach-Object { $_.ProcessId }) -join ', '
+    Fail "Old bun test process is still running after cleanup. Remaining PID(s): $remainingIds"
+  }
+  Write-Info 'Old bun test processes stopped.'
+}
+
+function Stop-StagedOpenCatBackend {
+  Write-Step 'Stopping old staged OpenCat Web backend'
+  $processes = @(Get-StagedOpenCatBackendProcesses)
+  if ($processes.Count -eq 0) {
+    Write-Info 'No staged OpenCat backend is running.'
+    return
+  }
+
+  foreach ($process in $processes) {
+    $summary = Format-CommandSummary $process.CommandLine
+    Write-Info "Stopping PID $($process.ProcessId), parent PID $($process.ParentProcessId): $summary"
+    try {
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+    } catch {
+      Fail "Failed to stop staged OpenCat backend PID $($process.ProcessId): $($_.Exception.Message)"
+    }
+  }
+
+  Start-Sleep -Seconds 2
+  $remaining = @(Get-StagedOpenCatBackendProcesses)
+  if ($remaining.Count -gt 0) {
+    $remainingIds = ($remaining | ForEach-Object { $_.ProcessId }) -join ', '
+    Fail "Staged OpenCat backend is still running after cleanup. Remaining PID(s): $remainingIds"
+  }
+  Write-Info 'Old staged OpenCat backend stopped.'
+}
+
+function Set-ProcessEnvironmentVariable([string]$Name, [AllowNull()][string]$Value) {
+  if ([string]::IsNullOrEmpty($Value)) {
+    Remove-Item -Path "Env:$Name" -ErrorAction SilentlyContinue
+    return
+  }
+  Set-Item -Path "Env:$Name" -Value $Value
+}
+
+function Invoke-PrepareRuntime([string]$BunPath) {
+  $previousBuildCacheDir = [Environment]::GetEnvironmentVariable('OPENCAT_BUILD_CACHE_DIR', 'Process')
+  $previousCleanRuntimeCache = [Environment]::GetEnvironmentVariable('OPENCAT_CLEAN_RUNTIME_CACHE', 'Process')
+  $previousCleanPlaywrightCache = [Environment]::GetEnvironmentVariable('OPENCAT_CLEAN_PLAYWRIGHT_CACHE', 'Process')
+
+  try {
+    Set-ProcessEnvironmentVariable 'OPENCAT_BUILD_CACHE_DIR' $BuildCacheDir
+    Set-ProcessEnvironmentVariable 'OPENCAT_CLEAN_RUNTIME_CACHE' $(if ($CleanRuntimeCache) { '1' } else { $null })
+    Set-ProcessEnvironmentVariable 'OPENCAT_CLEAN_PLAYWRIGHT_CACHE' $(if ($CleanPlaywrightCache) { '1' } else { $null })
+    Write-Info "Build cache: $BuildCacheDir"
+    Invoke-External $BunPath @('run', 'opencat:prepare-runtime')
+  } finally {
+    Set-ProcessEnvironmentVariable 'OPENCAT_BUILD_CACHE_DIR' $previousBuildCacheDir
+    Set-ProcessEnvironmentVariable 'OPENCAT_CLEAN_RUNTIME_CACHE' $previousCleanRuntimeCache
+    Set-ProcessEnvironmentVariable 'OPENCAT_CLEAN_PLAYWRIGHT_CACHE' $previousCleanPlaywrightCache
+  }
+}
+
 function Assert-RuntimeStaging {
   Write-Step 'Checking staged OpenCat runtime'
   $nodeModules = Join-Path $RuntimeDir 'node_modules'
@@ -454,6 +611,8 @@ function Invoke-Packaging {
   }
   $npm = Find-NpmCmd
 
+  Stop-OldBunTests
+
   Write-Step 'Installing source dependencies'
   Invoke-External $bun @('install')
 
@@ -464,8 +623,10 @@ function Invoke-Packaging {
   Write-Step 'Building OpenCat CLI bundles'
   Invoke-External $bun @('run', 'build')
 
+  Stop-StagedOpenCatBackend
+
   Write-Step 'Preparing OpenCat runtime staging'
-  Invoke-External $bun @('run', 'opencat:prepare-runtime')
+  Invoke-PrepareRuntime $bun
   Assert-RuntimeStaging
 
   Write-Step 'Building Tauri NSIS installer'
@@ -503,6 +664,7 @@ function Main {
   Write-Step 'OpenCat Windows packaging'
   Write-Info "Repository: $RepoRoot"
   Write-Info "Log: $LogPath"
+  Write-Info "Build cache: $BuildCacheDir"
 
   Set-Location $RepoRoot
   Prepend-Path (Join-Path $env:USERPROFILE '.bun\bin')

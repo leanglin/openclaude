@@ -13,6 +13,7 @@ import {
   getAdditionalDirectoriesForClaudeMd,
   getSessionId,
 } from '../bootstrap/state.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../constants/product.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -85,7 +86,7 @@ export function getSkillsPath(
     case 'userSettings':
       return join(getClaudeConfigHomeDir(), dir)
     case 'projectSettings':
-      return `.claude/${dir}`
+      return `${PRODUCT_PROJECT_CONFIG_DIR_NAME}/${dir}`
     case 'plugin':
       return 'plugin'
     default:
@@ -750,7 +751,7 @@ export const getSkillDirCommands = memoize(
       const additionalSkillsNested = await Promise.all(
         additionalDirs.map(dir =>
           loadSkillsFromSkillsDir(
-            join(dir, '.claude', 'skills'),
+            join(dir, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills'),
             'projectSettings',
           ),
         ),
@@ -785,7 +786,7 @@ export const getSkillDirCommands = memoize(
         ? Promise.all(
             additionalDirs.map(dir =>
               loadSkillsFromSkillsDir(
-                join(dir, '.claude', 'skills'),
+                join(dir, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills'),
                 'projectSettings',
               ),
             ),
@@ -959,7 +960,7 @@ export async function discoverSkillDirsForPaths(
     // CWD-level skills are already loaded at startup, so we only discover nested ones
     // Use prefix+separator check to avoid matching /project-backup when cwd is /project
     while (currentDir.startsWith(resolvedCwd + pathSep)) {
-      const skillDir = join(currentDir, '.claude', 'skills')
+      const skillDir = join(currentDir, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills')
 
       // Skip if we've already checked this path (hit or miss) — avoids
       // repeating the same failed stat on every Read/Write/Edit call when
@@ -969,7 +970,7 @@ export async function discoverSkillDirsForPaths(
         try {
           await fs.stat(skillDir)
           // Skills dir exists. Before loading, check if the containing dir
-          // is gitignored — blocks e.g. node_modules/pkg/.claude/skills from
+          // is gitignored — blocks e.g. node_modules/pkg/.opencat/skills from
           // loading silently. `git check-ignore` handles nested .gitignore,
           // .git/info/exclude, and global gitignore. Fails open outside a
           // git repo (exit 128 → false); the invocation-time trust dialog

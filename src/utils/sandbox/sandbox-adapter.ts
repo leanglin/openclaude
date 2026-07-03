@@ -29,6 +29,7 @@ import {
   getCwdState,
   getOriginalCwd,
 } from '../../bootstrap/state.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../../constants/product.js'
 import { logForDebugging } from '../debug.js'
 import { expandPath } from '../path.js'
 import { getPlatform, type Platform } from '../platform.js'
@@ -148,8 +149,6 @@ export function resolveSandboxFilesystemPath(
 
 function getCurrentCwdSettingsDenyWritePaths(cwd: string): string[] {
   return [
-    resolve(cwd, '.claude', 'settings.json'),
-    resolve(cwd, '.claude', 'settings.local.json'),
     resolve(cwd, getRelativeSettingsFilePathForSource('projectSettings')),
     resolve(cwd, getRelativeSettingsFilePathForSource('localSettings')),
   ]
@@ -253,14 +252,14 @@ export function convertToSandboxRuntimeConfig(
     denyWrite.push(...getCurrentCwdSettingsDenyWritePaths(cwd))
   }
 
-  // Block writes to .claude/skills in both original and current working directories.
-  // The sandbox-runtime's getDangerousDirectories() protects .claude/commands and
-  // .claude/agents but not .claude/skills. Skills have the same privilege level
+  // Block writes to .opencat/skills in both original and current working directories.
+  // The sandbox-runtime's getDangerousDirectories() protects .opencat/commands and
+  // .opencat/agents but not .opencat/skills. Skills have the same privilege level
   // (auto-discovered, auto-loaded, full Claude capabilities) so they need the
   // same OS-level sandbox protection.
-  denyWrite.push(resolve(originalCwd, '.claude', 'skills'))
+  denyWrite.push(resolve(originalCwd, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills'))
   if (cwd !== originalCwd) {
-    denyWrite.push(resolve(cwd, '.claude', 'skills'))
+    denyWrite.push(resolve(cwd, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills'))
   }
 
   // SECURITY: Git's is_git_directory() treats cwd as a bare repo if it has
@@ -468,7 +467,7 @@ const checkDependencies = memoize((): SandboxDependencyCheck => {
 /**
  * Read sandbox.enabled only from trusted settings sources.
  * projectSettings is intentionally excluded — a malicious repo could
- * otherwise disable the sandbox via .claude/settings.json.
+ * otherwise disable the sandbox via .opencat/settings.json.
  */
 function getSandboxEnabledSetting(): boolean {
   try {

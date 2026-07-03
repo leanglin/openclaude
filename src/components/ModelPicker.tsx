@@ -35,7 +35,7 @@ export type Props = {
   /**
    * When true, skip writing effortLevel to userSettings on selection.
    * Used by the assistant installer wizard where the model choice is
-   * project-scoped (written to the assistant's .openclaude/settings.json via
+   * project-scoped (written to the assistant's .opencat/settings.json via
    * install.ts) and should not leak to the user's global ~/.openclaude/settings.json.
    */
   skipSettingsWrite?: boolean;

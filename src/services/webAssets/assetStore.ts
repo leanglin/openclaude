@@ -23,6 +23,7 @@ import { getBundledSkills } from '../../skills/bundledSkills.js'
 import { initBundledSkills } from '../../skills/bundled/index.js'
 import { getBuiltinPluginSkillCommands } from '../../plugins/builtinPlugins.js'
 import { initBuiltinPlugins } from '../../plugins/bundled/index.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../../constants/product.js'
 import {
   getPluginCommands,
   getPluginSkills,
@@ -73,7 +74,7 @@ function getUserSkillsRoot(): string {
 }
 
 function getProjectSkillsRoot(cwd: string): string {
-  return resolve(cwd, '.claude', 'skills')
+  return resolve(cwd, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills')
 }
 
 function sourceFromCommand(command: Command): AssetSource {

@@ -13,12 +13,12 @@ export const settingsFiles: SettingsFile[] = [
     notes: '机器上所有项目的默认全局设置路径；OPENCLAUDE_CONFIG_DIR 会把它移动到配置的 config home 下。',
   },
   {
-    path: '.openclaude/settings.json',
+    path: '.opencat/settings.json',
     scope: 'project',
     notes: '共享项目设置，通常提交到仓库。',
   },
   {
-    path: '.openclaude/settings.local.json',
+    path: '.opencat/settings.local.json',
     scope: 'local',
     notes: '单个项目的本机覆盖配置，通常会被 gitignore。',
   },

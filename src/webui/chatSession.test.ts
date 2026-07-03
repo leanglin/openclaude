@@ -183,6 +183,12 @@ describe('webui CLI chat session', () => {
           android_sdk_configured: false,
           missing_android_env_keys: ['ANDROID_HOME', 'ANDROID_SDK_ROOT'],
           midscene_model_configured: false,
+          midscene_config_source: 'saved-profile',
+          configured_midscene_env_keys: [
+            'MIDSCENE_MODEL_BASE_URL',
+            'MIDSCENE_MODEL_API_KEY',
+            'MIDSCENE_MODEL_FAMILY',
+          ],
           missing_midscene_env_keys: ['MIDSCENE_MODEL_NAME'],
         },
       }],
@@ -212,6 +218,7 @@ describe('webui CLI chat session', () => {
     })
     expect(preflightActivity?.type === 'activity' ? preflightActivity.activity.detail : '').toContain('ADB: ready / device AREMUT5226001251')
     expect(preflightActivity?.type === 'activity' ? preflightActivity.activity.detail : '').toContain('Midscene model: missing MIDSCENE_MODEL_NAME')
+    expect(preflightActivity?.type === 'activity' ? preflightActivity.activity.detail : '').toContain('source: saved profile')
   })
 
   test('SDK can_use_tool control_request broadcasts permission modal events', () => {

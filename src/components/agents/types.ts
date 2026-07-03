@@ -1,8 +1,9 @@
 import type { SettingSource } from 'src/utils/settings/constants.js'
 import type { AgentDefinition } from '../../tools/AgentTool/loadAgentsDir.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../../constants/product.js'
 
 export const AGENT_PATHS = {
-  FOLDER_NAME: '.openclaude',
+  FOLDER_NAME: PRODUCT_PROJECT_CONFIG_DIR_NAME,
   AGENTS_DIR: 'agents',
 } as const
 

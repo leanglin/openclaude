@@ -8,11 +8,11 @@ import type { SettingsJson } from '../../utils/settings/types.js'
 // TrustDialog/utils.ts emits file-path strings shown to users in the trust
 // dialog. These MUST come from getRelativeSettingsFilePathForSource — the
 // single source of truth — not hardcoded literals. The previous code hardcoded
-// '.claude/...' and drifted from the canonical '.openclaude/...'.
+// '.claude/...' and drifted from the canonical '.opencat/...'.
 //
 // This is a TRUE contract test with TWO independent assertions:
 //   1. The real getRelativeSettingsFilePathForSource returns the EXPECTED
-//      literal '.openclaude/...' (catches a settings.ts regression).
+//      literal '.opencat/...' (catches a settings.ts regression).
 //   2. utils.ts getters return the same value as the real function (catches
 //      a utils.ts hardcoding regression).
 // The EXPECTED literal is hardcoded HERE and only here — if settings.ts drifts
@@ -24,14 +24,14 @@ await acquireSharedMutationLock('components/TrustDialog/utils.test.ts')
 // The fork's canonical project settings paths. Hardcoded expected values —
 // independent of the implementation under test.
 const EXPECTED = {
-  projectSettings: '.openclaude/settings.json',
-  localSettings: '.openclaude/settings.local.json',
+  projectSettings: '.opencat/settings.json',
+  localSettings: '.opencat/settings.local.json',
 } as const
 
 // Contract assertion (1): the real source-of-truth function must return these.
 // Wrapped in a named test so a settings.ts regression shows up as a clear
 // test failure in CI rather than a module-load error.
-test('getRelativeSettingsFilePathForSource returns the canonical .openclaude/ paths', () => {
+test('getRelativeSettingsFilePathForSource returns the canonical .opencat/ paths', () => {
   expect(REAL_canonicalPath('projectSettings')).toBe(EXPECTED.projectSettings)
   expect(REAL_canonicalPath('localSettings')).toBe(EXPECTED.localSettings)
 })

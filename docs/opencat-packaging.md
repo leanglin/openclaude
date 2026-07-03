@@ -34,6 +34,9 @@ Useful flags:
 - `-CheckOnly` checks and prepares tools without running the package build.
 - `-SkipToolInstall` fails fast instead of installing missing Bun, Rust, or NSIS cache files.
 - `-SkipBuildToolsInstall` skips automatic Microsoft C++ Build Tools installation.
+- `-CleanRuntimeCache` rebuilds the cached production `node_modules` used for runtime staging.
+- `-CleanPlaywrightCache` rebuilds the cached Playwright Chromium browser bundle.
+- `-NoKillOldTests` skips automatic cleanup of old `bun test` processes.
 
 The package log is written to
 `launcher/src-tauri/target/opencat-package-windows.log`.
@@ -62,6 +65,11 @@ The NSIS installer is emitted by Tauri under `launcher/src-tauri/target`.
 - production runtime dependencies from `node_modules`
 - bundled Node executable
 - Playwright Chromium under `ms-playwright`
+
+Runtime dependency and browser caches are kept outside the repository under
+`%LOCALAPPDATA%\OpenCatBuildCache`. The default package flow reuses them across
+runs; use `-CleanRuntimeCache` or `-CleanPlaywrightCache` when dependency or
+browser cache corruption is suspected.
 
 The launcher sets `PLAYWRIGHT_BROWSERS_PATH`, `OPENCAT_APP_TEST_RUNNER`, and
 `OPENCAT_APP_TEST_NODE` before starting the hidden Web server.

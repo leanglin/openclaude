@@ -42,7 +42,8 @@
     "windows": {
       "nsis": {
         "installerIcon": "../../src/webui/assets/opencat.ico",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "compression": "zlib"
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

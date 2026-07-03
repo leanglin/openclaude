@@ -31,6 +31,12 @@ async function importFreshPlans() {
   return import(`./plans.ts?ts=${Date.now()}-${Math.random()}`)
 }
 
+function setIsolatedAppData(homeDir: string): string {
+  const appData = join(homeDir, 'AppData', 'Roaming')
+  process.env.APPDATA = appData
+  return join(appData, 'OpenCat')
+}
+
 afterEach(() => {
   try {
     process.env = { ...originalEnv }
@@ -42,35 +48,40 @@ afterEach(() => {
 })
 
 describe('OpenClaude paths', () => {
-  test('defaults user config home to ~/.openclaude', async () => {
+  test('defaults user config home to the OpenCat config directory', async () => {
     await acquireEnvMutex()
+    delete process.env.OPENCAT_CONFIG_DIR
     delete process.env.OPENCLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
-    const { resolveClaudeConfigHomeDir } = await importFreshEnvUtils()
+    const { resolveClaudeConfigHomeDir, resolveDefaultOpenCatConfigHomeDir } =
+      await importFreshEnvUtils()
 
     expect(
       resolveClaudeConfigHomeDir({
         homeDir: homedir(),
       }),
-    ).toBe(join(homedir(), '.openclaude'))
+    ).toBe(resolveDefaultOpenCatConfigHomeDir({ homeDir: homedir() }))
   })
 
-  test('hard-cuts user config home to ~/.openclaude by default', async () => {
+  test('hard-cuts user config home to the OpenCat config directory by default', async () => {
     await acquireEnvMutex()
+    delete process.env.OPENCAT_CONFIG_DIR
     delete process.env.OPENCLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
-    const { resolveClaudeConfigHomeDir } = await importFreshEnvUtils()
+    const { resolveClaudeConfigHomeDir, resolveDefaultOpenCatConfigHomeDir } =
+      await importFreshEnvUtils()
 
     expect(
       resolveClaudeConfigHomeDir({
         homeDir: homedir(),
       }),
-    ).toBe(join(homedir(), '.openclaude'))
+    ).toBe(resolveDefaultOpenCatConfigHomeDir({ homeDir: homedir() }))
   })
 
-  test('migrates legacy config home and global config files to .openclaude', async () => {
+  test('migrates legacy config home and global config files to OpenCat config home', async () => {
     await acquireEnvMutex()
     const tempHome = mkdtempSync(join(tmpdir(), 'openclaude-paths-test-'))
+    const openCatDir = setIsolatedAppData(tempHome)
     try {
       mkdirSync(join(tempHome, '.claude', 'skills', 'legacy-skill'), {
         recursive: true,
@@ -91,34 +102,35 @@ describe('OpenClaude paths', () => {
       expect(migrateLegacyClaudeConfigHome({ homeDir: tempHome })).toBe(true)
       expect(
         readFileSync(
-          join(tempHome, '.openclaude', 'skills', 'legacy-skill', 'SKILL.md'),
+          join(openCatDir, 'skills', 'legacy-skill', 'SKILL.md'),
           'utf8',
         ),
       ).toBe('legacy skill')
-      expect(existsSync(join(tempHome, '.openclaude', 'settings.json'))).toBe(
+      expect(existsSync(join(openCatDir, 'settings.json'))).toBe(
         true,
       )
-      expect(readFileSync(join(tempHome, '.openclaude.json'), 'utf8')).toBe(
+      expect(readFileSync(join(openCatDir, '.opencat.json'), 'utf8')).toBe(
         '{"legacy":true}',
       )
       expect(
-        readFileSync(join(tempHome, '.openclaude-custom-oauth.json'), 'utf8'),
+        readFileSync(join(openCatDir, '.opencat-custom-oauth.json'), 'utf8'),
       ).toBe('{"custom":true}')
     } finally {
       rmSync(tempHome, { recursive: true, force: true })
     }
   })
 
-  test('migration preserves existing .openclaude data while copying missing legacy data', async () => {
+  test('migration preserves existing OpenCat data when legacy data also exists', async () => {
     await acquireEnvMutex()
     const tempHome = mkdtempSync(join(tmpdir(), 'openclaude-paths-test-'))
+    const openCatDir = setIsolatedAppData(tempHome)
     try {
       mkdirSync(join(tempHome, '.claude', 'skills', 'legacy-skill'), {
         recursive: true,
       })
-      mkdirSync(join(tempHome, '.openclaude', 'skills'), { recursive: true })
+      mkdirSync(join(openCatDir, 'skills'), { recursive: true })
       writeFileSync(join(tempHome, '.claude', 'settings.json'), 'legacy')
-      writeFileSync(join(tempHome, '.openclaude', 'settings.json'), 'current')
+      writeFileSync(join(openCatDir, 'settings.json'), 'current')
       writeFileSync(
         join(tempHome, '.claude', 'skills', 'legacy-skill', 'SKILL.md'),
         'legacy skill',
@@ -128,14 +140,11 @@ describe('OpenClaude paths', () => {
 
       expect(migrateLegacyClaudeConfigHome({ homeDir: tempHome })).toBe(true)
       expect(
-        readFileSync(join(tempHome, '.openclaude', 'settings.json'), 'utf8'),
+        readFileSync(join(openCatDir, 'settings.json'), 'utf8'),
       ).toBe('current')
       expect(
-        readFileSync(
-          join(tempHome, '.openclaude', 'skills', 'legacy-skill', 'SKILL.md'),
-          'utf8',
-        ),
-      ).toBe('legacy skill')
+        existsSync(join(openCatDir, 'skills', 'legacy-skill', 'SKILL.md')),
+      ).toBe(false)
     } finally {
       rmSync(tempHome, { recursive: true, force: true })
     }
@@ -162,7 +171,7 @@ describe('OpenClaude paths', () => {
     }
   })
 
-  test('migration fails closed when .openclaude collides with a non-directory', async () => {
+  test('migration succeeds when old .openclaude collides with a non-directory', async () => {
     await acquireEnvMutex()
     const tempHome = mkdtempSync(join(tmpdir(), 'openclaude-paths-test-'))
     try {
@@ -172,7 +181,7 @@ describe('OpenClaude paths', () => {
 
       const { migrateLegacyClaudeConfigHome } = await importFreshEnvUtils()
 
-      expect(migrateLegacyClaudeConfigHome({ homeDir: tempHome })).toBe(false)
+      expect(migrateLegacyClaudeConfigHome({ homeDir: tempHome })).toBe(true)
     } finally {
       rmSync(tempHome, { recursive: true, force: true })
     }
@@ -193,7 +202,7 @@ describe('OpenClaude paths', () => {
     }
   })
 
-  test('config home falls back to legacy when migration fails on a non-directory .openclaude collision', async () => {
+  test('config home uses OpenCat default when old .openclaude is a non-directory', async () => {
     await acquireEnvMutex()
     const tempHome = mkdtempSync(join(tmpdir(), 'openclaude-paths-test-'))
     try {
@@ -203,12 +212,16 @@ describe('OpenClaude paths', () => {
         homedir: () => tempHome,
         tmpdir,
       }))
+      process.env.APPDATA = join(tempHome, 'AppData', 'Roaming')
+      delete process.env.OPENCAT_CONFIG_DIR
       delete process.env.OPENCLAUDE_CONFIG_DIR
       delete process.env.CLAUDE_CONFIG_DIR
 
       const { getClaudeConfigHomeDir } = await importFreshEnvUtils()
 
-      expect(getClaudeConfigHomeDir()).toBe(join(tempHome, '.claude'))
+      expect(getClaudeConfigHomeDir()).toBe(
+        join(tempHome, 'AppData', 'Roaming', 'OpenCat'),
+      )
     } finally {
       rmSync(tempHome, { recursive: true, force: true })
     }
@@ -340,8 +353,7 @@ describe('OpenClaude paths', () => {
 
     expect(result).toBe('/a')
     expect(warnings.length).toBe(1)
-    expect(warnings[0]).toContain('OPENCLAUDE_CONFIG_DIR=/a')
-    expect(warnings[0]).toContain('CLAUDE_CONFIG_DIR=/b')
+    expect(warnings[0]).toContain('Legacy configuration overrides disagree')
 
     resolveConfigDirEnv({
       openClaudeConfigDir: '/x',
@@ -373,8 +385,7 @@ describe('OpenClaude paths', () => {
       }),
     ).toBe('/warn-open')
     expect(warnings.length).toBe(1)
-    expect(warnings[0]).toContain('OPENCLAUDE_CONFIG_DIR=/warn-open')
-    expect(warnings[0]).toContain('CLAUDE_CONFIG_DIR=/warn-legacy')
+    expect(warnings[0]).toContain('Legacy configuration overrides disagree')
   })
 
   test('resolveConfigDirEnv does not warn when both env vars agree', async () => {
@@ -406,15 +417,15 @@ describe('OpenClaude paths', () => {
     ).toBeUndefined()
   })
 
-  test('project and local settings paths use .openclaude', async () => {
+  test('project and local settings paths use .opencat', async () => {
     await acquireEnvMutex()
     const { getRelativeSettingsFilePathForSource } = await importFreshSettings()
 
     expect(getRelativeSettingsFilePathForSource('projectSettings')).toBe(
-      '.openclaude/settings.json',
+      '.opencat/settings.json',
     )
     expect(getRelativeSettingsFilePathForSource('localSettings')).toBe(
-      '.openclaude/settings.local.json',
+      '.opencat/settings.local.json',
     )
   })
 

@@ -25,9 +25,15 @@ test('update-config skill can generate its prompt without JSON Schema conversion
     '## Full Settings JSON Schema',
   )
   expect((blocks[0] as { text: string }).text).toContain(
-    '.openclaude/settings.json',
+    '.opencat/settings.json',
   )
   expect((blocks[0] as { text: string }).text).toContain(
+    '.opencat/settings.local.json',
+  )
+  expect((blocks[0] as { text: string }).text).not.toContain(
+    '.openclaude/settings.json',
+  )
+  expect((blocks[0] as { text: string }).text).not.toContain(
     '.openclaude/settings.local.json',
   )
   expect((blocks[0] as { text: string }).text).not.toContain(

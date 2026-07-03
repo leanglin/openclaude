@@ -36,8 +36,8 @@ const toc = [
 
   <h2 id="your-own">编写自己的 Skill</h2>
   <p>
-    项目级 skill 位于 <code>.claude/skills/&lt;name&gt;/SKILL.md</code>；用户级 skill
-    默认位于 <code>~/.openclaude/skills/</code>，并会在设置时跟随
+    项目级 skill 位于 <code>.opencat/skills/&lt;name&gt;/SKILL.md</code>；用户级 skill
+    默认位于 OpenCat 配置目录的 <code>skills/</code> 子目录，并会在设置时跟随
     <code>OPENCLAUDE_CONFIG_DIR</code>。每个 SKILL.md 包含 frontmatter
     （<code>name</code>、<code>description</code>），随后是 agent 在调用该 skill
     时加载的指令。Plugin 也可以附带 skills；使用 <code>/plugin</code> 管理它们。

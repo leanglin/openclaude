@@ -2,6 +2,7 @@ export const PRODUCT_DISPLAY_NAME = 'OpenCat'
 export const PRODUCT_CLI_NAME = 'opencat'
 export const PRODUCT_VERSION = '7.0.0'
 export const PRODUCT_CONFIG_DIR_NAME = 'OpenCat'
+export const PRODUCT_PROJECT_CONFIG_DIR_NAME = '.opencat'
 export const PRODUCT_URL = 'https://github.com/Gitlawb/opencat'
 
 // Claude Code Remote session URLs

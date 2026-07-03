@@ -363,7 +363,15 @@ export async function detectStaleProjectSettingsPaths(
       canonical: getRelativeSettingsFilePathForSource('projectSettings'),
     },
     {
+      legacy: '.openclaude/settings.json',
+      canonical: getRelativeSettingsFilePathForSource('projectSettings'),
+    },
+    {
       legacy: '.claude/settings.local.json',
+      canonical: getRelativeSettingsFilePathForSource('localSettings'),
+    },
+    {
+      legacy: '.openclaude/settings.local.json',
       canonical: getRelativeSettingsFilePathForSource('localSettings'),
     },
   ]
@@ -381,11 +389,11 @@ export async function detectStaleProjectSettingsPaths(
   if (stale.length === 0) return null
 
   const legacyPaths = stale.map(pair => pair.legacy).join(', ')
-  const canonicalPaths = stale.map(pair => pair.canonical).join(', ')
+  const canonicalPaths = [...new Set(stale.map(pair => pair.canonical))].join(', ')
 
   return {
-    issue: `Legacy project settings file${stale.length === 1 ? '' : 's'} ${legacyPaths} found, but OpenClaude reads ${canonicalPaths}`,
-    fix: `Move or copy ${legacyPaths} to ${canonicalPaths} if you intended OpenClaude to use those project settings.`,
+    issue: `Legacy project settings file${stale.length === 1 ? '' : 's'} ${legacyPaths} found, but OpenCat reads ${canonicalPaths}`,
+    fix: `Move or copy ${legacyPaths} to ${canonicalPaths} if you intended OpenCat to use those project settings.`,
   }
 }
 

@@ -8,10 +8,7 @@ use std::{
   thread,
   time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{
-  path::BaseDirectory, AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder,
-  WindowEvent,
-};
+use tauri::{AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 type SharedState = Arc<Mutex<LauncherState>>;
 
@@ -84,24 +81,25 @@ fn push_activity(state: &mut LauncherState, level: &str, message: impl Into<Stri
   state.activity.truncate(80);
 }
 
-fn resource_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
-  if let Ok(path) = app
-    .path()
-    .resolve("opencat-runtime", BaseDirectory::Resource)
-  {
-    if path.exists() {
-      return Ok(path);
-    }
+fn resource_runtime_dir(_app: &AppHandle) -> Result<PathBuf, String> {
+  let exe_path = std::env::current_exe()
+    .map_err(|error| format!("Failed to resolve OpenCat launcher path: {error}"))?;
+  let install_dir = exe_path.parent().ok_or_else(|| {
+    format!(
+      "Failed to resolve OpenCat install directory from {}",
+      exe_path.display()
+    )
+  })?;
+  let runtime_dir = install_dir.join("resources").join("opencat-runtime");
+
+  if runtime_dir.exists() {
+    return Ok(runtime_dir);
   }
 
-  let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-    .join("resources")
-    .join("opencat-runtime");
-  if dev_path.exists() {
-    return Ok(dev_path);
-  }
-
-  Err("OpenCat runtime resources are missing. Run opencat:prepare-runtime before building the launcher.".to_string())
+  Err(format!(
+    "OpenCat runtime resources are missing: {}",
+    runtime_dir.display()
+  ))
 }
 
 fn bundled_node_path(runtime_dir: &Path) -> PathBuf {
@@ -386,6 +384,12 @@ fn start_opencat(app: AppHandle, state: State<'_, SharedState>) -> Result<Launch
     guard.last_error = None;
     guard.web_url = None;
     push_activity(&mut guard, "info", "Starting OpenCat");
+    push_activity(
+      &mut guard,
+      "info",
+      format!("Runtime: {}", runtime_dir.display()),
+    );
+    push_activity(&mut guard, "info", format!("CLI: {}", cli_path.display()));
     guard.child = Some(child);
   }
 

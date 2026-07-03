@@ -62,6 +62,13 @@ type CliLaunch = {
 }
 
 const ABORT_FORCE_KILL_DELAY_MS = 2_000
+const MIDSCENE_MODEL_ENV_KEYS = [
+  'MIDSCENE_MODEL_NAME',
+  'MIDSCENE_MODEL_BASE_URL',
+  'MIDSCENE_MODEL_API_KEY',
+  'MIDSCENE_MODEL_FAMILY',
+] as const
+const MIDSCENE_CONFIG_SOURCE_ENV = 'OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE'
 
 function nextId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -114,6 +121,40 @@ function firstString(...values: unknown[]): string | undefined {
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
   return undefined
+}
+
+function configured(value: unknown): boolean {
+  return typeof value === 'string' ? Boolean(value.trim()) : Boolean(value)
+}
+
+function formatMidsceneConfigSource(source: unknown): string | undefined {
+  const text = firstString(source)
+  switch (text) {
+    case 'saved-profile':
+      return 'saved profile'
+    case 'process-env':
+      return 'process env'
+    case 'legacy-env':
+      return 'legacy env'
+    case 'missing':
+      return 'missing configuration'
+    default:
+      return text
+  }
+}
+
+function formatCliLaunchDetail(launch: CliLaunch, cwd: string): string {
+  const entrypoint = launch.args[0] || '(direct executable)'
+  return `command=${launch.command}; entrypoint=${entrypoint}; cwd=${cwd}`
+}
+
+function formatMidsceneEnvDiagnostic(env: NodeJS.ProcessEnv | undefined): string {
+  const missing = MIDSCENE_MODEL_ENV_KEYS.filter(key => !configured(env?.[key]))
+  const source = formatMidsceneConfigSource(env?.[MIDSCENE_CONFIG_SOURCE_ENV])
+  if (missing.length === 0) {
+    return `Midscene env: configured from ${source || 'process env'}`
+  }
+  return `Midscene env: missing ${missing.join(', ')}${source ? ` (source: ${source})` : ''}`
 }
 
 function toOpenCatVisibleText(value: string | undefined): string | undefined {
@@ -192,9 +233,10 @@ function formatPreflightActivityDetail(payload: Record<string, unknown>): string
   const sdkStatus = androidSdkConfigured
     ? 'Android SDK env: configured'
     : `Android SDK env: unset${missingAndroid.length ? ` (${missingAndroid.join(', ')})` : ''}`
+  const midsceneSource = formatMidsceneConfigSource(payload.midscene_config_source)
   const midsceneStatus = midsceneConfigured
-    ? 'Midscene model: configured'
-    : `Midscene model: missing ${missingMidscene.length ? missingMidscene.join(', ') : 'configuration'}`
+    ? `Midscene model: configured${midsceneSource ? ` from ${midsceneSource}` : ''}`
+    : `Midscene model: missing ${missingMidscene.length ? missingMidscene.join(', ') : 'configuration'}${midsceneSource ? ` (source: ${midsceneSource})` : ''}`
 
   return `${adbStatus} / ${sdkStatus} / ${midsceneStatus}`
 }
@@ -269,6 +311,8 @@ export class CliChatSession {
     }
     const child = spawnFactory(launch.command, launch.args, spawnOptions)
     this.child = child
+    this.sendActivity('status', 'CLI launch', formatCliLaunchDetail(launch, this.options.cwd))
+    this.sendActivity('status', 'Midscene config', formatMidsceneEnvDiagnostic(spawnOptions.env))
     child.stdout.setEncoding?.('utf8')
     child.stderr.setEncoding?.('utf8')
     child.stdout.on('data', chunk => this.handleStdout(String(chunk)))

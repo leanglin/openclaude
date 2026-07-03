@@ -51,16 +51,16 @@ describe('detectStaleProjectSettingsPaths', () => {
 
     expect(warning).toEqual({
       issue:
-        'Legacy project settings file .claude/settings.json found, but OpenClaude reads .openclaude/settings.json',
+        'Legacy project settings file .claude/settings.json found, but OpenCat reads .opencat/settings.json',
       fix:
-        'Move or copy .claude/settings.json to .openclaude/settings.json if you intended OpenClaude to use those project settings.',
+        'Move or copy .claude/settings.json to .opencat/settings.json if you intended OpenCat to use those project settings.',
     })
   })
 
   test('does not warn when the matching canonical project settings file exists', async () => {
     const project = createProject()
     writeJson(join(project, '.claude', 'settings.json'))
-    writeJson(join(project, '.openclaude', 'settings.json'))
+    writeJson(join(project, '.opencat', 'settings.json'))
 
     await expect(detectStaleProjectSettingsPaths(project)).resolves.toBeNull()
   })
@@ -71,10 +71,20 @@ describe('detectStaleProjectSettingsPaths', () => {
     await expect(detectStaleProjectSettingsPaths(project)).resolves.toBeNull()
   })
 
-  test('does not warn when only canonical settings files exist', async () => {
+  test('warns when old OpenClaude project settings exist without canonical settings', async () => {
     const project = createProject()
     writeJson(join(project, '.openclaude', 'settings.json'))
-    writeJson(join(project, '.openclaude', 'settings.local.json'))
+
+    const warning = await detectStaleProjectSettingsPaths(project)
+
+    expect(warning?.issue).toContain('.openclaude/settings.json')
+    expect(warning?.issue).toContain('.opencat/settings.json')
+  })
+
+  test('does not warn when only canonical settings files exist', async () => {
+    const project = createProject()
+    writeJson(join(project, '.opencat', 'settings.json'))
+    writeJson(join(project, '.opencat', 'settings.local.json'))
 
     await expect(detectStaleProjectSettingsPaths(project)).resolves.toBeNull()
   })
@@ -86,7 +96,7 @@ describe('detectStaleProjectSettingsPaths', () => {
     const warning = await detectStaleProjectSettingsPaths(project)
 
     expect(warning?.issue).toContain('.claude/settings.local.json')
-    expect(warning?.issue).toContain('.openclaude/settings.local.json')
+    expect(warning?.issue).toContain('.opencat/settings.local.json')
   })
 
   test('warns about both legacy settings files when both canonical files are absent', async () => {
@@ -98,8 +108,8 @@ describe('detectStaleProjectSettingsPaths', () => {
 
     expect(warning?.issue).toContain('.claude/settings.json')
     expect(warning?.issue).toContain('.claude/settings.local.json')
-    expect(warning?.issue).toContain('.openclaude/settings.json')
-    expect(warning?.issue).toContain('.openclaude/settings.local.json')
+    expect(warning?.issue).toContain('.opencat/settings.json')
+    expect(warning?.issue).toContain('.opencat/settings.local.json')
   })
 
   test('uses the settings resolver project root by default', async () => {
@@ -110,6 +120,6 @@ describe('detectStaleProjectSettingsPaths', () => {
     const warning = await detectStaleProjectSettingsPaths()
 
     expect(warning?.issue).toContain('.claude/settings.json')
-    expect(warning?.issue).toContain('.openclaude/settings.json')
+    expect(warning?.issue).toContain('.opencat/settings.json')
   })
 })

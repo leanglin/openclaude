@@ -58,7 +58,7 @@ test('creates, edits, lists, and deletes project skills', async () => {
   expect(created.readonly).toBe(false)
   expect(created.content).toContain('allowed-tools')
 
-  const skillPath = join(cwd, '.claude', 'skills', 'app-test-runner', 'SKILL.md')
+  const skillPath = join(cwd, '.opencat', 'skills', 'app-test-runner', 'SKILL.md')
   expect(readFileSync(skillPath, 'utf8')).toContain('Run app tests')
 
   const updated = await updateSkillAsset(cwd, created.id, {

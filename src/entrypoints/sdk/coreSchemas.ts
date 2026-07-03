@@ -1226,8 +1226,8 @@ export const SettingSourceSchema = lazySchema(() =>
     .describe(
       'Source for loading filesystem-based settings. ' +
         "'user' - Global user settings (~/.openclaude/settings.json). " +
-        "'project' - Project settings (.openclaude/settings.json). " +
-        "'local' - Local settings (.openclaude/settings.local.json).",
+        "'project' - Project settings (.opencat/settings.json). " +
+        "'local' - Local settings (.opencat/settings.local.json).",
     ),
 )
 

@@ -134,10 +134,10 @@ describe('agent definition loading', () => {
     )
   })
 
-  test('loads project agents from .openclaude/agents', async () => {
+  test('loads project agents from .opencat/agents', async () => {
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'project-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'project-agent.md'),
       'project-agent',
     )
 
@@ -148,7 +148,7 @@ describe('agent definition loading', () => {
     ).toBe(true)
   })
 
-  test('prefers .openclaude project agents over legacy .claude agents', async () => {
+  test('loads .opencat project agents and ignores legacy project agents', async () => {
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
       join(projectDir, '.claude', 'agents', 'shared-agent.md'),
@@ -160,17 +160,22 @@ describe('agent definition loading', () => {
       'shared-agent',
       'openclaude prompt',
     )
+    await writeAgent(
+      join(projectDir, '.opencat', 'agents', 'shared-agent.md'),
+      'shared-agent',
+      'opencat prompt',
+    )
 
     const { activeAgents } = await getAgentDefinitionsWithOverrides(projectDir)
     const agent = activeAgents.find(agent => agent.agentType === 'shared-agent')
 
-    expect(agent?.source === 'projectSettings' ? agent.getSystemPrompt() : undefined).toBe('openclaude prompt')
+    expect(agent?.source === 'projectSettings' ? agent.getSystemPrompt() : undefined).toBe('opencat prompt')
   })
 
   test('accepts worktree isolation in markdown agent frontmatter', async () => {
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'worktree-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'worktree-agent.md'),
       'worktree-agent',
       'worktree prompt',
       'isolation: worktree\n',
@@ -186,7 +191,7 @@ describe('agent definition loading', () => {
     process.env.USER_TYPE = 'ant'
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'remote-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'remote-agent.md'),
       'remote-agent',
       'remote prompt',
       'isolation: remote\n',
@@ -202,7 +207,7 @@ describe('agent definition loading', () => {
   test('loads maxSteps from markdown agent frontmatter', async () => {
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'limited-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'limited-agent.md'),
       'limited-agent',
       'limited prompt',
       'maxSteps: 3\n',
@@ -217,13 +222,13 @@ describe('agent definition loading', () => {
   test('ignores invalid maxSteps in markdown agent frontmatter', async () => {
     const projectDir = join(projectRootDir, 'project')
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'invalid-steps-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'invalid-steps-agent.md'),
       'invalid-steps-agent',
       'invalid steps prompt',
       'maxSteps: 0\n',
     )
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'malformed-steps-agent.md'),
+      join(projectDir, '.opencat', 'agents', 'malformed-steps-agent.md'),
       'malformed-steps-agent',
       'malformed steps prompt',
       'maxSteps: 2abc\n',
@@ -252,7 +257,7 @@ describe('agent definition loading', () => {
       'maxSteps: 1\n',
     )
     await writeAgent(
-      join(projectDir, '.openclaude', 'agents', 'shared-limited.md'),
+      join(projectDir, '.opencat', 'agents', 'shared-limited.md'),
       'shared-limited',
       'project prompt',
       'maxSteps: 5\n',

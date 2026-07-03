@@ -2086,7 +2086,7 @@ export async function bashToolHasPermission(
       // disabling the cd+redirect check at pathValidation.ts:821. Appending
       // `| echo done` to `cd .claude && echo x > settings.json` routed through
       // this path with compoundCommandHasCd=false, letting the redirect write
-      // to .claude/settings.json without the cd+redirect block firing.
+      // to .opencat/settings.json without the cd+redirect block firing.
       const pathResult = checkPathConstraints(
         input,
         getCwd(),

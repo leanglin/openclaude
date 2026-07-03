@@ -113,6 +113,22 @@ describe('webui page', () => {
     expect(html).toContain('function renderToolSummary(tool)')
   })
 
+  test('animates only newly inserted chat bubbles and tool rows', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('@keyframes ocAssistantBubbleIn')
+    expect(html).toContain('@keyframes ocUserBubbleIn')
+    expect(html).toContain('@keyframes ocToolCardIn')
+    expect(html).toContain('.message.isNew .bubble')
+    expect(html).toContain('.message.isNew.user .bubble')
+    expect(html).toContain('.toolRow.isNew')
+    expect(html).toContain('function addMessage(role, content, id, options)')
+    expect(html).toContain("{ animate: false }")
+    expect(html).toContain("message.className = 'message ' + role + (animate ? ' isNew' : '')")
+    expect(html).toContain("row.className = 'toolRow isNew status-'")
+    expect(html).not.toContain('animation: ocSlideUp var(--oc-duration-normal) var(--oc-ease-standard);\\n      will-change: transform, opacity;\\n    }\\n\\n    .message.user')
+  })
+
   test('topbar plus creates a chat and switches the secondary panel to Chat', () => {
     const html = renderWebUiPage()
 

@@ -8,6 +8,7 @@ import {
   getOriginalCwd,
   getUseCoworkPlugins,
 } from '../../bootstrap/state.js'
+import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../../constants/product.js'
 import { getRemoteManagedSettingsSyncFromCache } from '../../services/remoteManagedSettings/syncCacheState.js'
 import { uniq } from '../array.js'
 import { logForDebugging } from '../debug.js'
@@ -232,7 +233,7 @@ function parseSettingsFileUncached(path: string): {
 
 /**
  * Get the absolute path to the associated file root for a given settings source
- * (e.g. for $PROJ_DIR/.openclaude/settings.json, returns $PROJ_DIR)
+ * (e.g. for $PROJ_DIR/.opencat/settings.json, returns $PROJ_DIR)
  * @param source The source of the settings
  * @returns The root path of the settings file
  */
@@ -300,9 +301,9 @@ export function getRelativeSettingsFilePathForSource(
 ): string {
   switch (source) {
     case 'projectSettings':
-      return '.openclaude/settings.json'
+      return `${PRODUCT_PROJECT_CONFIG_DIR_NAME}/settings.json`
     case 'localSettings':
-      return '.openclaude/settings.local.json'
+      return `${PRODUCT_PROJECT_CONFIG_DIR_NAME}/settings.local.json`
   }
 }
 

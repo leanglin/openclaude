@@ -136,6 +136,8 @@ export type AndroidMidscenePreflight = {
   android_sdk_configured: boolean;
   missing_android_env_keys: string[];
   midscene_model_configured: boolean;
+  midscene_config_source?: string;
+  configured_midscene_env_keys: string[];
   missing_midscene_env_keys: string[];
 };
 
@@ -159,6 +161,7 @@ const MIDSCENE_MODEL_ENV_KEYS = [
   'MIDSCENE_MODEL_API_KEY',
   'MIDSCENE_MODEL_FAMILY',
 ] as const;
+const MIDSCENE_CONFIG_SOURCE_ENV = 'OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE';
 
 const HIGH_RISK_TOKENS = [
   'pay',
@@ -333,7 +336,15 @@ export function buildAndroidMidscenePreflight(options: {
 
   const devices = parseAdbDevices(devicesText);
   const androidSdkConfigured = ANDROID_SDK_ENV_KEYS.some(key => configured(env[key]));
+  const configuredMidsceneEnvKeys = MIDSCENE_MODEL_ENV_KEYS.filter(key => configured(env[key]));
   const missingMidsceneEnvKeys = MIDSCENE_MODEL_ENV_KEYS.filter(key => !configured(env[key]));
+  const midsceneConfigSource =
+    asText(env[MIDSCENE_CONFIG_SOURCE_ENV]).trim() ||
+    (configuredMidsceneEnvKeys.length === MIDSCENE_MODEL_ENV_KEYS.length
+      ? 'process-env'
+      : configuredMidsceneEnvKeys.length > 0
+        ? 'partial-env'
+        : 'missing');
   const targetDeviceConnected = targetDeviceId
     ? devices.connected_devices.includes(targetDeviceId)
     : devices.connected_devices.length > 0;
@@ -349,6 +360,8 @@ export function buildAndroidMidscenePreflight(options: {
     android_sdk_configured: androidSdkConfigured,
     missing_android_env_keys: androidSdkConfigured ? [] : [...ANDROID_SDK_ENV_KEYS],
     midscene_model_configured: missingMidsceneEnvKeys.length === 0,
+    midscene_config_source: midsceneConfigSource,
+    configured_midscene_env_keys: configuredMidsceneEnvKeys,
     missing_midscene_env_keys: missingMidsceneEnvKeys,
   };
 }

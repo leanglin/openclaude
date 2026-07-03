@@ -1,0 +1,464 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f6f7f8;
+  color: #111111;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.appShell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  background: #fbfbfa;
+}
+
+.sideRail {
+  background: #ffffff;
+  border-right: 1px solid #d8d8d8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 28px 0;
+}
+
+.railBrand {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  color: #f05a00;
+  margin-bottom: 18px;
+}
+
+.railButton {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  color: #171717;
+  border-left: 4px solid transparent;
+}
+
+.railButton.active {
+  color: #f05a00;
+  border-left-color: #f05a00;
+  background: #f3f3f2;
+}
+
+.railButton:hover {
+  background: #f5f5f4;
+}
+
+.railSpacer {
+  flex: 1;
+}
+
+.content {
+  min-width: 0;
+  padding: 42px 42px 34px;
+  overflow: auto;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.82)),
+    #f7f7f5;
+}
+
+.heroRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 580px);
+  gap: 28px;
+  align-items: start;
+}
+
+.brandLine {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-width: 0;
+}
+
+.brandLine h1 {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.05;
+  font-weight: 760;
+}
+
+.brandLine span {
+  font-size: 22px;
+  color: #525252;
+}
+
+.serviceState {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 56px;
+  font-size: 27px;
+}
+
+.stateText {
+  margin: 16px 0 0 37px;
+  color: #44403c;
+  font-size: 20px;
+  line-height: 1.45;
+}
+
+.statusDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  background: #9ca3af;
+  box-shadow: inset 0 -1px 2px rgba(0,0,0,0.15);
+}
+
+.statusDot.ready {
+  background: #27a844;
+}
+
+.statusDot.busy {
+  background: #f59e0b;
+}
+
+.statusDot.error {
+  background: #dc2626;
+}
+
+.statusDot.stopped {
+  background: #71717a;
+}
+
+.primaryActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 256px;
+  gap: 18px;
+  align-items: start;
+}
+
+.secondaryActions {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 36px;
+}
+
+.actionButton,
+.iconTextButton {
+  height: 72px;
+  border-radius: 8px;
+  border: 1px solid #cfcfcf;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 24px;
+  font-weight: 660;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  min-width: 0;
+}
+
+.actionButton.primary {
+  color: #ffffff;
+  border-color: #ef5b00;
+  background: linear-gradient(180deg, #ff6a00, #f05a00);
+}
+
+.actionButton.secondary,
+.iconTextButton {
+  color: #121212;
+}
+
+.secondaryActions .actionButton {
+  height: 52px;
+  font-size: 19px;
+}
+
+.actionButton:hover:not(:disabled),
+.iconTextButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08);
+}
+
+.divider {
+  height: 1px;
+  margin: 34px 0;
+  background: #d8d8d8;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metricColumn {
+  min-width: 0;
+  padding: 0 34px;
+  border-right: 1px solid #d7d7d7;
+}
+
+.metricColumn:first-child {
+  padding-left: 8px;
+}
+
+.metricColumn:last-child {
+  border-right: 0;
+}
+
+.metricColumn h2,
+.sectionTitle h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 720;
+}
+
+.metricStatus {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  color: #44403c;
+  font-size: 21px;
+}
+
+.metricStatus .statusDot,
+.activityItem .statusDot {
+  width: 16px;
+  height: 16px;
+}
+
+.metricColumn p {
+  margin: 14px 0 0 30px;
+  color: #514f4a;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.linkButton {
+  margin-top: 14px;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #005bd3;
+  font-size: 20px;
+}
+
+.linkButton span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settingsRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 22px;
+  align-items: end;
+}
+
+.settingGroup {
+  min-width: 0;
+}
+
+.settingGroup label {
+  display: block;
+  margin-bottom: 8px;
+  color: #57534e;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.inputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+}
+
+input {
+  width: 100%;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid #cfcfcf;
+  background: #ffffff;
+  color: #151515;
+  padding: 0 14px;
+  min-width: 0;
+  outline: none;
+}
+
+input:focus {
+  border-color: #f05a00;
+  box-shadow: 0 0 0 3px rgba(240, 90, 0, 0.16);
+}
+
+.iconTextButton {
+  height: 48px;
+  font-size: 16px;
+  gap: 8px;
+}
+
+.updateButton {
+  width: 100%;
+}
+
+.activityPanel {
+  margin-top: 32px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.activityList {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.activityItem {
+  display: grid;
+  grid-template-columns: 18px 88px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  color: #44403c;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.activityItem time {
+  color: #525252;
+  font-variant-numeric: tabular-nums;
+}
+
+.activityItem span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activityItem.empty {
+  color: #71717a;
+}
+
+@media (max-width: 920px) {
+  .appShell {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+
+  .sideRail {
+    padding: 18px 0;
+    gap: 10px;
+  }
+
+  .railButton {
+    width: 56px;
+    height: 54px;
+  }
+
+  .content {
+    padding: 26px 24px;
+  }
+
+  .heroRow,
+  .settingsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .primaryActions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .secondaryActions {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+
+  .metricsGrid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .metricColumn {
+    border-right: 0;
+    padding: 0;
+  }
+
+  .serviceState {
+    margin-top: 34px;
+  }
+}
+
+@media (max-width: 640px) {
+  .brandLine h1 {
+    font-size: 34px;
+  }
+
+  .brandLine span {
+    font-size: 18px;
+  }
+
+  .primaryActions,
+  .secondaryActions,
+  .inputRow {
+    grid-template-columns: 1fr;
+  }
+
+  .actionButton {
+    height: 58px;
+    font-size: 19px;
+  }
+
+  .activityItem {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .activityItem time {
+    display: none;
+  }
+}

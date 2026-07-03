@@ -2,6 +2,11 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { buildAppTestRunnerEnv } from './config.js'
 
 const KEYS = [
+  'ADB_PATH',
+  'OPENCAT_ADB_PATH',
+  'OPENCLAUDE_ADB_PATH',
+  'ANDROID_HOME',
+  'ANDROID_SDK_ROOT',
   'MIDSCENE_MODEL_NAME',
   'MIDSCENE_MODEL_BASE_URL',
   'MIDSCENE_MODEL_API_KEY',
@@ -48,5 +53,37 @@ describe('AppTest runner env', () => {
 
     expect(env.MIDSCENE_MODEL_BASE_URL).toBe('https://legacy-vision.example.test/v1')
     expect(env.MIDSCENE_MODEL_API_KEY).toBe('legacy-midscene-key')
+  })
+
+  test('maps OPENCAT_ADB_PATH to ADB_PATH for packaged runs', () => {
+    delete process.env.ADB_PATH
+    process.env.OPENCAT_ADB_PATH = 'C:/Android/platform-tools/adb.exe'
+
+    const env = buildAppTestRunnerEnv()
+
+    expect(env.ADB_PATH).toBe('C:/Android/platform-tools/adb.exe')
+  })
+
+  test('keeps legacy ADB path fallback behind OPENCAT_ADB_PATH', () => {
+    delete process.env.ADB_PATH
+    process.env.OPENCAT_ADB_PATH = 'C:/Android/current/adb.exe'
+    process.env.OPENCLAUDE_ADB_PATH = 'C:/Android/legacy/adb.exe'
+
+    const env = buildAppTestRunnerEnv()
+
+    expect(env.ADB_PATH).toBe('C:/Android/current/adb.exe')
+  })
+
+  test('derives ADB path from Android SDK env when no explicit ADB path is set', () => {
+    delete process.env.ADB_PATH
+    delete process.env.OPENCAT_ADB_PATH
+    delete process.env.OPENCLAUDE_ADB_PATH
+    process.env.ANDROID_HOME = 'C:/Users/me/AppData/Local/Android/Sdk'
+
+    const env = buildAppTestRunnerEnv()
+
+    expect(env.ADB_PATH).toBe(
+      'C:/Users/me/AppData/Local/Android/Sdk/platform-tools/adb.exe',
+    )
   })
 })

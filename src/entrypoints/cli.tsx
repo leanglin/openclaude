@@ -1,7 +1,8 @@
 import { feature } from 'bun:bundle';
+import { PRODUCT_DISPLAY_NAME } from '../constants/product.js';
 
 // Defensive compatibility guard for environments where globalThis.File is
-// unexpectedly absent. OpenClaude's supported runtime is Node >=22; this is
+// unexpectedly absent. OpenCat's supported runtime is Node >=22; this is
 // not a Node 18 support guarantee. The guard is harmless on supported Node
 // versions and prevents undici's module evaluation from throwing in unusual
 // embedded/runtime setups.
@@ -27,7 +28,7 @@ if (typeof globalThis.File === 'undefined') {
   }
 }
 
-// OpenClaude: disable experimental API betas by default.
+// OpenCat: disable experimental API betas by default.
 // Tool search (defer_loading), global cache scope, and context management
 // require internal API support not available to external accounts → 500.
 // Users can opt-in with CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=false.
@@ -151,11 +152,26 @@ export async function main(
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {
     // MACRO.VERSION is inlined at build time
     // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${MACRO.DISPLAY_VERSION ?? MACRO.VERSION} (OpenClaude)`);
+    console.log(`${MACRO.DISPLAY_VERSION ?? MACRO.VERSION} (${PRODUCT_DISPLAY_NAME})`);
     return;
   }
 
-  // Fast-path for `openclaude ps|logs|attach|kill`.
+  // Fast-path for `opencat web`: the launcher starts this hidden and only
+  // needs the local HTTP/WebSocket server, not the terminal startup screen.
+  if (args[0] === 'web') {
+    const {
+      profileCheckpoint
+    } = await importers.startupProfiler();
+    profileCheckpoint('cli_web_path');
+    const {
+      main: cliMain
+    } = await importers.main();
+    await cliMain();
+    profileCheckpoint('cli_web_complete');
+    return;
+  }
+
+  // Fast-path for `opencat ps|logs|attach|kill`.
   // Session management is entirely local, so it should not require config,
   // profile, credential, provider-validation, or startup-screen work.
   if (bgSessionsEnabled && (args[0] === 'ps' || args[0] === 'logs' || args[0] === 'attach' || args[0] === 'kill')) {

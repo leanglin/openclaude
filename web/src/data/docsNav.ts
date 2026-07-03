@@ -10,21 +10,21 @@ export interface DocsNavGroup {
 
 export const docsNav: DocsNavGroup[] = [
   {
-    group: 'getting started',
+    group: '开始使用',
     items: [
-      { title: 'Overview', href: '/docs/' },
-      { title: 'Installation', href: '/docs/installation/' },
-      { title: 'Quickstart', href: '/docs/quickstart/' },
-      { title: 'Providers', href: '/docs/providers/' },
+      { title: '概览', href: '/docs/' },
+      { title: '安装', href: '/docs/installation/' },
+      { title: '快速开始', href: '/docs/quickstart/' },
+      { title: 'Provider', href: '/docs/providers/' },
     ],
   },
   {
-    group: 'reference',
+    group: '参考',
     items: [
-      { title: 'Slash commands', href: '/docs/slash-commands/' },
-      { title: 'CLI reference', href: '/docs/cli-reference/' },
-      { title: 'Configuration', href: '/docs/configuration/' },
-      { title: 'Keybindings', href: '/docs/keybindings/' },
+      { title: '斜杠命令', href: '/docs/slash-commands/' },
+      { title: 'CLI 参考', href: '/docs/cli-reference/' },
+      { title: '配置', href: '/docs/configuration/' },
+      { title: '快捷键', href: '/docs/keybindings/' },
       { title: 'Skills', href: '/docs/skills/' },
     ],
   },

@@ -3,10 +3,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const APP_TEST_RUNNER_MISSING_MESSAGE =
-  'OpenClaude AppTest runner is not built or not included in this installation.'
+  'OpenCat AppTest runner is not built or not included in this installation.'
 
 const APP_TEST_ENV_KEYS = [
   'ADB_PATH',
+  'OPENCAT_ADB_PATH',
   'OPENCLAUDE_ADB_PATH',
   'ANDROID_HOME',
   'ANDROID_SDK_ROOT',
@@ -26,7 +27,9 @@ function currentModuleDir(): string {
 }
 
 export function resolveAppTestRunnerPath(cwd = process.cwd()): string | null {
-  const configured = process.env.OPENCLAUDE_APP_TEST_RUNNER?.trim()
+  const configured =
+    process.env.OPENCAT_APP_TEST_RUNNER?.trim() ||
+    process.env.OPENCLAUDE_APP_TEST_RUNNER?.trim()
   const candidates = [
     configured,
     resolve(cwd, 'packages/app-test-runner/dist/cli.js'),
@@ -39,27 +42,22 @@ export function resolveAppTestRunnerPath(cwd = process.cwd()): string | null {
 }
 
 export function resolveAppTestNodePath(): string {
-  return process.env.OPENCLAUDE_APP_TEST_NODE?.trim() || process.execPath
+  return (
+    process.env.OPENCAT_APP_TEST_NODE?.trim() ||
+    process.env.OPENCLAUDE_APP_TEST_NODE?.trim() ||
+    process.execPath
+  )
 }
 
 export function buildAppTestRunnerEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
 
-  // If ANDROID_HOME/ANDROID_SDK_ROOT are not set but we know common locations, set them
-  if (!env.ANDROID_HOME && !env.ANDROID_SDK_ROOT) {
-    // Special case for this environment
-    const knownSdkRoot = 'E:/04 Coding/platform-tools-latest-windows'
-    env.ANDROID_HOME = knownSdkRoot
-    env.ANDROID_SDK_ROOT = knownSdkRoot
-  }
-
-  // If ANDROID_HOME/ANDROID_SDK_ROOT are already set but ADB_PATH not set, set ADB path
-  if (!env.ADB_PATH && env.ANDROID_HOME) {
-    env.ADB_PATH = `${env.ANDROID_HOME}/platform-tools/adb.exe`
-  }
-
-  if (!env.ADB_PATH && env.OPENCLAUDE_ADB_PATH) {
-    env.ADB_PATH = env.OPENCLAUDE_ADB_PATH
+  if (!env.ADB_PATH) {
+    env.ADB_PATH =
+      env.OPENCAT_ADB_PATH ||
+      env.OPENCLAUDE_ADB_PATH ||
+      (env.ANDROID_HOME ? `${env.ANDROID_HOME}/platform-tools/adb.exe` : undefined) ||
+      (env.ANDROID_SDK_ROOT ? `${env.ANDROID_SDK_ROOT}/platform-tools/adb.exe` : undefined)
   }
   for (const key of APP_TEST_ENV_KEYS) {
     if (process.env[key] !== undefined) env[key] = process.env[key]
@@ -77,8 +75,8 @@ export function formatMissingRunnerMessage(): string {
   return `${APP_TEST_RUNNER_MISSING_MESSAGE}
 
 Build it with:
-  npm --prefix packages/app-test-runner install
-  npm --prefix packages/app-test-runner run build
+  npm.cmd --prefix packages/app-test-runner install
+  npm.cmd --prefix packages/app-test-runner run build
 
-Or set OPENCLAUDE_APP_TEST_RUNNER to packages/app-test-runner/dist/cli.js.`
+Or set OPENCAT_APP_TEST_RUNNER to packages/app-test-runner/dist/cli.js.`
 }

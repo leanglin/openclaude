@@ -1,7 +1,6 @@
 import { feature } from 'bun:bundle'
 import { registerBatchSkill } from './batch.js'
 import { shouldEnableClaudeInChromeSkill } from './claudeInChromeAccess.js'
-import { registerClaudeInChromeSkill } from './claudeInChrome.js'
 import { registerDebugSkill } from './debug.js'
 import { registerKeybindingsSkill } from './keybindings.js'
 import { registerLoopSkill } from './loop.js'
@@ -54,6 +53,9 @@ export function initBundledSkills(): void {
     registerClaudeApiSkill()
   }
   if (shouldEnableClaudeInChromeSkill()) {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { registerClaudeInChromeSkill } = require('./claudeInChrome.js')
+    /* eslint-enable @typescript-eslint/no-require-imports */
     registerClaudeInChromeSkill()
   }
   if (feature('RUN_SKILL_GENERATOR')) {

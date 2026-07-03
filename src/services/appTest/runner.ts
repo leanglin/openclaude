@@ -59,7 +59,7 @@ export function buildAppTestRunnerRequest(
   }
 
   return {
-    job_id: `openclaude-${randomUUID()}`,
+    job_id: `opencat-${randomUUID()}`,
     platform,
     slots,
     trace_dir: input.trace_dir,

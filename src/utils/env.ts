@@ -26,15 +26,19 @@ export function resolveGlobalClaudeFile(options: {
   const oauthSuffix = options.oauthSuffix ?? ''
   const configDir = options.configDirEnv || options.homeDir || homedir()
   const hasExplicitConfigDir = Boolean(options.configDirEnv)
-  const newFilename = `.openclaude${oauthSuffix}.json`
-  const legacyFilename = `.claude${oauthSuffix}.json`
+  const newFilename = `.opencat${oauthSuffix}.json`
+  const legacyFilenames = [
+    `.openclaude${oauthSuffix}.json`,
+    `.claude${oauthSuffix}.json`,
+  ]
 
-  if (
-    (hasExplicitConfigDir || options.migrationSucceeded === false) &&
-    !options.existsSync(join(configDir, newFilename)) &&
-    options.existsSync(join(configDir, legacyFilename))
-  ) {
-    return join(configDir, legacyFilename)
+  if ((hasExplicitConfigDir || options.migrationSucceeded === false) &&
+    !options.existsSync(join(configDir, newFilename))) {
+    for (const legacyFilename of legacyFilenames) {
+      if (options.existsSync(join(configDir, legacyFilename))) {
+        return join(configDir, legacyFilename)
+      }
+    }
   }
   return join(configDir, newFilename)
 }
@@ -52,18 +56,19 @@ export const getGlobalClaudeFile = memoize((): string => {
 
   const oauthSuffix = fileSuffixForOauthConfig()
   const configDirEnv = resolveConfigDirEnv({
+    opencatConfigDir: process.env.OPENCAT_CONFIG_DIR,
     openClaudeConfigDir: process.env.OPENCLAUDE_CONFIG_DIR,
     legacyConfigDir: process.env.CLAUDE_CONFIG_DIR,
   })
-  const configDir = configDirEnv || homedir()
+  const configDir = configDirEnv || getClaudeConfigHomeDir()
   const hasExplicitConfigDir = Boolean(configDirEnv)
   let migrationSucceeded = true
 
   if (!hasExplicitConfigDir) {
-    migrationSucceeded = migrateLegacyClaudeConfigHome({ homeDir: configDir })
+    migrationSucceeded = migrateLegacyClaudeConfigHome({ homeDir: homedir() })
   }
 
-  // Default installs hard-cut to .openclaude.json after the migration above.
+  // Default installs hard-cut to .opencat.json after the migration above.
   // Explicit config-dir users keep the legacy filename fallback because
   // either env var is an opt-out for automatic migration.
   return resolveGlobalClaudeFile({

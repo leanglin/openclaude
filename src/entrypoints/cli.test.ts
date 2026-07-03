@@ -449,6 +449,24 @@ describe('cli.tsx — background routing behavior', () => {
     }
   })
 
+  it('routes web --no-open directly without startup UI or provider validation', async () => {
+    const args = ['web', '--no-open']
+
+    await runCliEntrypoint(args, bgOptions)
+
+    expect(mockProfileCheckpoint.mock.calls).toEqual([
+      ['cli_web_path'],
+      ['cli_web_complete'],
+    ])
+    expect(mockParseProviderEnvFileArgs).not.toHaveBeenCalled()
+    expect(mockEnableConfigs).not.toHaveBeenCalled()
+    expect(mockApplyStartupEnvFromProfile).not.toHaveBeenCalled()
+    expect(mockValidateProviderEnvForStartupOrExit).not.toHaveBeenCalled()
+    expect(mockPrintStartupScreen).not.toHaveBeenCalled()
+    expect(mockStartCapturingEarlyInput).not.toHaveBeenCalled()
+    expect(mockCliMain).toHaveBeenCalledTimes(1)
+  })
+
   it('routes real background flags after profile routing without provider validation', async () => {
     const args = ['--background', '--', '--print']
 

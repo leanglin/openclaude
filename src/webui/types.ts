@@ -10,6 +10,8 @@ export type WebUiPermissionMode =
 
 export type PrimaryMenuId =
   | 'chat'
+  | 'memory'
+  | 'assets'
   | 'providers'
   | 'sessions'
   | 'tools'

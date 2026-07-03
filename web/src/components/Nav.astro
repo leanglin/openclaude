@@ -2,10 +2,10 @@
 import { SITE } from '../data/site'
 
 const links = [
-  { href: '/docs/', label: 'docs' },
-  { href: '/docs/slash-commands/', label: 'commands' },
-  { href: '/docs/providers/', label: 'providers' },
-  { href: SITE.github, label: 'github' },
+  { href: '/docs/', label: '文档' },
+  { href: '/docs/slash-commands/', label: '命令' },
+  { href: '/docs/providers/', label: 'Provider' },
+  { href: SITE.github, label: 'GitHub' },
   { href: SITE.gitlawb, label: 'gitlawb' },
 ]
 
@@ -14,12 +14,12 @@ const path = Astro.url.pathname
 
 <header class="site-nav" id="site-nav">
   <div class="container">
-    <a class="brand" href="/" aria-label="openclaude home">
+    <a class="brand" href="/" aria-label="openclaude 首页">
       <img src="/openclaude.png" alt="" width="22" height="22" />
       <span>openclaude</span>
       <span class="ver">v{SITE.version}</span>
     </a>
-    <nav class="nav-links" aria-label="primary">
+    <nav class="nav-links" aria-label="主导航">
       {links.map(l => (
         <a
           href={l.href}
@@ -27,17 +27,17 @@ const path = Astro.url.pathname
           rel={l.href.startsWith('http') ? 'noopener' : undefined}
         >{l.label}</a>
       ))}
-      <button type="button" class="theme-toggle" data-theme-toggle aria-live="polite">[light]</button>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-live="polite">[浅色]</button>
     </nav>
     <button type="button" class="nav-burger" data-menu-toggle aria-expanded="false" aria-controls="mobile-menu">
-      [menu]
+      [菜单]
     </button>
   </div>
   <div class="mobile-menu" id="mobile-menu">
     {links.map(l => (
       <a href={l.href} rel={l.href.startsWith('http') ? 'noopener' : undefined}>{l.label}</a>
     ))}
-    <a href="#" data-theme-toggle role="button">[light]</a>
+    <a href="#" data-theme-toggle role="button">[浅色]</a>
   </div>
 </header>
 
@@ -50,9 +50,10 @@ const path = Astro.url.pathname
 
   function renderToggles() {
     const next = currentTheme() === 'dark' ? 'light' : 'dark'
+    const label = next === 'light' ? '浅色' : '深色'
     document.querySelectorAll('[data-theme-toggle]').forEach(el => {
-      el.textContent = `[${next}]`
-      el.setAttribute('aria-label', `switch to ${next} theme`)
+      el.textContent = `[${label}]`
+      el.setAttribute('aria-label', `切换到${label}主题`)
     })
   }
 
@@ -84,6 +85,6 @@ const path = Astro.url.pathname
   burger?.addEventListener('click', () => {
     const open = nav?.classList.toggle('menu-open') ?? false
     burger.setAttribute('aria-expanded', String(open))
-    burger.textContent = open ? '[close]' : '[menu]'
+    burger.textContent = open ? '[关闭]' : '[菜单]'
   })
 </script>

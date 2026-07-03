@@ -1,10 +1,13 @@
 {
-  "name": "@gitlawb/openclaude",
-  "version": "0.21.0",
-  "description": "OpenClaude opens coding-agent workflows to any LLM — OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
+  "name": "@opencat/opencat",
+  "version": "7.0.0",
+  "description": "OpenCat opens coding-agent workflows to any LLM - OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
   "type": "module",
+  "workspaces": [
+    "launcher"
+  ],
   "bin": {
-    "openclaude": "./bin/openclaude"
+    "opencat": "./bin/opencat"
   },
   "exports": {
     "./package.json": "./package.json",
@@ -15,7 +18,7 @@
     }
   },
   "files": [
-    "bin/",
+    "bin/opencat",
     "dist/cli.mjs",
     "dist/sdk.mjs",
     "src/webui/assets/opencat.ico",
@@ -23,24 +26,22 @@
     "src/entrypoints/sdk/coreTypes.generated.ts",
     "packages/app-test-runner/dist/",
     "packages/app-test-runner/package.json",
-    "scripts/windows/openclaude-aliases.ps1",
     "docs/app-testing.md",
-    "vendor/node-domexception-shim/",
-    "docs/windows-aliases-and-launchers.md",
-    "README.md"
+    "docs/opencat-packaging.md",
+    "vendor/node-domexception-shim/"
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
-    "build:app-test-runner": "npm --prefix packages/app-test-runner run build",
-    "build:all": "npm --prefix packages/app-test-runner install && npm --prefix packages/app-test-runner run build && bun run build",
-    "app-test:install": "npm --prefix packages/app-test-runner install",
-    "app-test:build": "npm --prefix packages/app-test-runner run build",
-    "app-test:test": "npm --prefix packages/app-test-runner test",
+    "build:app-test-runner": "npm.cmd --prefix packages/app-test-runner run build",
+    "build:all": "npm.cmd --prefix packages/app-test-runner install && npm.cmd --prefix packages/app-test-runner run build && bun run build",
+    "app-test:install": "npm.cmd --prefix packages/app-test-runner install",
+    "app-test:build": "npm.cmd --prefix packages/app-test-runner run build",
+    "app-test:test": "npm.cmd --prefix packages/app-test-runner test",
     "app-test:mock:android": "node -e \"process.stdout.write(JSON.stringify({job_id:'mock-android-1',platform:'android',mock_mode:true,slots:{mock_mode:true,app_package:'com.example.demo',test_goal:'mock android test',assertions:['mock Midscene screen']}}))\" | node packages/app-test-runner/dist/cli.js run-test",
     "app-test:mock:web": "node -e \"process.stdout.write(JSON.stringify({job_id:'mock-web-1',platform:'web',mock_mode:true,slots:{mock_mode:true,start_url:'https://example.com',test_goal:'mock web test',assertions:['mock Midscene screen']}}))\" | node packages/app-test-runner/dist/cli.js run-test",
     "integrations:generate": "bun run scripts/generate-integrations-artifacts.ts",
     "integrations:check": "bun run scripts/generate-integrations-artifacts.ts --check",
-    "dev": "bun run build && node bin/openclaude",
+    "dev": "bun run build && node bin/opencat",
     "dev:profile": "bun run scripts/provider-launch.ts",
     "dev:profile:fast": "bun run scripts/provider-launch.ts auto --fast --bare",
     "dev:codex": "bun run scripts/provider-launch.ts codex",
@@ -59,7 +60,7 @@
     "dev:code": "bun run profile:code && bun run dev:profile",
     "dev:grpc": "bun run scripts/start-grpc.ts",
     "dev:grpc:cli": "bun run scripts/grpc-cli.ts",
-    "start": "node bin/openclaude",
+    "start": "node bin/opencat",
     "web:dev": "bun run --cwd web dev",
     "web:build": "bun run --cwd web build",
     "web:preview": "bun run --cwd web preview",
@@ -83,7 +84,10 @@
     "doctor:report": "bun run scripts/system-check.ts --out reports/doctor-runtime.json",
     "hardening:check": "bun run smoke && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
-    "prepack": "npm run build"
+    "opencat:prepare-runtime": "bun run scripts/opencat/prepare-runtime.ts",
+    "opencat:build-launcher": "bun run opencat:prepare-runtime && bun run --cwd launcher tauri build",
+    "opencat:package": "bun run opencat:build-launcher",
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",
@@ -91,6 +95,8 @@
     "@anthropic-ai/foundry-sdk": "0.2.3",
     "@anthropic-ai/sandbox-runtime": "0.0.55",
     "@anthropic-ai/sdk": "0.94.0",
+    "@aws-sdk/client-bedrock-runtime": "3.1047.0",
+    "@aws-sdk/credential-provider-node": "3.972.41",
     "@commander-js/extra-typings": "12.1.0",
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
@@ -103,6 +109,8 @@
     "@orama/orama": "^3.1.18",
     "@orama/plugin-data-persistence": "^3.1.18",
     "@playwright/test": "^1.59.1",
+    "@smithy/core": "3.24.3",
+    "@smithy/node-http-handler": "4.7.3",
     "@vscode/ripgrep": "^1.17.1",
     "ajv": "8.18.0",
     "auto-bind": "5.0.1",
@@ -124,6 +132,7 @@
     "fuse.js": "7.1.0",
     "get-east-asian-width": "1.5.0",
     "google-auth-library": "10.6.2",
+    "highlight.js": "10.7.3",
     "https-proxy-agent": "7.0.6",
     "ignore": "7.0.5",
     "indent-string": "5.0.0",
@@ -149,6 +158,7 @@
     "type-fest": "4.41.0",
     "undici": "7.28.0",
     "usehooks-ts": "3.1.1",
+    "vscode-jsonrpc": "8.2.0",
     "vscode-languageserver-protocol": "3.17.5",
     "wrap-ansi": "9.0.2",
     "ws": "8.21.0",
@@ -168,7 +178,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Gitlawb/openclaude.git"
+    "url": "https://github.com/Gitlawb/opencat.git"
   },
   "keywords": [
     "claude-code",

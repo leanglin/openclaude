@@ -16,6 +16,9 @@ export const COMMON_EXTERNALS: string[] = [
   '@aws-sdk/client-sts',
   '@aws-sdk/credential-providers',
   '@azure/identity',
+  '@aws-sdk/credential-provider-node',
+  '@smithy/core',
+  '@smithy/node-http-handler',
   'google-auth-library',
   // @vscode/ripgrep ships a platform-specific binary alongside its
   // index.js and resolves the path via __dirname at runtime. Bundling
@@ -74,6 +77,7 @@ export const INTENTIONALLY_BUNDLED: string[] = [
   'chalk',
   'cli-boxes',
   'cli-highlight',
+  'highlight.js',
   'commander',
   'emoji-regex',
   'env-paths',
@@ -129,6 +133,7 @@ export const INTENTIONALLY_BUNDLED: string[] = [
   '@grpc/grpc-js',
   '@grpc/proto-loader',
   // Language server protocol
+  'vscode-jsonrpc',
   'vscode-languageserver-protocol',
   // File watching
   'chokidar',

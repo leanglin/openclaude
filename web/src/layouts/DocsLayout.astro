@@ -25,9 +25,9 @@ const { prev, next } = pagerFor(path)
 const navTitle = docsPages.find(p => p.href === path)?.title ?? heading
 
 const crumbs = [
-  { label: 'home', href: '/' },
-  { label: 'docs', href: '/docs/' },
-  ...(path === '/docs/' ? [] : [{ label: navTitle.toLowerCase(), href: path }]),
+  { label: '首页', href: '/' },
+  { label: '文档', href: '/docs/' },
+  ...(path === '/docs/' ? [] : [{ label: navTitle, href: path }]),
 ]
 
 const jsonLd = [
@@ -53,11 +53,11 @@ const jsonLd = [
         <h1>{heading}</h1>
         {lede && <p class="lede">{lede}</p>}
         <slot />
-        <nav class="docs-pager" aria-label="docs pagination">
+        <nav class="docs-pager" aria-label="文档翻页">
           <span>
             {prev && (
               <a href={prev.href}>
-                <span class="label">← previous</span>
+                <span class="label">← 上一篇</span>
                 {prev.title}
               </a>
             )}
@@ -65,7 +65,7 @@ const jsonLd = [
           <span style="text-align: right;">
             {next && (
               <a href={next.href}>
-                <span class="label">next →</span>
+                <span class="label">下一篇 →</span>
                 {next.title}
               </a>
             )}

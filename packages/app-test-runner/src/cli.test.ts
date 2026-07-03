@@ -2,10 +2,9 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import {
   androidInputText,
@@ -57,9 +56,9 @@ import {
 
 const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 const PNG_HEADER = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const TEST_DIR = dirname(fileURLToPath(import.meta.url));
+const TEST_DIR = __dirname;
 const PACKAGE_ROOT = resolve(TEST_DIR, '..');
-const SOURCE_PATH = join(TEST_DIR, 'cli.ts');
+const SOURCE_PATH = join(PACKAGE_ROOT, 'src', 'cli.ts');
 const DIST_CLI_PATH = join(PACKAGE_ROOT, 'dist', 'cli.js');
 
 function tempTraceDir(): string {

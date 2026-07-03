@@ -15,6 +15,28 @@ import {
   buildMidsceneSessionEnv,
   saveProviderProfileFromPayload,
 } from './providerProfile.js'
+import {
+  clearMemoryKnowledgeGraph,
+  createMemoryFile,
+  deleteMemoryFile,
+  getMemoryFile,
+  getMemoryKnowledgeGraph,
+  getMemoryStatus,
+  listMemoryFiles,
+  saveMemoryFile,
+  searchMemoryFiles,
+  updateKnowledgeGraphEnabled,
+} from '../services/webMemory/memoryStore.js'
+import {
+  createSkillAsset,
+  deleteSkillAsset,
+  getAssetDetail,
+  getAssetRoots,
+  importSkillAsset,
+  listAssets,
+  reloadAssets,
+  updateSkillAsset,
+} from '../services/webAssets/assetStore.js'
 import { renderWebUiPage } from './page.js'
 import {
   createWebChatSession,
@@ -142,6 +164,147 @@ function bootstrap(options: WebUiAppOptions): BootstrapState {
   })
 }
 
+async function handleMemoryApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  options: WebUiAppOptions,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/memory')) return false
+
+  const parts = url.pathname.split('/').filter(Boolean)
+
+  if (request.method === 'GET' && url.pathname === '/api/memory/status') {
+    sendJson(response, 200, await getMemoryStatus(options.cwd))
+    return true
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/memory/files') {
+    sendJson(response, 200, { files: listMemoryFiles() })
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/memory/files') {
+    const payload = await readJsonBody<Parameters<typeof createMemoryFile>[0]>(request)
+    sendJson(response, 200, { file: createMemoryFile(payload) })
+    return true
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/memory/search') {
+    sendJson(response, 200, {
+      results: searchMemoryFiles(url.searchParams.get('q') ?? ''),
+    })
+    return true
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/memory/knowledge-graph') {
+    sendJson(response, 200, await getMemoryKnowledgeGraph(options.cwd))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/memory/knowledge-graph/enable') {
+    const payload = await readJsonBody<{ enabled?: unknown }>(request)
+    updateKnowledgeGraphEnabled(payload.enabled)
+    sendJson(response, 200, await getMemoryKnowledgeGraph(options.cwd))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/memory/knowledge-graph/clear') {
+    const payload = await readJsonBody<{ confirm?: unknown }>(request)
+    await clearMemoryKnowledgeGraph(options.cwd, payload.confirm)
+    sendJson(response, 200, await getMemoryKnowledgeGraph(options.cwd))
+    return true
+  }
+
+  if (parts[0] === 'api' && parts[1] === 'memory' && parts[2] === 'files' && parts[3]) {
+    const fileId = decodeURIComponent(parts[3])
+    if (request.method === 'GET') {
+      const file = getMemoryFile(fileId)
+      sendJson(response, 200, { file, content: file.content })
+      return true
+    }
+    if (request.method === 'PUT') {
+      const payload = await readJsonBody<{ content?: unknown }>(request)
+      const file = saveMemoryFile(fileId, payload.content)
+      sendJson(response, 200, { file, content: file.content })
+      return true
+    }
+    if (request.method === 'DELETE') {
+      const payload = await readJsonBody<{ confirm?: unknown }>(request)
+      deleteMemoryFile(fileId, payload.confirm)
+      sendJson(response, 200, { ok: true })
+      return true
+    }
+  }
+
+  sendJson(response, 404, { error: 'Memory API route was not found.' })
+  return true
+}
+
+async function handleAssetsApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  options: WebUiAppOptions,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/assets')) return false
+
+  const parts = url.pathname.split('/').filter(Boolean)
+
+  if (request.method === 'GET' && url.pathname === '/api/assets') {
+    sendJson(response, 200, {
+      assets: await listAssets(options.cwd, {
+        kind: url.searchParams.get('kind'),
+        source: url.searchParams.get('source'),
+        q: url.searchParams.get('q'),
+      }),
+      roots: getAssetRoots(options.cwd),
+    })
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/assets/reload') {
+    sendJson(response, 200, await reloadAssets(options.cwd))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/assets/skills') {
+    const payload = await readJsonBody<Parameters<typeof createSkillAsset>[1]>(request)
+    sendJson(response, 200, { asset: await createSkillAsset(options.cwd, payload) })
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/assets/skills/import') {
+    const payload = await readJsonBody<Parameters<typeof importSkillAsset>[1]>(request)
+    sendJson(response, 200, { asset: await importSkillAsset(options.cwd, payload) })
+    return true
+  }
+
+  if (parts[0] === 'api' && parts[1] === 'assets' && parts[2] === 'skills' && parts[3]) {
+    const assetId = decodeURIComponent(parts[3])
+    if (request.method === 'PUT') {
+      const payload = await readJsonBody<Parameters<typeof updateSkillAsset>[2]>(request)
+      sendJson(response, 200, { asset: await updateSkillAsset(options.cwd, assetId, payload) })
+      return true
+    }
+    if (request.method === 'DELETE') {
+      const payload = await readJsonBody<{ confirm?: unknown }>(request)
+      await deleteSkillAsset(options.cwd, assetId, payload.confirm)
+      sendJson(response, 200, { ok: true })
+      return true
+    }
+  }
+
+  if (request.method === 'GET' && parts[0] === 'api' && parts[1] === 'assets' && parts[2]) {
+    const assetId = decodeURIComponent(parts[2])
+    sendJson(response, 200, { asset: await getAssetDetail(options.cwd, assetId) })
+    return true
+  }
+
+  sendJson(response, 404, { error: 'Assets API route was not found.' })
+  return true
+}
+
 function sendWs(ws: WebSocket, event: ServerEvent): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(event))
@@ -185,6 +348,14 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
 
         if (request.method === 'GET' && url.pathname === '/api/bootstrap') {
           sendJson(response, 200, bootstrap(options))
+          return
+        }
+
+        if (await handleMemoryApi(request, response, url, options)) {
+          return
+        }
+
+        if (await handleAssetsApi(request, response, url, options)) {
           return
         }
 

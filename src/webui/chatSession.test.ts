@@ -260,7 +260,7 @@ describe('webui CLI chat session', () => {
         platform: 'android',
       },
       permissionSuggestions,
-      prompt: 'OpenClaude wants to run an Android App test against com.cmri.universalapp.',
+      prompt: 'OpenCat wants to run an Android App test against com.cmri.universalapp.',
     })
     expect(events.some(event =>
       event.type === 'activity' &&

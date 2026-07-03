@@ -3,30 +3,30 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { flagGroups, subcommands } from '../../data/cliFlags'
 
 const toc = [
-  { id: 'usage', label: 'usage' },
+  { id: 'usage', label: '用法' },
   ...flagGroups.map(g => ({ id: g.id, label: g.label })),
-  { id: 'subcommands', label: 'subcommands' },
+  { id: 'subcommands', label: '子命令' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude CLI reference — flags & subcommands"
-  description="Full reference for the openclaude command line: every flag (model, I/O formats, sessions, permissions, MCP) and subcommands like mcp and ssh."
-  heading="CLI reference"
-  lede="Every documented flag of the openclaude binary, grouped by purpose. Slash commands you type inside a session are documented separately."
+  title="openclaude CLI 参考 — flags 与子命令"
+  description="openclaude 命令行完整参考：所有 flag（model、I/O formats、sessions、permissions、MCP）以及 mcp、ssh 等子命令。"
+  heading="CLI 参考"
+  lede="openclaude binary 的所有已记录 flag，按用途分组。会话内部输入的斜杠命令另有单独文档。"
   toc={toc}
 >
-  <h2 id="usage">usage</h2>
+  <h2 id="usage">用法</h2>
   <pre><code>openclaude [options] [prompt]
 
-# interactive session in the current repo
+# 当前仓库中的交互式会话
 openclaude
 
-# non-interactive: print the result and exit
+# 非交互式：打印结果并退出
 openclaude -p "explain the build pipeline" --output-format json</code></pre>
   <p>
-    Looking for <code>/commands</code> you type inside the session? See the
-    <a href="/docs/slash-commands/">slash commands reference</a>.
+    想找会话内输入的 <code>/commands</code>？请看
+    <a href="/docs/slash-commands/">斜杠命令参考</a>。
   </p>
 
   {flagGroups.map(group => (
@@ -38,7 +38,7 @@ openclaude -p "explain the build pipeline" --output-format json</code></pre>
           <thead>
             <tr>
               <th scope="col">flag</th>
-              <th scope="col">description</th>
+              <th scope="col">说明</th>
             </tr>
           </thead>
           <tbody>
@@ -54,13 +54,13 @@ openclaude -p "explain the build pipeline" --output-format json</code></pre>
     </section>
   ))}
 
-  <h2 id="subcommands">subcommands</h2>
+  <h2 id="subcommands">子命令</h2>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th scope="col">subcommand</th>
-          <th scope="col">description</th>
+          <th scope="col">子命令</th>
+          <th scope="col">说明</th>
         </tr>
       </thead>
       <tbody>
@@ -74,7 +74,7 @@ openclaude -p "explain the build pipeline" --output-format json</code></pre>
     </table>
   </div>
   <p>
-    Defaults for most of these flags can be persisted in settings files — see
-    <a href="/docs/configuration/">configuration</a>.
+    大多数 flag 的默认值都可以持久化到 settings 文件中；详见
+    <a href="/docs/configuration/">配置</a>。
   </p>
 </DocsLayout>

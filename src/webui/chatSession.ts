@@ -94,7 +94,7 @@ export function resolveCliLaunch(options: {
     }
   }
 
-  const execPath = options.execPath || process.execPath || 'openclaude'
+  const execPath = options.execPath || process.execPath || 'opencat'
   const entrypoint = (options.argv ?? process.argv)[1]
   return {
     command: execPath,
@@ -116,6 +116,13 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined
 }
 
+function toOpenCatVisibleText(value: string | undefined): string | undefined {
+  return value
+    ?.replace(/\bOpen Claude\b/g, 'OpenCat')
+    .replace(/\bOpenClaude\b/g, 'OpenCat')
+    .replace(/\bopenclaude\b/g, 'opencat')
+}
+
 function normalizePermissionRequest(message: CliMessage): PermissionRequestEvent {
   const request = asObject(message.request)
   const input = asObject(request.input)
@@ -128,12 +135,12 @@ function normalizePermissionRequest(message: CliMessage): PermissionRequestEvent
     request.title,
   )
   const toolName = getToolDisplayName(rawToolName)
-  const prompt = firstString(
+  const prompt = toOpenCatVisibleText(firstString(
     request.prompt,
     request.description,
     request.title,
     request.display_name,
-  )
+  ))
 
   return {
     requestId,

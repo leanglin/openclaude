@@ -10,9 +10,13 @@ import {
 } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
+import { PRODUCT_CONFIG_DIR_NAME } from '../constants/product.js'
 
 const LEGACY_GLOBAL_CONFIG_FILE_RE =
-  /^\.claude(?:-(?:custom|local|staging)-oauth)?\.json$/
+  /^\.(?:openclaude|claude)(?:-(?:custom|local|staging)-oauth)?\.json$/
+const OPENCAT_GLOBAL_CONFIG_PREFIX = '.opencat'
+const OPENCLAUDE_CONFIG_DIR_NAME = '.openclaude'
+const LEGACY_CLAUDE_CONFIG_DIR_NAME = '.claude'
 
 function getErrnoCode(error: unknown): string | undefined {
   if (
@@ -44,6 +48,33 @@ function pathIsDirectory(path: string): boolean {
   } catch {
     return false
   }
+}
+
+function pathIsEmptyDirectory(path: string): boolean {
+  try {
+    return lstatSync(path).isDirectory() && readdirSync(path).length === 0
+  } catch {
+    return false
+  }
+}
+
+export function resolveDefaultOpenCatConfigHomeDir(options?: {
+  appData?: string
+  homeDir?: string
+  platform?: NodeJS.Platform
+}): string {
+  const homeDir = options?.homeDir ?? homedir()
+  const platform = options?.platform ?? process.platform
+  if (platform === 'win32') {
+    return join(
+      options?.appData || process.env.APPDATA || join(homeDir, 'AppData', 'Roaming'),
+      PRODUCT_CONFIG_DIR_NAME,
+    )
+  }
+  if (platform === 'darwin') {
+    return join(homeDir, 'Library', 'Application Support', PRODUCT_CONFIG_DIR_NAME)
+  }
+  return join(homeDir, '.config', PRODUCT_CONFIG_DIR_NAME)
 }
 
 function getSymlinkType(source: string): 'dir' | 'file' | 'junction' {
@@ -105,6 +136,10 @@ function getLegacyGlobalConfigFiles(homeDir: string): string[] {
   }
 }
 
+function toOpenCatGlobalConfigFilename(legacyFile: string): string {
+  return legacyFile.replace(/^\.(?:openclaude|claude)/, OPENCAT_GLOBAL_CONFIG_PREFIX)
+}
+
 export function migrateLegacyClaudeConfigHome(options?: {
   configDirEnv?: string
   homeDir?: string
@@ -114,26 +149,34 @@ export function migrateLegacyClaudeConfigHome(options?: {
   }
 
   const homeDir = options?.homeDir ?? homedir()
-  const openClaudeDir = join(homeDir, '.openclaude')
-  const legacyClaudeDir = join(homeDir, '.claude')
+  const openCatDir = resolveDefaultOpenCatConfigHomeDir({ homeDir })
+  const openClaudeDir = join(homeDir, OPENCLAUDE_CONFIG_DIR_NAME)
+  const legacyClaudeDir = join(homeDir, LEGACY_CLAUDE_CONFIG_DIR_NAME)
 
   try {
+    const openCatReadyForMigration =
+      !pathExists(openCatDir) || pathIsEmptyDirectory(openCatDir)
     const legacyDirExists = pathIsDirectory(legacyClaudeDir)
+    const openClaudeDirExists = pathIsDirectory(openClaudeDir)
     const legacyGlobalConfigFiles = getLegacyGlobalConfigFiles(homeDir)
 
-    if (!legacyDirExists && legacyGlobalConfigFiles.length === 0) {
+    if (!legacyDirExists && !openClaudeDirExists && legacyGlobalConfigFiles.length === 0) {
       return true
     }
 
-    if (legacyDirExists) {
-      copyMissingPathSync(legacyClaudeDir, openClaudeDir)
+    if (openCatReadyForMigration) {
+      if (openClaudeDirExists) {
+        copyMissingPathSync(openClaudeDir, openCatDir)
+      } else if (legacyDirExists) {
+        copyMissingPathSync(legacyClaudeDir, openCatDir)
+      }
     }
 
     for (const legacyFile of legacyGlobalConfigFiles) {
-      const openClaudeFile = legacyFile.replace(/^\.claude/, '.openclaude')
+      const openCatFile = toOpenCatGlobalConfigFilename(legacyFile)
       copyMissingPathSync(
         join(homeDir, legacyFile),
-        join(homeDir, openClaudeFile),
+        join(openCatDir, openCatFile),
       )
     }
     return true
@@ -152,20 +195,28 @@ export function migrateLegacyClaudeConfigHome(options?: {
 let warnedAboutConflictingConfigDirEnvs = false
 
 export function resolveConfigDirEnv(options?: {
+  opencatConfigDir?: string
   openClaudeConfigDir?: string
   legacyConfigDir?: string
   warn?: (message: string) => void
 }): string | undefined {
+  const opencat = options?.opencatConfigDir
   const open = options?.openClaudeConfigDir
   const legacy = options?.legacyConfigDir
-  if (open && legacy && open !== legacy && !warnedAboutConflictingConfigDirEnvs) {
-    const message = `Both OPENCLAUDE_CONFIG_DIR and CLAUDE_CONFIG_DIR are set to different values. Using OPENCLAUDE_CONFIG_DIR=${open}; ignoring CLAUDE_CONFIG_DIR=${legacy}.`
+  if (opencat && (open || legacy) && !warnedAboutConflictingConfigDirEnvs) {
+    const message = 'OpenCat configuration uses OPENCAT_CONFIG_DIR; legacy configuration overrides were ignored.'
+    if (options?.warn) {
+      warnedAboutConflictingConfigDirEnvs = true
+      options.warn(message)
+    }
+  } else if (open && legacy && open !== legacy && !warnedAboutConflictingConfigDirEnvs) {
+    const message = 'Legacy configuration overrides disagree; using the newest legacy value.'
     if (options?.warn) {
       warnedAboutConflictingConfigDirEnvs = true
       options.warn(message)
     }
   }
-  return open || legacy || undefined
+  return opencat || open || legacy || undefined
 }
 
 /**
@@ -185,9 +236,9 @@ export function resolveClaudeConfigHomeDir(options?: {
   }
 
   const homeDir = options?.homeDir ?? homedir()
-  const openClaudeDir = join(homeDir, '.openclaude')
+  const openCatDir = resolveDefaultOpenCatConfigHomeDir({ homeDir })
 
-  return openClaudeDir.normalize('NFC')
+  return openCatDir.normalize('NFC')
 }
 
 let claudeConfigHomeDirOverride: string | undefined
@@ -212,11 +263,12 @@ export const getClaudeConfigHomeDir = memoize(
     }
 
     const configDirEnv = resolveConfigDirEnv({
+      opencatConfigDir: process.env.OPENCAT_CONFIG_DIR,
       openClaudeConfigDir: process.env.OPENCLAUDE_CONFIG_DIR,
       legacyConfigDir: process.env.CLAUDE_CONFIG_DIR,
       warn: message => {
         // eslint-disable-next-line no-console
-        console.warn(`[openclaude] ${message}`)
+        console.warn(`[opencat] ${message}`)
       },
     })
     const homeDir = homedir()
@@ -224,16 +276,23 @@ export const getClaudeConfigHomeDir = memoize(
       configDirEnv,
       homeDir,
     })
-    const openClaudeDir = join(homeDir, '.openclaude')
-    const legacyClaudeDir = join(homeDir, '.claude')
+    const openCatDir = resolveDefaultOpenCatConfigHomeDir({ homeDir })
+    const openClaudeDir = join(homeDir, OPENCLAUDE_CONFIG_DIR_NAME)
+    const legacyClaudeDir = join(homeDir, LEGACY_CLAUDE_CONFIG_DIR_NAME)
+
+    const legacyFallbackDir = pathExists(openClaudeDir)
+      ? openClaudeDir
+      : pathExists(legacyClaudeDir)
+        ? legacyClaudeDir
+        : undefined
 
     if (
       !configDirEnv &&
       !migrationSucceeded &&
-      !pathIsDirectory(openClaudeDir) &&
-      pathExists(legacyClaudeDir)
+      !pathIsDirectory(openCatDir) &&
+      legacyFallbackDir
     ) {
-      return legacyClaudeDir.normalize('NFC')
+      return legacyFallbackDir.normalize('NFC')
     }
 
     return resolveClaudeConfigHomeDir({
@@ -242,7 +301,7 @@ export const getClaudeConfigHomeDir = memoize(
     })
   },
   () =>
-    `${claudeConfigHomeDirOverride ?? ''}\0${process.env.OPENCLAUDE_CONFIG_DIR ?? ''}\0${process.env.CLAUDE_CONFIG_DIR ?? ''}`,
+    `${claudeConfigHomeDirOverride ?? ''}\0${process.env.OPENCAT_CONFIG_DIR ?? ''}\0${process.env.OPENCLAUDE_CONFIG_DIR ?? ''}\0${process.env.CLAUDE_CONFIG_DIR ?? ''}`,
 )
 
 export function getTeamsDir(): string {

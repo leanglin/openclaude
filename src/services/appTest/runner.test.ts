@@ -4,12 +4,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAppTest } from './runner.js'
 
-const originalRunner = process.env.OPENCLAUDE_APP_TEST_RUNNER
-const originalNode = process.env.OPENCLAUDE_APP_TEST_NODE
+const originalOpenCatRunner = process.env.OPENCAT_APP_TEST_RUNNER
+const originalOpenCatNode = process.env.OPENCAT_APP_TEST_NODE
+const originalLegacyRunner = process.env.OPENCLAUDE_APP_TEST_RUNNER
+const originalLegacyNode = process.env.OPENCLAUDE_APP_TEST_NODE
 let tempDir = ''
 
 function writeMockRunner(): string {
-  tempDir = mkdtempSync(join(tmpdir(), 'openclaude-app-test-'))
+  tempDir = mkdtempSync(join(tmpdir(), 'opencat-app-test-'))
   const runnerPath = join(tempDir, 'runner.js')
   writeFileSync(
     runnerPath,
@@ -74,15 +76,21 @@ process.stdin.on('end', () => {
 }
 
 beforeEach(() => {
-  process.env.OPENCLAUDE_APP_TEST_RUNNER = writeMockRunner()
-  process.env.OPENCLAUDE_APP_TEST_NODE = process.execPath
+  process.env.OPENCAT_APP_TEST_RUNNER = writeMockRunner()
+  process.env.OPENCAT_APP_TEST_NODE = process.execPath
+  delete process.env.OPENCLAUDE_APP_TEST_RUNNER
+  delete process.env.OPENCLAUDE_APP_TEST_NODE
 })
 
 afterEach(() => {
-  if (originalRunner === undefined) delete process.env.OPENCLAUDE_APP_TEST_RUNNER
-  else process.env.OPENCLAUDE_APP_TEST_RUNNER = originalRunner
-  if (originalNode === undefined) delete process.env.OPENCLAUDE_APP_TEST_NODE
-  else process.env.OPENCLAUDE_APP_TEST_NODE = originalNode
+  if (originalOpenCatRunner === undefined) delete process.env.OPENCAT_APP_TEST_RUNNER
+  else process.env.OPENCAT_APP_TEST_RUNNER = originalOpenCatRunner
+  if (originalOpenCatNode === undefined) delete process.env.OPENCAT_APP_TEST_NODE
+  else process.env.OPENCAT_APP_TEST_NODE = originalOpenCatNode
+  if (originalLegacyRunner === undefined) delete process.env.OPENCLAUDE_APP_TEST_RUNNER
+  else process.env.OPENCLAUDE_APP_TEST_RUNNER = originalLegacyRunner
+  if (originalLegacyNode === undefined) delete process.env.OPENCLAUDE_APP_TEST_NODE
+  else process.env.OPENCLAUDE_APP_TEST_NODE = originalLegacyNode
   if (tempDir) rmSync(tempDir, { recursive: true, force: true })
   tempDir = ''
 })

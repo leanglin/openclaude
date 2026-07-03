@@ -3,59 +3,58 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { SITE } from '../../data/site'
 
 const toc = [
-  { id: 'requirements', label: 'requirements' },
-  { id: 'install', label: 'install with npm' },
-  { id: 'arch-linux', label: 'arch linux (aur)' },
-  { id: 'verify', label: 'verify the install' },
-  { id: 'update', label: 'update' },
-  { id: 'troubleshooting', label: 'troubleshooting' },
+  { id: 'requirements', label: '环境要求' },
+  { id: 'install', label: '使用 npm 安装' },
+  { id: 'arch-linux', label: 'Arch Linux (AUR)' },
+  { id: 'verify', label: '验证安装' },
+  { id: 'update', label: '更新' },
+  { id: 'troubleshooting', label: '排障' },
 ]
 ---
 
 <DocsLayout
-  title="Install openclaude — npm, macOS, Linux & Windows"
-  description="How to install the openclaude CLI with npm on macOS, Linux, and Windows. Requirements, global install, verifying the install, and updating to the latest version."
-  heading="install openclaude"
-  lede="One npm command on macOS, Linux, or Windows. An AUR package exists for Arch."
+  title="安装 openclaude — npm、macOS、Linux 与 Windows"
+  description="如何在 macOS、Linux 和 Windows 上使用 npm 安装 openclaude CLI，包括环境要求、全局安装、验证安装和更新到最新版本。"
+  heading="安装 openclaude"
+  lede="macOS、Linux 或 Windows 上一条 npm 命令即可安装；Arch 也有 AUR package。"
   toc={toc}
 >
-  <h2 id="requirements">requirements</h2>
+  <h2 id="requirements">环境要求</h2>
   <ul>
-    <li><strong>Node.js 20 or newer</strong> — grab it from <a href="https://nodejs.org/" rel="noopener">nodejs.org</a> and confirm with <code>node --version</code>.</li>
-    <li>A terminal: Terminal/iTerm on macOS, any shell on Linux, PowerShell or Windows Terminal on Windows.</li>
-    <li><code>ripgrep</code> is bundled; if startup reports <code>ripgrep not found</code>, install it system-wide and confirm <code>rg --version</code> works.</li>
+    <li><strong>Node.js 20 或更新版本</strong>：可从 <a href="https://nodejs.org/" rel="noopener">nodejs.org</a> 获取，并用 <code>node --version</code> 确认。</li>
+    <li>一个终端：macOS 上的 Terminal/iTerm、Linux 上任意 shell、Windows 上 PowerShell 或 Windows Terminal。</li>
+    <li><code>ripgrep</code> 已随包提供；如果启动时报 <code>ripgrep not found</code>，请全局安装并确认 <code>rg --version</code> 可用。</li>
   </ul>
 
-  <h2 id="install">install with npm</h2>
+  <h2 id="install">使用 npm 安装</h2>
   <pre><code>{SITE.installCommand}</code></pre>
   <p>
-    This installs the <code>openclaude</code> binary globally. On macOS/Linux you may need
-    a Node installation that doesn't require <code>sudo</code> for global installs (nvm,
-    fnm, or Homebrew node all work).
+    这会全局安装 <code>openclaude</code> binary。macOS/Linux 上建议使用不需要
+    <code>sudo</code> 就能全局安装包的 Node 安装方式，例如 nvm、fnm 或 Homebrew node。
   </p>
 
-  <h2 id="arch-linux">arch linux (aur)</h2>
+  <h2 id="arch-linux">Arch Linux (AUR)</h2>
   <p>
-    A community-maintained <a href="https://aur.archlinux.org/packages/openclaude" rel="noopener">AUR package</a> is available:
+    社区维护的 <a href="https://aur.archlinux.org/packages/openclaude" rel="noopener">AUR package</a> 可用：
   </p>
   <pre><code>paru -S openclaude</code></pre>
 
-  <h2 id="verify">verify the install</h2>
+  <h2 id="verify">验证安装</h2>
   <pre><code>openclaude --version</code></pre>
   <p>
-    To check which version is the latest published release:
+    查看当前发布的最新版本：
   </p>
   <pre><code>npm view @gitlawb/openclaude dist-tags</code></pre>
 
-  <h2 id="update">update</h2>
-  <p>Re-run the install command — <code>@latest</code> always resolves to the newest release:</p>
+  <h2 id="update">更新</h2>
+  <p>重新运行安装命令即可；<code>@latest</code> 总会解析到最新 release：</p>
   <pre><code>{SITE.installCommand}</code></pre>
 
-  <h2 id="troubleshooting">troubleshooting</h2>
+  <h2 id="troubleshooting">排障</h2>
   <ul>
-    <li><strong>Old version after update</strong> — your shell may cache the binary path; run <code>hash -r</code> (bash/zsh) or open a new terminal.</li>
-    <li><strong>Multiple Node versions</strong> — global installs are per Node version with nvm/fnm; make sure you installed under the version your shell uses.</li>
-    <li><strong>Anything else</strong> — run <code>/doctor</code> inside openclaude to diagnose the installation, or check the <a href={`${SITE.github}/issues`} rel="noopener">issue tracker</a>.</li>
+    <li><strong>更新后仍是旧版本</strong>：shell 可能缓存了 binary path；运行 <code>hash -r</code>（bash/zsh）或打开新终端。</li>
+    <li><strong>存在多个 Node 版本</strong>：nvm/fnm 的全局安装按 Node 版本隔离；请确认安装在当前 shell 实际使用的 Node 版本下。</li>
+    <li><strong>其他问题</strong>：在 openclaude 中运行 <code>/doctor</code> 诊断安装，或查看 <a href={`${SITE.github}/issues`} rel="noopener">issue tracker</a>。</li>
   </ul>
-  <p>Next: <a href="/docs/quickstart/">run your first session →</a></p>
+  <p>下一步：<a href="/docs/quickstart/">运行第一个会话 →</a></p>
 </DocsLayout>

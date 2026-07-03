@@ -3,41 +3,40 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { providers } from '../../data/providers'
 
 const toc = [
-  { id: 'how-it-works', label: 'how provider setup works' },
-  { id: 'supported-providers', label: 'supported providers' },
-  { id: 'env-setup', label: 'env-var setup' },
+  { id: 'how-it-works', label: 'Provider 设置方式' },
+  { id: 'supported-providers', label: '支持的 provider' },
+  { id: 'env-setup', label: '环境变量设置' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude providers — OpenAI, Gemini, Ollama & 13+ backends"
-  description="Connect openclaude to any model provider: Anthropic, OpenAI-compatible APIs, OpenRouter, Gemini, GitHub Models, Codex OAuth, Ollama, LM Studio, Bedrock, Vertex, and more."
-  heading="model providers"
-  lede="One agent, every backend. Wire a provider once and switch models mid-session."
+  title="openclaude Provider — OpenAI、Gemini、Ollama 与 13+ 后端"
+  description="将 openclaude 连接到任意 model provider：Anthropic、OpenAI-compatible APIs、OpenRouter、Gemini、GitHub Models、Codex OAuth、Ollama、LM Studio、Bedrock、Vertex 等。"
+  heading="模型 Provider"
+  lede="一个 agent，连接所有后端。配置一次 provider，就能在会话中切换模型。"
   toc={toc}
 >
-  <h2 id="how-it-works">how provider setup works</h2>
+  <h2 id="how-it-works">Provider 设置方式</h2>
   <p>
-    Run <code>/provider</code> inside a session for guided setup. It walks you through
-    auth, lets you pick a model, and saves the result as a profile so future sessions —
-    and other clones of the repo — boot the same way. You can also configure everything
-    through <a href="/docs/configuration/">environment variables</a>, which is handy for
-    CI and scripted <code>--print</code> runs.
+    在会话中运行 <code>/provider</code> 进入引导式设置。它会带你完成 auth、
+    选择模型，并把结果保存为 profile，让后续会话和仓库的其他 clone 都能以同样方式启动。
+    你也可以通过<a href="/docs/configuration/">环境变量</a>配置所有内容，这对 CI
+    和脚本化 <code>--print</code> 运行很方便。
   </p>
   <p>
-    Switch models any time with <code>/model</code>, or pass
-    <code>--provider</code> / <code>--model</code> on the command line — see the
-    <a href="/docs/cli-reference/">CLI reference</a>.
+    可随时用 <code>/model</code> 切换模型，也可以在命令行上传入
+    <code>--provider</code> / <code>--model</code>；详见
+    <a href="/docs/cli-reference/">CLI 参考</a>。
   </p>
 
-  <h2 id="supported-providers">supported providers</h2>
+  <h2 id="supported-providers">支持的 provider</h2>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th scope="col">provider</th>
-          <th scope="col">setup</th>
-          <th scope="col">notes</th>
+          <th scope="col">设置方式</th>
+          <th scope="col">说明</th>
         </tr>
       </thead>
       <tbody>
@@ -47,7 +46,7 @@ const toc = [
             <td>{p.setup}</td>
             <td>
               {p.notes}
-              {p.envVars && <span class="env-list"> uses <code>{p.envVars.join(', ')}</code></span>}
+              {p.envVars && <span class="env-list"> 使用 <code>{p.envVars.join(', ')}</code></span>}
             </td>
           </tr>
         ))}
@@ -55,8 +54,8 @@ const toc = [
     </table>
   </div>
 
-  <h2 id="env-setup">env-var setup</h2>
-  <p>The fastest OpenAI-compatible setup (works for OpenRouter, DeepSeek, Groq, LM Studio, LiteLLM, and any /v1 server):</p>
+  <h2 id="env-setup">环境变量设置</h2>
+  <p>最快的 OpenAI-compatible 设置（适用于 OpenRouter、DeepSeek、Groq、LM Studio、LiteLLM 和任何 /v1 server）：</p>
   <pre><code>export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=sk-your-key-here
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # optional, defaults to OpenAI
@@ -64,8 +63,7 @@ export OPENAI_MODEL=deepseek/deepseek-chat
 
 openclaude</code></pre>
   <p>
-    Local Ollama needs no key at all — point <code>/provider</code> at it and pick a
-    pulled model. The full environment variable list lives on the
-    <a href="/docs/configuration/#environment-variables">configuration page</a>.
+    本地 Ollama 完全不需要 key；在 <code>/provider</code> 中指向它并选择已 pull 的模型即可。
+    完整环境变量列表见<a href="/docs/configuration/#environment-variables">配置页</a>。
   </p>
 </DocsLayout>

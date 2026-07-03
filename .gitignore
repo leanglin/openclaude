@@ -28,3 +28,7 @@ temp_reference/
 /midscene_run/log
 /midscene_trace
 /midscene_run/report
+launcher/node_modules/
+launcher/dist/
+launcher/src-tauri/target/
+launcher/src-tauri/resources/opencat-runtime/

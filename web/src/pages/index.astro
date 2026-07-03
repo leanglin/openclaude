@@ -6,40 +6,40 @@ import { SITE } from '../data/site'
 
 const features = [
   {
-    title: 'any model, one terminal',
-    body: 'local ollama, openai-compatible apis, gemini, github models, gateways — switch providers with one command, no rewrites.',
+    title: '任意模型，一个终端',
+    body: 'local Ollama、OpenAI-compatible APIs、Gemini、GitHub Models、gateway 都能接入；一条命令切换 provider，无需重写工作流。',
     href: '/docs/providers/',
-    link: 'provider setup →',
+    link: 'Provider 设置 →',
   },
   {
-    title: 'real tools, not just chat',
-    body: 'bash, file edits, grep, glob, mcp servers, skills — wired into the agent loop, not bolted on.',
+    title: '真正的工具，不只是聊天',
+    body: 'Bash、文件编辑、grep、glob、MCP server、skills 都进入 agent loop，而不是外挂式拼接。',
     href: '/docs/slash-commands/',
-    link: 'command reference →',
+    link: '命令参考 →',
   },
   {
-    title: 'scriptable from day one',
-    body: 'non-interactive --print mode with json and stream-json output, tool allowlists, budgets, and session control.',
+    title: '从第一天就可脚本化',
+    body: '非交互式 --print mode 支持 json 和 stream-json 输出，并提供 tool allowlist、预算和 session 控制。',
     href: '/docs/cli-reference/',
-    link: 'cli reference →',
+    link: 'CLI 参考 →',
   },
   {
-    title: 'profiles per repo',
-    body: 'save model, base url, auth, and runtime defaults so every clone boots the same way.',
+    title: '每个仓库独立 profile',
+    body: '保存 model、base URL、auth 和运行默认值，让每个 clone 都以同样方式启动。',
     href: '/docs/configuration/',
-    link: 'configuration →',
+    link: '配置 →',
   },
   {
-    title: 'streaming, not batch',
-    body: 'watch the agent think, call tools, and produce diffs live. every change stays reviewable.',
+    title: '流式执行，而不是批处理黑盒',
+    body: '实时看到 agent 思考、调用工具、生成 diff；每一次改动都保持可审查。',
     href: '/docs/quickstart/',
-    link: 'quickstart →',
+    link: '快速开始 →',
   },
   {
-    title: 'sessions that persist',
-    body: 'resume, branch, and rewind conversations. background tasks, worktree isolation, remote control from your phone.',
+    title: '可持续的会话',
+    body: '支持 resume、branch、rewind 对话；也支持后台任务、worktree 隔离和手机远程控制。',
     href: '/docs/slash-commands/#session',
-    link: 'session commands →',
+    link: '会话命令 →',
   },
 ]
 
@@ -54,7 +54,7 @@ const jsonLd = [
     '@type': 'SoftwareApplication',
     name: 'openclaude',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: 'macOS, Linux, Windows',
+        operatingSystem: 'macOS, Linux, Windows',
     softwareVersion: SITE.version,
     url: SITE.url,
     downloadUrl: SITE.npmUrl,
@@ -74,20 +74,20 @@ const jsonLd = [
 <BaseLayout title={SITE.title} description={SITE.description} jsonLd={jsonLd}>
   <section class="hero grid-bg" aria-labelledby="hero-heading">
     <div class="container hero-inner">
-      <p class="pill fade-up"><span class="dot" aria-hidden="true"></span>open source · gitlawb-aligned · model-neutral</p>
+      <p class="pill fade-up"><span class="dot" aria-hidden="true"></span>开源 · 面向 gitlawb · 模型中立</p>
       <h1 id="hero-heading" class="text-hero fade-up fade-up-1">
-        runs anywhere.<br />uses anything.
+        任意环境运行。<br />任意模型接入。
       </h1>
       <p class="hero-sub fade-up fade-up-2">
-        not a chatbot wrapper or another ide plugin. an open coding agent that runs in
-        your terminal, talks to any model, and keeps every change reviewable.
+        它不是聊天机器人外壳，也不是另一个 IDE 插件。openclaude 是运行在终端中的开源 coding agent，
+        可以连接任意模型，并让每次改动都可审查。
       </p>
       <div class="hero-cta fade-up fade-up-3">
         <CopyCommand command={SITE.installCommand} />
-        <a class="button button-ghost" href="/docs/quickstart/">read the docs →</a>
+        <a class="button button-ghost" href="/docs/quickstart/">阅读文档 →</a>
       </div>
       <p class="hero-foot fade-up fade-up-4">
-        works with openai, gemini, codex, ollama, lm studio, litellm, and 200+ models.
+        支持 OpenAI、Gemini、Codex、Ollama、LM Studio、LiteLLM 和 200+ 模型。
       </p>
     </div>
   </section>
@@ -95,21 +95,21 @@ const jsonLd = [
   <section class="section" aria-labelledby="demo-heading">
     <div class="container">
       <div class="section-head">
-        <p class="eyebrow">// in action</p>
-        <h2 id="demo-heading">an agent loop you can watch.</h2>
+        <p class="eyebrow">// 实时运行</p>
+        <h2 id="demo-heading">看得见的 agent loop。</h2>
       </div>
       <Terminal>
         <span class="ln"><span class="t-prompt">$</span> openclaude</span>
         <span class="ln t-dim">openclaude v{SITE.version} · provider: ollama · model: qwen3-coder</span>
         <span class="ln">&nbsp;</span>
-        <span class="ln"><span class="t-prompt">&gt;</span> add retry with backoff to the fetch client</span>
+        <span class="ln"><span class="t-prompt">&gt;</span> 给 fetch client 增加带 backoff 的重试</span>
         <span class="ln">&nbsp;</span>
         <span class="ln"><span class="t-info">●</span> Read src/lib/fetchClient.ts</span>
         <span class="ln"><span class="t-info">●</span> Grep "fetchWithTimeout" — 3 matches</span>
         <span class="ln"><span class="t-ok">●</span> Edit src/lib/fetchClient.ts <span class="t-dim">+18 -2</span></span>
         <span class="ln"><span class="t-ok">●</span> Bash bun test fetchClient <span class="t-dim">— 7 pass</span></span>
         <span class="ln">&nbsp;</span>
-        <span class="ln t-dim">added exponential backoff (3 retries, jitter). tests green.</span>
+        <span class="ln t-dim">已添加 exponential backoff（3 次重试，带 jitter）。测试通过。</span>
         <span class="ln cursor">&nbsp;</span>
       </Terminal>
     </div>
@@ -118,8 +118,8 @@ const jsonLd = [
   <section class="section section-tint" aria-labelledby="features-heading">
     <div class="container">
       <div class="section-head">
-        <p class="eyebrow">// features</p>
-        <h2 id="features-heading">built for agents that ship code.</h2>
+        <p class="eyebrow">// 特性</p>
+        <h2 id="features-heading">为真正交付代码的 agent 构建。</h2>
       </div>
       <div class="card-grid">
         {features.map(f => (
@@ -136,19 +136,19 @@ const jsonLd = [
   <section class="section" aria-labelledby="providers-heading">
     <div class="container">
       <div class="section-head">
-        <p class="eyebrow">// providers</p>
-        <h2 id="providers-heading">bring your own model.</h2>
+        <p class="eyebrow">// Provider</p>
+        <h2 id="providers-heading">带上你自己的模型。</h2>
         <p class="lede">
-          one agent, every backend. wire a provider once with <code>/provider</code> and
-          switch models mid-session.
+          一个 agent，连接所有后端。用 <code>/provider</code> 配置一次 provider，
+          就能在会话中切换模型。
         </p>
       </div>
-      <ul class="provider-strip" aria-label="supported providers">
+      <ul class="provider-strip" aria-label="支持的 provider">
         {providers.map(p => <li>{p}</li>)}
       </ul>
       <p class="text-body-dim provider-foot">
-        plus bedrock, vertex, codex oauth, atomic chat, opengateway, and any
-        openai-compatible endpoint. <a href="/docs/providers/">see all providers →</a>
+        还支持 Bedrock、Vertex、Codex OAuth、Atomic Chat、Opengateway，以及任何
+        OpenAI-compatible endpoint。<a href="/docs/providers/">查看所有 provider →</a>
       </p>
     </div>
   </section>
@@ -156,8 +156,8 @@ const jsonLd = [
   <section class="section section-tint" aria-labelledby="install-heading">
     <div class="container">
       <div class="section-head">
-        <p class="eyebrow">// install</p>
-        <h2 id="install-heading">one line. then write a task.</h2>
+        <p class="eyebrow">// 安装</p>
+        <h2 id="install-heading">一行安装。然后直接写任务。</h2>
       </div>
       <div class="install-grid">
         <CopyCommand command={SITE.installCommand} />
@@ -165,22 +165,22 @@ const jsonLd = [
           <li>
             <span class="step-num">01</span>
             <div>
-              <strong>install</strong>
-              <p>requires node ≥ 20. <a href="/docs/installation/">platform guides →</a></p>
+              <strong>安装</strong>
+              <p>需要 Node ≥ 20。<a href="/docs/installation/">平台指南 →</a></p>
             </div>
           </li>
           <li>
             <span class="step-num">02</span>
             <div>
-              <strong>start</strong>
-              <p>run <code>openclaude</code> in any repo.</p>
+              <strong>启动</strong>
+              <p>在任意仓库中运行 <code>openclaude</code>。</p>
             </div>
           </li>
           <li>
             <span class="step-num">03</span>
             <div>
-              <strong>pick a provider</strong>
-              <p>type <code>/provider</code> to wire openai, ollama, gemini, or a gateway.</p>
+              <strong>选择 provider</strong>
+              <p>输入 <code>/provider</code> 接入 OpenAI、Ollama、Gemini 或 gateway。</p>
             </div>
           </li>
         </ol>

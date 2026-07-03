@@ -3,39 +3,39 @@ import { SITE } from '../data/site'
 
 const columns = [
   {
-    title: 'get started',
+    title: '开始使用',
     links: [
-      { href: '/docs/', label: 'overview' },
-      { href: '/docs/installation/', label: 'installation' },
-      { href: '/docs/quickstart/', label: 'quickstart' },
-      { href: '/docs/providers/', label: 'providers' },
+      { href: '/docs/', label: '概览' },
+      { href: '/docs/installation/', label: '安装' },
+      { href: '/docs/quickstart/', label: '快速开始' },
+      { href: '/docs/providers/', label: 'Provider' },
     ],
   },
   {
-    title: 'reference',
+    title: '参考',
     links: [
-      { href: '/docs/slash-commands/', label: 'slash commands' },
-      { href: '/docs/cli-reference/', label: 'cli reference' },
-      { href: '/docs/configuration/', label: 'configuration' },
-      { href: '/docs/keybindings/', label: 'keybindings' },
-      { href: '/docs/skills/', label: 'skills' },
+      { href: '/docs/slash-commands/', label: '斜杠命令' },
+      { href: '/docs/cli-reference/', label: 'CLI 参考' },
+      { href: '/docs/configuration/', label: '配置' },
+      { href: '/docs/keybindings/', label: '快捷键' },
+      { href: '/docs/skills/', label: 'Skills' },
     ],
   },
   {
-    title: 'project',
+    title: '项目',
     links: [
-      { href: SITE.github, label: 'github' },
+      { href: SITE.github, label: 'GitHub' },
       { href: SITE.npmUrl, label: 'npm' },
-      { href: `${SITE.github}/blob/main/LICENSE`, label: 'license' },
-      { href: `${SITE.github}/issues`, label: 'issues' },
+      { href: `${SITE.github}/blob/main/LICENSE`, label: '许可证' },
+      { href: `${SITE.github}/issues`, label: '问题反馈' },
     ],
   },
   {
     title: 'gitlawb',
     links: [
       { href: SITE.gitlawb, label: 'gitlawb.com' },
-      { href: SITE.gitlawbRepo, label: 'repo mirror' },
-      { href: `${SITE.gitlawb}/architecture`, label: 'architecture' },
+      { href: SITE.gitlawbRepo, label: '仓库镜像' },
+      { href: `${SITE.gitlawb}/architecture`, label: '架构' },
       { href: `${SITE.gitlawb}/agents`, label: 'agents' },
     ],
   },
@@ -65,9 +65,9 @@ const columns = [
         <span class="ver">v{SITE.version}</span>
       </span>
       <span class="sep">·</span>
-      <span>open source coding agent, aligned with <a href={SITE.gitlawb} rel="noopener">gitlawb</a></span>
+      <span>开源 coding agent，面向 <a href={SITE.gitlawb} rel="noopener">gitlawb</a> 工作流</span>
       <span class="sep">·</span>
-      <span>runs anywhere. uses anything.</span>
+      <span>任何环境运行，接入任何模型。</span>
     </div>
   </div>
 </footer>

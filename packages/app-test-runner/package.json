@@ -1,12 +1,12 @@
 {
-  "name": "@openclaude/app-test-runner",
-  "version": "0.1.0",
+  "name": "@opencat/app-test-runner",
+  "version": "7.0.0",
   "private": true,
-  "description": "JSONL sidecar for OpenClaude Android App and Web UI tests powered by Midscene.",
+  "description": "JSONL sidecar for OpenCat Android App and Web UI tests powered by Midscene.",
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
-    "openclaude-app-test-runner": "dist/cli.js"
+    "opencat-app-test-runner": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

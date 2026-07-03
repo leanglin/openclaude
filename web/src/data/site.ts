@@ -1,9 +1,9 @@
 export const SITE = {
   url: 'https://openclaude.gitlawb.com',
   name: 'openclaude',
-  title: 'openclaude — open-source coding agent CLI for any model',
+  title: 'openclaude — 支持任意模型的开源 coding agent CLI',
   description:
-    'Open-source coding agent that runs in your terminal and talks to any model: OpenAI, Gemini, Ollama, GitHub Models, and 200+ more. One install, every provider.',
+    '在终端中运行的开源 coding agent，可连接 OpenAI、Gemini、Ollama、GitHub Models 以及 200+ 模型。一次安装，接入所有 provider。',
   installCommand: 'npm install -g @gitlawb/openclaude@latest',
   npmUrl: 'https://www.npmjs.com/package/@gitlawb/openclaude',
   github: 'https://github.com/Gitlawb/openclaude',

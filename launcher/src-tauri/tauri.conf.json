@@ -1,0 +1,52 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "OpenCat",
+  "version": "7.0.0",
+  "identifier": "com.opencat.launcher",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "OpenCat",
+        "width": 1160,
+        "height": 720,
+        "minWidth": 780,
+        "minHeight": 560,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "OpenCat",
+    "category": "DeveloperTool",
+    "shortDescription": "OpenCat launcher",
+    "longDescription": "OpenCat launches the local OpenCat Web experience with bundled runtime dependencies.",
+    "icon": [
+      "../../src/webui/assets/opencat.ico"
+    ],
+    "resources": [
+      "resources/opencat-runtime"
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "../../src/webui/assets/opencat.ico",
+        "displayLanguageSelector": false
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  }
+}

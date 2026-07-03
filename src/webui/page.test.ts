@@ -2,28 +2,29 @@ import { describe, expect, test } from 'bun:test'
 import { renderWebUiPage } from './page.js'
 
 describe('webui page', () => {
-  test('uses OpenCat visible branding and the icon asset', () => {
+  test('uses Chinese OpenCat visible branding and the icon asset', () => {
     const html = renderWebUiPage()
 
-    expect(html).toContain('OpenCat Web')
+    expect(html).toContain('OpenCat Web 控制台')
     expect(html).toContain('/assets/opencat.ico')
     expect(html).not.toContain('OpenClaude')
+    expect(html).toContain('<html lang="zh-CN">')
   })
 
   test('includes a stop control wired to abort the session', () => {
     const html = renderWebUiPage()
 
     expect(html).toContain('id="stopSession"')
-    expect(html).toContain('aria-label="Stop"')
+    expect(html).toContain('aria-label="停止"')
     expect(html).toContain("sendWs({ type: 'abort' })")
   })
 
   test('labels permission actions clearly', () => {
     const html = renderWebUiPage()
 
-    expect(html).toContain('Allow once')
-    expect(html).toContain('Deny')
-    expect(html).toContain('Allow and remember')
+    expect(html).toContain('仅允许一次')
+    expect(html).toContain('拒绝')
+    expect(html).toContain('允许并记住')
     expect(html).toContain('data-permission-action="allow"')
     expect(html).toContain('data-permission-action="deny"')
     expect(html).toContain('data-permission-action="allow-session"')
@@ -33,8 +34,8 @@ describe('webui page', () => {
   test('renders Midscene provider settings and refreshes the session after save', () => {
     const html = renderWebUiPage()
 
-    expect(html).toContain('Chat provider')
-    expect(html).toContain('Midscene App Test')
+    expect(html).toContain('对话模型提供方')
+    expect(html).toContain('Midscene App 测试')
     expect(html).toContain('id="midsceneBaseUrl"')
     expect(html).toContain('id="midsceneModel"')
     expect(html).toContain('id="midsceneModelFamily"')
@@ -52,8 +53,8 @@ describe('webui page', () => {
     expect(html).toContain("sectionToggle('midscene'")
     expect(html).toContain('class="sectionFields"')
     expect(html).toContain("current?.credentialConfigured && providerOptionId === select.value")
-    expect(html).toContain("apiKey.placeholder = selectedSavedProvider ? 'Saved'")
-    expect(html).toContain("midsceneApiKey.placeholder = midscene?.credentialConfigured ? 'Saved'")
+    expect(html).toContain("apiKey.placeholder = selectedSavedProvider ? '已保存'")
+    expect(html).toContain("midsceneApiKey.placeholder = midscene?.credentialConfigured ? '已保存'")
   })
 
   test('keeps long provider summaries inside the side panel', () => {
@@ -74,6 +75,7 @@ describe('webui page', () => {
     expect(html).toContain("sendWs({ type: 'select_session', sessionId })")
     expect(html).toContain("sendWs({ type: 'delete_session', sessionId })")
     expect(html).not.toContain('Current chat controls will appear here.')
+    expect(html).toContain('还没有对话。点击加号按钮开始一个新对话。')
   })
 
   test('topbar plus creates a chat and switches the secondary panel to Chat', () => {
@@ -82,5 +84,17 @@ describe('webui page', () => {
     expect(html).toContain("sendWs({ type: 'new_session' })")
     expect(html).toContain("state.activeMenu = 'chat'")
     expect(html).toContain('renderLoadedMessages(event.messages || [])')
+  })
+
+  test('renders Memory and Assets menus without replacing the chat surface', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('data-menu="memory"')
+    expect(html).toContain('data-menu="assets"')
+    expect(html).toContain('id="workspaceView"')
+    expect(html).toContain('function renderMemoryPanel()')
+    expect(html).toContain('function renderAssetsPanel()')
+    expect(html).toContain('id="composerInput"')
+    expect(html).toContain('id="activityPanel"')
   })
 })

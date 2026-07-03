@@ -3,32 +3,32 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { settingsFiles, settingOptions, envVars } from '../../data/configuration'
 
 const toc = [
-  { id: 'settings-files', label: 'settings files' },
-  { id: 'common-options', label: 'common options' },
-  { id: 'environment-variables', label: 'environment variables' },
-  { id: 'project-instructions', label: 'project instructions' },
+  { id: 'settings-files', label: 'settings 文件' },
+  { id: 'common-options', label: '常用选项' },
+  { id: 'environment-variables', label: '环境变量' },
+  { id: 'project-instructions', label: '项目说明' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude configuration — settings.json & env vars"
-  description="Configure openclaude with settings.json files, project profiles, and environment variables like ANTHROPIC_API_KEY and OPENAI_API_KEY. Full options reference."
-  heading="configuration"
-  lede="Layered settings files for defaults, environment variables for auth and CI, and project instructions for context."
+  title="openclaude 配置 — settings.json 与 env vars"
+  description="使用 settings.json 文件、项目 profile，以及 ANTHROPIC_API_KEY、OPENAI_API_KEY 等环境变量配置 openclaude。包含完整选项参考。"
+  heading="配置"
+  lede="用分层 settings 文件管理默认值，用环境变量处理 auth 和 CI，用项目说明提供上下文。"
   toc={toc}
 >
-  <h2 id="settings-files">settings files</h2>
+  <h2 id="settings-files">settings 文件</h2>
   <p>
-    Settings merge in order: user → project → local, with later layers overriding earlier
-    ones. Open the interactive panel with <code>/config</code>, or edit the files directly.
+    Settings 按 user → project → local 的顺序合并，后面的层会覆盖前面的层。
+    可以用 <code>/config</code> 打开交互式面板，也可以直接编辑文件。
   </p>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th scope="col">file</th>
-          <th scope="col">scope</th>
-          <th scope="col">notes</th>
+          <th scope="col">文件</th>
+          <th scope="col">范围</th>
+          <th scope="col">说明</th>
         </tr>
       </thead>
       <tbody>
@@ -43,14 +43,14 @@ const toc = [
     </table>
   </div>
 
-  <h2 id="common-options">common options</h2>
-  <p>A few of the most-used keys in <code>settings.json</code>:</p>
+  <h2 id="common-options">常用选项</h2>
+  <p><code>settings.json</code> 中最常用的一些 key：</p>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th scope="col">key</th>
-          <th scope="col">what it does</th>
+          <th scope="col">作用</th>
         </tr>
       </thead>
       <tbody>
@@ -64,19 +64,19 @@ const toc = [
     </table>
   </div>
   <p>
-    One-off overrides beat files: <code>--settings</code> accepts a path or inline JSON,
-    and <code>--setting-sources</code> restricts which layers load — see the
-    <a href="/docs/cli-reference/#config">CLI reference</a>.
+    一次性覆盖优先级高于文件：<code>--settings</code> 接受路径或 inline JSON，
+    <code>--setting-sources</code> 可限制加载哪些层；详见
+    <a href="/docs/cli-reference/#config">CLI 参考</a>。
   </p>
 
-  <h2 id="environment-variables">environment variables</h2>
-  <p>Auth and transport are driven by environment variables, which makes CI and <code>--print</code> scripting straightforward:</p>
+  <h2 id="environment-variables">环境变量</h2>
+  <p>Auth 和 transport 由环境变量驱动，这让 CI 和 <code>--print</code> 脚本化很直接：</p>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th scope="col">variable</th>
-          <th scope="col">purpose</th>
+          <th scope="col">变量</th>
+          <th scope="col">用途</th>
         </tr>
       </thead>
       <tbody>
@@ -89,13 +89,12 @@ const toc = [
       </tbody>
     </table>
   </div>
-  <p>Provider-specific setup recipes live on the <a href="/docs/providers/">providers page</a>.</p>
+  <p>Provider 专属设置方式见 <a href="/docs/providers/">Provider 页面</a>。</p>
 
-  <h2 id="project-instructions">project instructions</h2>
+  <h2 id="project-instructions">项目说明</h2>
   <p>
-    <code>CLAUDE.md</code> (or <code>.claude/CLAUDE.md</code>) is loaded into context at
-    session start — build commands, conventions, and anything the agent should always
-    know about the repo. Generate a starting point with <code>/init</code>, and edit
-    persistent memory with <code>/memory</code>.
+    <code>CLAUDE.md</code>（或 <code>.claude/CLAUDE.md</code>）会在会话启动时加载到上下文中：
+    构建命令、约定，以及 agent 应该始终了解的仓库信息。可用 <code>/init</code>
+    生成起点，并用 <code>/memory</code> 编辑持久 memory。
   </p>
 </DocsLayout>

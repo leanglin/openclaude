@@ -3,26 +3,26 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { keybindings } from '../../data/keybindings'
 
 const toc = [
-  { id: 'defaults', label: 'default shortcuts' },
-  { id: 'customizing', label: 'customizing' },
+  { id: 'defaults', label: '默认快捷键' },
+  { id: 'customizing', label: '自定义' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude keybindings — defaults & customization"
-  description="Default keyboard shortcuts in the openclaude TUI and how to customize them with the keybindings file (default: ~/.openclaude/keybindings.json; override via OPENCLAUDE_CONFIG_DIR) and the /keybindings command."
-  heading="keybindings"
-  lede="The defaults match familiar readline/terminal muscle memory — and everything is rebindable."
+  title="openclaude 快捷键 — 默认值与自定义"
+  description="openclaude TUI 默认键盘快捷键，以及如何通过 keybindings 文件（默认 ~/.openclaude/keybindings.json；可通过 OPENCLAUDE_CONFIG_DIR 覆盖）和 /keybindings 命令自定义。"
+  heading="快捷键"
+  lede="默认快捷键贴近常见 readline/terminal 肌肉记忆，同时所有绑定都可重设。"
   toc={toc}
 >
-  <h2 id="defaults">default shortcuts</h2>
+  <h2 id="defaults">默认快捷键</h2>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th scope="col">keys</th>
-          <th scope="col">action</th>
-          <th scope="col">context</th>
+          <th scope="col">按键</th>
+          <th scope="col">动作</th>
+          <th scope="col">上下文</th>
         </tr>
       </thead>
       <tbody>
@@ -37,18 +37,18 @@ const toc = [
     </table>
   </div>
   <p>
-    Some bindings depend on terminal capabilities (e.g. <kbd>Shift+Enter</kbd> needs the
-    binding installed by <code>/terminal-setup</code>; some <kbd>Cmd</kbd> combos require a
-    kitty-protocol terminal).
+    部分快捷键依赖终端能力，例如 <kbd>Shift+Enter</kbd> 需要通过
+    <code>/terminal-setup</code> 安装绑定；某些 <kbd>Cmd</kbd> 组合键需要支持
+    kitty-protocol 的终端。
   </p>
 
-  <h2 id="customizing">customizing</h2>
+  <h2 id="customizing">自定义</h2>
   <p>
-    Run <code>/keybindings</code> to open (or create) your keybindings file
-    (default: <code>~/.openclaude/keybindings.json</code>; override via
-    <code>OPENCLAUDE_CONFIG_DIR</code>).
-    User bindings are loaded on top of the defaults, so you only need to declare what you
-    change. Chord bindings like <code>ctrl+x ctrl+e</code> are supported.
+    运行 <code>/keybindings</code> 可以打开（或创建）你的 keybindings 文件
+    （默认：<code>~/.openclaude/keybindings.json</code>；可通过
+    <code>OPENCLAUDE_CONFIG_DIR</code> 覆盖）。
+    用户绑定会叠加在默认值之上，所以只需要声明你要修改的部分。支持
+    <code>ctrl+x ctrl+e</code> 这类 chord binding。
   </p>
   <pre><code>{`{
   "bindings": {
@@ -57,8 +57,7 @@ const toc = [
   }
 }`}</code></pre>
   <p>
-    Inside a session you can also ask the agent itself: the bundled
-    <a href="/docs/skills/">keybindings-help skill</a> knows the schema and can edit the
-    file for you.
+    在会话中也可以直接问 agent：内置
+    <a href="/docs/skills/">keybindings-help skill</a> 了解 schema，并能替你编辑文件。
   </p>
 </DocsLayout>

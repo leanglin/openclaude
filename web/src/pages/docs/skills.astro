@@ -3,45 +3,43 @@ import DocsLayout from '../../layouts/DocsLayout.astro'
 import { skills } from '../../data/skills'
 
 const toc = [
-  { id: 'what-are-skills', label: 'what are skills' },
-  { id: 'bundled-skills', label: 'bundled skills' },
-  { id: 'your-own', label: 'writing your own' },
+  { id: 'what-are-skills', label: 'Skills 是什么' },
+  { id: 'bundled-skills', label: '内置 Skills' },
+  { id: 'your-own', label: '编写自己的 Skill' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude skills — bundled agent skills reference"
-  description="Reference for the agent skills bundled with openclaude: what each skill does, when it triggers, and how to invoke it with slash commands."
-  heading="bundled skills"
-  lede="Skills are reusable instruction packs the agent can load on demand — invoked like slash commands, extensible with your own."
+  title="openclaude Skills — 内置 agent skills 参考"
+  description="openclaude 内置 agent skills 参考：每个 skill 的作用、触发时机，以及如何用斜杠命令调用。"
+  heading="内置 Skills"
+  lede="Skills 是 agent 可按需加载的可复用指令包；调用方式类似斜杠命令，也可以扩展自己的 Skill。"
   toc={toc}
 >
-  <h2 id="what-are-skills">what are skills</h2>
+  <h2 id="what-are-skills">Skills 是什么</h2>
   <p>
-    A skill is a markdown instruction pack (plus optional scripts) that teaches the agent
-    a repeatable workflow. Invoke one by typing its slash form — e.g.
-    <code>/simplify</code> — or let the agent activate it when a task matches its
-    description. List everything available in your session with <code>/skills</code>.
+    Skill 是一个 markdown 指令包（可附带脚本），用于教 agent 执行可重复的工作流。
+    你可以输入它的斜杠形式来调用，例如 <code>/simplify</code>；也可以让 agent
+    在任务匹配描述时自动激活。用 <code>/skills</code> 可列出当前会话中的所有可用 Skill。
   </p>
 
-  <h2 id="bundled-skills">bundled skills</h2>
+  <h2 id="bundled-skills">内置 Skills</h2>
   {skills.map(s => (
     <div class="cmd-entry">
       <h3 id={`skill-${s.name}`}>
         <code>{s.invocation}</code>
-        <a class="anchor-link" href={`#skill-${s.name}`} aria-label={`link to ${s.invocation}`}>#</a>
+        <a class="anchor-link" href={`#skill-${s.name}`} aria-label={`链接到 ${s.invocation}`}>#</a>
       </h3>
       <p>{s.description}</p>
     </div>
   ))}
 
-  <h2 id="your-own">writing your own</h2>
+  <h2 id="your-own">编写自己的 Skill</h2>
   <p>
-    Project skills live in <code>.claude/skills/&lt;name&gt;/SKILL.md</code>; user-level
-    skills default to <code>~/.openclaude/skills/</code> and follow
-    <code>OPENCLAUDE_CONFIG_DIR</code> when it is set. Each SKILL.md has frontmatter
-    (<code>name</code>, <code>description</code>) followed by the instructions the
-    agent loads when the skill is invoked. Plugins can ship skills too — manage
-    them with <code>/plugin</code>.
+    项目级 skill 位于 <code>.claude/skills/&lt;name&gt;/SKILL.md</code>；用户级 skill
+    默认位于 <code>~/.openclaude/skills/</code>，并会在设置时跟随
+    <code>OPENCLAUDE_CONFIG_DIR</code>。每个 SKILL.md 包含 frontmatter
+    （<code>name</code>、<code>description</code>），随后是 agent 在调用该 skill
+    时加载的指令。Plugin 也可以附带 skills；使用 <code>/plugin</code> 管理它们。
   </p>
 </DocsLayout>

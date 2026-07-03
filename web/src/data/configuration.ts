@@ -10,27 +10,27 @@ export const settingsFiles: SettingsFile[] = [
   {
     path: '~/.openclaude/settings.json',
     scope: 'user',
-    notes: 'Default global settings path for every project on the machine; OPENCLAUDE_CONFIG_DIR moves this under the configured config home.',
+    notes: '机器上所有项目的默认全局设置路径；OPENCLAUDE_CONFIG_DIR 会把它移动到配置的 config home 下。',
   },
   {
     path: '.openclaude/settings.json',
     scope: 'project',
-    notes: 'Shared project settings, committed to the repo.',
+    notes: '共享项目设置，通常提交到仓库。',
   },
   {
     path: '.openclaude/settings.local.json',
     scope: 'local',
-    notes: 'Per-machine overrides for one project; typically gitignored.',
+    notes: '单个项目的本机覆盖配置，通常会被 gitignore。',
   },
   {
     path: '~/.openclaude/keybindings.json',
     scope: 'user',
-    notes: 'Default keyboard shortcut overrides path; OPENCLAUDE_CONFIG_DIR moves this under the configured config home.',
+    notes: '默认快捷键覆盖配置路径；OPENCLAUDE_CONFIG_DIR 会把它移动到配置的 config home 下。',
   },
   {
     path: 'CLAUDE.md / .claude/CLAUDE.md',
     scope: 'project',
-    notes: 'Project instructions loaded into context at session start.',
+    notes: '会话启动时加载到上下文中的项目说明。',
   },
 ]
 
@@ -40,16 +40,16 @@ export interface SettingOption {
 }
 
 export const settingOptions: SettingOption[] = [
-  { key: 'model', description: "Default model (alias like 'sonnet' or a full model name)." },
-  { key: 'provider', description: 'Default provider preset for new sessions.' },
-  { key: 'effort', description: 'Default effort level: low, medium, high, xhigh, or max.' },
-  { key: 'agent', description: 'Default agent for new sessions.' },
-  { key: 'permissions', description: 'Allow/deny rules for tools, plus the default permission mode.' },
-  { key: 'env', description: 'Environment variables applied to every session.' },
-  { key: 'theme', description: 'Terminal color theme.' },
-  { key: 'verbose', description: 'Verbose output by default.' },
-  { key: 'allowAutoUpdates', description: 'Enable or disable the auto-updater.' },
-  { key: 'hooks', description: 'Shell hooks that run on tool events (PreToolUse, PostToolUse, …).' },
+  { key: 'model', description: "默认模型，可以是 'sonnet' 这类别名或完整模型名。" },
+  { key: 'provider', description: '新会话默认使用的 provider preset。' },
+  { key: 'effort', description: '默认 effort level：low、medium、high、xhigh 或 max。' },
+  { key: 'agent', description: '新会话默认使用的 agent。' },
+  { key: 'permissions', description: '工具 allow/deny 规则，以及默认 permission mode。' },
+  { key: 'env', description: '应用到每个会话的环境变量。' },
+  { key: 'theme', description: '终端配色主题。' },
+  { key: 'verbose', description: '默认启用 verbose 输出。' },
+  { key: 'allowAutoUpdates', description: '启用或禁用 auto-updater。' },
+  { key: 'hooks', description: '在 tool event 上运行的 shell hooks（PreToolUse、PostToolUse 等）。' },
 ]
 
 export interface EnvVar {
@@ -58,19 +58,19 @@ export interface EnvVar {
 }
 
 export const envVars: EnvVar[] = [
-  { name: 'ANTHROPIC_API_KEY', description: 'Anthropic API key (also the strict auth path in --bare mode).' },
-  { name: 'ANTHROPIC_AUTH_TOKEN', description: 'Bearer token alternative to an Anthropic API key.' },
-  { name: 'OPENAI_API_KEY', description: 'Key for OpenAI-compatible providers and gateways (incl. Opengateway).' },
-  { name: 'OPENAI_BASE_URL', description: 'Base URL of an OpenAI-compatible /v1 endpoint (OpenRouter, LM Studio, LiteLLM, …).' },
-  { name: 'OPENAI_MODEL', description: 'Model name to request from the OpenAI-compatible endpoint.' },
-  { name: 'GOOGLE_API_KEY', description: 'Google Gemini API key.' },
-  { name: 'NEARAI_API_KEY', description: 'NEAR AI unified gateway key.' },
-  { name: 'MIMO_API_KEY', description: 'Xiaomi MiMo API key.' },
-  { name: 'OPENCODE_API_KEY', description: 'OpenCode Zen / Go gateway key.' },
-  { name: 'GITHUB_TOKEN', description: 'GitHub token for GitHub Models and PR workflows.' },
-  { name: 'OPENCLAUDE_CONFIG_DIR', description: 'Preferred config directory override. Defaults to ~/.openclaude when unset.' },
-  { name: 'CLAUDE_CONFIG_DIR', description: 'Legacy config directory override. Used only when OPENCLAUDE_CONFIG_DIR is unset.' },
-  { name: 'HTTP_PROXY / HTTPS_PROXY', description: 'Route API traffic through a proxy.' },
-  { name: 'NODE_EXTRA_CA_CERTS', description: 'Extra CA certificates for corporate TLS interception.' },
-  { name: 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', description: 'Disable non-essential network traffic.' },
+  { name: 'ANTHROPIC_API_KEY', description: 'Anthropic API key，也是在 --bare mode 下的严格认证路径。' },
+  { name: 'ANTHROPIC_AUTH_TOKEN', description: 'Anthropic API key 的 Bearer token 替代项。' },
+  { name: 'OPENAI_API_KEY', description: 'OpenAI-compatible provider 和 gateway 使用的 key（包括 Opengateway）。' },
+  { name: 'OPENAI_BASE_URL', description: 'OpenAI-compatible /v1 endpoint 的 Base URL（OpenRouter、LM Studio、LiteLLM 等）。' },
+  { name: 'OPENAI_MODEL', description: '向 OpenAI-compatible endpoint 请求的模型名。' },
+  { name: 'GOOGLE_API_KEY', description: 'Google Gemini API key。' },
+  { name: 'NEARAI_API_KEY', description: 'NEAR AI unified gateway key。' },
+  { name: 'MIMO_API_KEY', description: 'Xiaomi MiMo API key。' },
+  { name: 'OPENCODE_API_KEY', description: 'OpenCode Zen / Go gateway key。' },
+  { name: 'GITHUB_TOKEN', description: 'GitHub Models 和 PR 工作流使用的 GitHub token。' },
+  { name: 'OPENCLAUDE_CONFIG_DIR', description: '首选配置目录覆盖项；未设置时默认为 ~/.openclaude。' },
+  { name: 'CLAUDE_CONFIG_DIR', description: '旧版配置目录覆盖项；仅在 OPENCLAUDE_CONFIG_DIR 未设置时使用。' },
+  { name: 'HTTP_PROXY / HTTPS_PROXY', description: '通过代理转发 API 流量。' },
+  { name: 'NODE_EXTRA_CA_CERTS', description: '为企业 TLS 中间检查提供额外 CA 证书。' },
+  { name: 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', description: '禁用非必要网络流量。' },
 ]

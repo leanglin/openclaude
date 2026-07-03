@@ -11,11 +11,11 @@ const { command, class: className = '' } = Astro.props
   type="button"
   class={`copy-cmd ${className}`.trim()}
   data-copy={command}
-  aria-label={`copy command: ${command}`}
+  aria-label={`复制命令：${command}`}
 >
   <span class="prefix" aria-hidden="true">$</span>
   <span class="cmd">{command}</span>
-  <span class="hint" aria-hidden="true">copy</span>
+  <span class="hint" aria-hidden="true">复制</span>
   <span class="visually-hidden" role="status" data-copy-status></span>
 </button>
 
@@ -29,11 +29,11 @@ const { command, class: className = '' } = Astro.props
         const hint = btn.querySelector('.hint')
         const status = btn.querySelector('[data-copy-status]')
         btn.classList.add('copied')
-        if (hint) hint.textContent = '✓ copied'
-        if (status) status.textContent = 'copied to clipboard'
+        if (hint) hint.textContent = '已复制'
+        if (status) status.textContent = '已复制到剪贴板'
         window.setTimeout(() => {
           btn.classList.remove('copied')
-          if (hint) hint.textContent = 'copy'
+          if (hint) hint.textContent = '复制'
           if (status) status.textContent = ''
         }, 1400)
       } catch {

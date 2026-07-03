@@ -241,6 +241,26 @@ function hiddenChildProcessOptions(): { windowsHide?: boolean } {
   return process.platform === 'win32' ? { windowsHide: true } : {};
 }
 
+function deriveAdbPathFromEnv(env: NodeJS.ProcessEnv): string | undefined {
+  return (
+    asText(env.ADB_PATH).trim() ||
+    asText(env.OPENCAT_ADB_PATH).trim() ||
+    asText(env.OPENCLAUDE_ADB_PATH).trim() ||
+    (env.ANDROID_HOME ? `${env.ANDROID_HOME}/platform-tools/adb.exe` : '') ||
+    (env.ANDROID_SDK_ROOT ? `${env.ANDROID_SDK_ROOT}/platform-tools/adb.exe` : '') ||
+    undefined
+  );
+}
+
+function envWithResolvedAdbPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const adbPath = deriveAdbPathFromEnv(env);
+  return adbPath && env.ADB_PATH !== adbPath ? { ...env, ADB_PATH: adbPath } : env;
+}
+
+function currentAdbPath(): string {
+  return deriveAdbPathFromEnv(process.env) || 'adb';
+}
+
 type ExecFileSyncLike = (
   file: string,
   args?: readonly string[],
@@ -280,22 +300,7 @@ export function buildAndroidMidscenePreflight(options: {
   env?: NodeJS.ProcessEnv;
   execFile?: ExecFileSyncLike;
 } = {}): AndroidMidscenePreflight {
-  let env = options.env ?? process.env;
-  // If ANDROID_HOME/ANDROID_SDK_ROOT are not set but we know this specific environment, set them
-  if (!env.ANDROID_HOME && !env.ANDROID_SDK_ROOT) {
-    // Check if adb is in the known location
-    const knownSdkRoot = 'E:/04 Coding/platform-tools-latest-windows';
-    if (env.ANDROID_HOME === undefined) {
-      env = { ...env, ANDROID_HOME: knownSdkRoot };
-    }
-    if (env.ANDROID_SDK_ROOT === undefined) {
-      env = { ...env, ANDROID_SDK_ROOT: knownSdkRoot };
-    }
-  }
-  // Set ADB path if not already set
-  if (!env.ADB_PATH && env.ANDROID_HOME) {
-    env = { ...env, ADB_PATH: `${env.ANDROID_HOME}/platform-tools/adb.exe` };
-  }
+  const env = envWithResolvedAdbPath(options.env ?? process.env);
   const execFile = options.execFile ?? (execFileSync as ExecFileSyncLike);
   const adbPath = asText(env.ADB_PATH).trim() || 'adb';
   const targetDeviceId = asText(options.deviceId).trim() || undefined;
@@ -1685,7 +1690,7 @@ async function waitIfPaused(request: RunnerRequest): Promise<void> {
 function buildAIContext(request: RunnerRequest): string {
   const slots = request.slots || {};
   const lines = [
-    'You are running inside OpenClaude App Test.',
+    'You are running inside OpenCat App Test.',
     'Follow the user test goal, but do not execute high-risk operations such as payments, purchases, deleting data, transfers, or production submissions.',
     'If a high-risk operation is required, stop before performing it.',
   ];
@@ -1949,7 +1954,7 @@ function parseAdbScreenshot(buffer: Buffer): ParsedScreenshot {
 }
 
 function adbScreenshot(deviceId: string): ParsedScreenshot {
-  const adbPath = process.env.ADB_PATH || 'adb';
+  const adbPath = currentAdbPath();
   const args = [
     ...(deviceId ? ['-s', deviceId] : []),
     'exec-out',
@@ -2237,7 +2242,7 @@ function adbArgs(deviceId: string, args: string[]): string[] {
 }
 
 function adbText(deviceId: string, args: string[], timeout = 10000): string {
-  const adbPath = process.env.ADB_PATH || 'adb';
+  const adbPath = currentAdbPath();
   try {
     const output = execFileSync(adbPath, adbArgs(deviceId, args), {
       timeout,
@@ -2251,7 +2256,7 @@ function adbText(deviceId: string, args: string[], timeout = 10000): string {
 }
 
 function adbTextStrict(deviceId: string, args: string[], timeout = 10000): string {
-  const adbPath = process.env.ADB_PATH || 'adb';
+  const adbPath = currentAdbPath();
   const output = execFileSync(adbPath, adbArgs(deviceId, args), {
     timeout,
     maxBuffer: 4 * 1024 * 1024,
@@ -2728,9 +2733,9 @@ async function inputTextViaAtxClipboard(deviceId: string, value: string, deps: A
   if (!forward.success) return { success: false, method: 'atx_jsonrpc', message: forward.message || 'adb_forward_failed', forward };
 
   const clipboardAttempts = [
-    ['setClipboard', ['OpenClaude', value]],
+    ['setClipboard', ['OpenCat', value]],
     ['setClipboard', [value]],
-    ['setClipboard', { label: 'OpenClaude', text: value }],
+    ['setClipboard', { label: 'OpenCat', text: value }],
   ] as Array<[string, unknown]>;
   const failures: JsonObject[] = [];
   for (const [method, params] of clipboardAttempts) {
@@ -3246,15 +3251,9 @@ async function setupAndroidAgent(request: RunnerRequest): Promise<RuntimeHandle>
   const agentOptions = buildMidsceneAgentOptions(request);
   const deviceId = asText(slots.device_id).trim();
 
-  // Always ensure ANDROID_HOME/ANDROID_SDK_ROOT are set for known environment
-  if (!process.env.ANDROID_HOME && !process.env.ANDROID_SDK_ROOT) {
-    const knownSdkRoot = 'E:/04 Coding/platform-tools-latest-windows';
-    process.env.ANDROID_HOME = knownSdkRoot;
-    process.env.ANDROID_SDK_ROOT = knownSdkRoot;
-  }
-  // Set ADB path if not already set
-  if (!process.env.ADB_PATH && process.env.ANDROID_HOME) {
-    process.env.ADB_PATH = `${process.env.ANDROID_HOME}/platform-tools/adb.exe`;
+  const adbPath = deriveAdbPathFromEnv(process.env);
+  if (adbPath) {
+    process.env.ADB_PATH = adbPath;
   }
 
   const preflight = buildAndroidMidscenePreflight({ deviceId });

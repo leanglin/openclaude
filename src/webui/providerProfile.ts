@@ -61,6 +61,8 @@ const MIDSCENE_ENV_KEYS = [
 
 export const PRIMARY_MENUS: PrimaryMenuOption[] = [
   { id: 'chat', label: 'Chat', icon: 'message-square' },
+  { id: 'memory', label: 'Memory', icon: 'brain' },
+  { id: 'assets', label: 'Assets', icon: 'package' },
   { id: 'providers', label: 'Providers', icon: 'plug' },
   { id: 'sessions', label: 'Sessions', icon: 'history' },
   { id: 'tools', label: 'Tools', icon: 'wrench' },

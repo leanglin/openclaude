@@ -16,12 +16,14 @@ import {
 import { getValidationTip } from './settings/validationTips.ts'
 
 const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+const originalOpenCatConfigDir = process.env.OPENCAT_CONFIG_DIR
 const originalOpenClaudeConfigDir = process.env.OPENCLAUDE_CONFIG_DIR
 
 beforeEach(async () => {
   await acquireSharedMutationLock('openclaudeUiSurfaces.test.ts')
   mock.restore()
   delete process.env.CLAUDE_CONFIG_DIR
+  delete process.env.OPENCAT_CONFIG_DIR
   delete process.env.OPENCLAUDE_CONFIG_DIR
 })
 
@@ -31,6 +33,11 @@ afterEach(() => {
       delete process.env.CLAUDE_CONFIG_DIR
     } else {
       process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+    }
+    if (originalOpenCatConfigDir === undefined) {
+      delete process.env.OPENCAT_CONFIG_DIR
+    } else {
+      process.env.OPENCAT_CONFIG_DIR = originalOpenCatConfigDir
     }
     if (originalOpenClaudeConfigDir === undefined) {
       delete process.env.OPENCLAUDE_CONFIG_DIR
@@ -57,9 +64,10 @@ describe('OpenClaude settings path surfaces', () => {
     ).toBe(true)
   })
 
-  test('permission save destinations point user settings to configured OPENCLAUDE_CONFIG_DIR', async () => {
-    const customConfigDir = join(homedir(), 'custom-openclaude')
-    process.env.OPENCLAUDE_CONFIG_DIR = customConfigDir
+  test('permission save destinations point user settings to configured OPENCAT_CONFIG_DIR', async () => {
+    const customConfigDir = join(homedir(), 'custom-opencat')
+    process.env.OPENCAT_CONFIG_DIR = customConfigDir
+    delete process.env.OPENCLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
     const { optionForPermissionSaveDestination } = await import(
       '../components/permissions/rules/AddPermissionRules.tsx'
@@ -72,9 +80,10 @@ describe('OpenClaude settings path surfaces', () => {
     })
   })
 
-  test('skills help surfaces point user skills to configured OPENCLAUDE_CONFIG_DIR', async () => {
-    const customConfigDir = join(homedir(), 'custom-openclaude')
-    process.env.OPENCLAUDE_CONFIG_DIR = customConfigDir
+  test('skills help surfaces point user skills to configured OPENCAT_CONFIG_DIR', async () => {
+    const customConfigDir = join(homedir(), 'custom-opencat')
+    process.env.OPENCAT_CONFIG_DIR = customConfigDir
+    delete process.env.OPENCLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
     const { getEmptySkillsMenuMessage } = await import(
       '../components/skills/SkillsMenu.tsx'

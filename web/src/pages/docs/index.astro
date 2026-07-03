@@ -4,33 +4,32 @@ import { docsNav } from '../../data/docsNav'
 import { SITE } from '../../data/site'
 
 const toc = [
-  { id: 'what-is-openclaude', label: 'what is openclaude' },
-  { id: 'sections', label: 'documentation sections' },
+  { id: 'what-is-openclaude', label: 'openclaude 是什么' },
+  { id: 'sections', label: '文档章节' },
 ]
 ---
 
 <DocsLayout
-  title="openclaude documentation — CLI guides & reference"
-  description="Documentation for the openclaude CLI: installation, quickstart, provider setup, slash commands, CLI flags, configuration, and keybindings."
-  heading="openclaude documentation"
-  lede="Everything you need to install the agent, wire up a model provider, and drive it from your terminal."
+  title="openclaude 文档 — CLI 指南与参考"
+  description="openclaude CLI 文档：安装、快速开始、provider 设置、斜杠命令、CLI flags、配置和快捷键。"
+  heading="openclaude 文档"
+  lede="安装 agent、接入 model provider、并从终端驱动它所需的全部内容。"
   toc={toc}
 >
-  <h2 id="what-is-openclaude">what is openclaude</h2>
+  <h2 id="what-is-openclaude">openclaude 是什么</h2>
   <p>
-    openclaude is an open-source coding agent that runs in your terminal. It reads and edits
-    files, runs shell commands, searches your codebase, and talks to MCP servers — against
-    any model backend you choose: OpenAI-compatible APIs, Google Gemini, GitHub Models,
-    local Ollama, gateways like OpenRouter and LiteLLM, and more.
+    openclaude 是运行在终端中的开源 coding agent。它能读取和编辑文件、运行 shell 命令、
+    搜索代码库，并连接 MCP server；模型后端由你选择：OpenAI-compatible APIs、
+    Google Gemini、GitHub Models、本地 Ollama、OpenRouter 和 LiteLLM 这类 gateway 等。
   </p>
   <p>
-    It is maintained by <a href={SITE.gitlawb} rel="noopener">gitlawb</a> and developed in
-    the open on <a href={SITE.github} rel="noopener">GitHub</a> (with a mirror on the
-    <a href={SITE.gitlawbRepo} rel="noopener">gitlawb network</a>).
+    它由 <a href={SITE.gitlawb} rel="noopener">gitlawb</a> 维护，并在
+    <a href={SITE.github} rel="noopener">GitHub</a> 上开放开发（同时在
+    <a href={SITE.gitlawbRepo} rel="noopener">gitlawb network</a> 上有镜像）。
   </p>
   <pre><code>{SITE.installCommand}</code></pre>
 
-  <h2 id="sections">documentation sections</h2>
+  <h2 id="sections">文档章节</h2>
   {docsNav.map(group => (
     <>
       <h3 id={group.group.replace(/\s+/g, '-')}>{group.group}</h3>

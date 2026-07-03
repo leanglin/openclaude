@@ -1,14 +1,14 @@
 # App And Web UI Testing
 
-OpenClaude includes an `AppTest` tool for Android App and Web UI testing through a local Midscene sidecar. The tool exposes one high-level entry point to the model while keeping low-level actions such as observe, tap, type, swipe, back, wait, launch_app, open_url, and assert inside `packages/app-test-runner`.
+OpenCat includes an `AppTest` tool for Android App and Web UI testing through a local Midscene sidecar. The tool exposes one high-level entry point to the model while keeping low-level actions such as observe, tap, type, swipe, back, wait, launch_app, open_url, and assert inside `packages/app-test-runner`.
 
 ## Install And Build
 
 Install and build the sidecar:
 
 ```bash
-npm --prefix packages/app-test-runner install
-npm --prefix packages/app-test-runner run build
+npm.cmd --prefix packages/app-test-runner install
+npm.cmd --prefix packages/app-test-runner run build
 ```
 
 The root package also keeps Midscene and Playwright runtime dependencies so packaged installs can resolve `@midscene/android`, `@midscene/web`, `playwright`, and related packages.
@@ -26,6 +26,7 @@ Useful environment variables:
 
 ```bash
 export ADB_PATH=/path/to/adb
+export OPENCAT_ADB_PATH=/path/to/adb
 export ANDROID_HOME=/path/to/android/sdk
 export ANDROID_SDK_ROOT=/path/to/android/sdk
 export MIDSCENE_MODEL_NAME=your-vision-model
@@ -114,8 +115,8 @@ The Web sidecar keeps Playwright screenshots, visible text extraction, accessibi
 Mock mode does not require ADB or Chromium.
 
 ```bash
-npm run app-test:mock:android
-npm run app-test:mock:web
+npm.cmd run app-test:mock:android
+npm.cmd run app-test:mock:web
 ```
 
 Equivalent direct commands:
@@ -143,13 +144,14 @@ Large event payloads are truncated before returning to the model. Fields with na
 
 ## Packaged Installs
 
-The published package includes:
+The OpenCat installer includes:
 
 - `packages/app-test-runner/dist/`
 - `packages/app-test-runner/package.json`
 - this document
+- bundled Playwright Chromium under the installer runtime resources
 
-Runtime dependencies for Midscene and Playwright are kept in the root `dependencies` so the packaged CLI can resolve them. Chromium may still need to be bundled by the installer or installed on first use with:
+Runtime dependencies for Midscene and Playwright are kept in the root `dependencies` so the packaged CLI can resolve them. The installer sets `PLAYWRIGHT_BROWSERS_PATH` to the bundled browser cache. Source checkouts may still need:
 
 ```bash
 npx playwright install chromium
@@ -157,13 +159,13 @@ npx playwright install chromium
 
 ## Common Errors
 
-`OpenClaude AppTest runner is not built or not included in this installation.`
+`OpenCat AppTest runner is not built or not included in this installation.`
 
 Build the runner:
 
 ```bash
-npm --prefix packages/app-test-runner install
-npm --prefix packages/app-test-runner run build
+npm.cmd --prefix packages/app-test-runner install
+npm.cmd --prefix packages/app-test-runner run build
 ```
 
 `adb not found` or `no devices`

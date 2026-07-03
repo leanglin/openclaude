@@ -8,6 +8,7 @@ import {
 } from '../test/sharedMutationLock.js'
 
 const originalEnv = {
+  OPENCAT_CONFIG_DIR: process.env.OPENCAT_CONFIG_DIR,
   OPENCLAUDE_CONFIG_DIR: process.env.OPENCLAUDE_CONFIG_DIR,
   CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
   CLAUDE_CODE_CUSTOM_OAUTH_URL: process.env.CLAUDE_CODE_CUSTOM_OAUTH_URL,
@@ -18,7 +19,8 @@ let tempDir: string
 
 beforeEach(async () => {
   await acquireSharedMutationLock('env.test.ts')
-  tempDir = mkdtempSync(join(tmpdir(), 'openclaude-env-test-'))
+  tempDir = mkdtempSync(join(tmpdir(), 'opencat-env-test-'))
+  delete process.env.OPENCAT_CONFIG_DIR
   delete process.env.OPENCLAUDE_CONFIG_DIR
   process.env.CLAUDE_CONFIG_DIR = tempDir
   delete process.env.CLAUDE_CODE_CUSTOM_OAUTH_URL
@@ -28,6 +30,11 @@ beforeEach(async () => {
 afterEach(() => {
   try {
     rmSync(tempDir, { recursive: true, force: true })
+    if (originalEnv.OPENCAT_CONFIG_DIR === undefined) {
+      delete process.env.OPENCAT_CONFIG_DIR
+    } else {
+      process.env.OPENCAT_CONFIG_DIR = originalEnv.OPENCAT_CONFIG_DIR
+    }
     if (originalEnv.OPENCLAUDE_CONFIG_DIR === undefined) {
       delete process.env.OPENCLAUDE_CONFIG_DIR
     } else {
@@ -59,9 +66,9 @@ async function importFreshEnvModule() {
 
 // getGlobalClaudeFile — default path plus explicit override compatibility
 
-test('getGlobalClaudeFile: new install returns .openclaude.json when neither file exists', async () => {
+test('getGlobalClaudeFile: new install returns .opencat.json when neither file exists', async () => {
   const { getGlobalClaudeFile } = await importFreshEnvModule()
-  expect(getGlobalClaudeFile()).toBe(join(tempDir, '.openclaude.json'))
+  expect(getGlobalClaudeFile()).toBe(join(tempDir, '.opencat.json'))
 })
 
 test('getGlobalClaudeFile: explicit config dir keeps .claude.json fallback when only legacy file exists', async () => {
@@ -70,31 +77,32 @@ test('getGlobalClaudeFile: explicit config dir keeps .claude.json fallback when 
   expect(getGlobalClaudeFile()).toBe(join(tempDir, '.claude.json'))
 })
 
-test('getGlobalClaudeFile: migrated user uses .openclaude.json when both files exist', async () => {
+test('getGlobalClaudeFile: migrated user uses .opencat.json when current and legacy files exist', async () => {
   writeFileSync(join(tempDir, '.claude.json'), '{}')
   writeFileSync(join(tempDir, '.openclaude.json'), '{}')
+  writeFileSync(join(tempDir, '.opencat.json'), '{}')
   const { getGlobalClaudeFile } = await importFreshEnvModule()
-  expect(getGlobalClaudeFile()).toBe(join(tempDir, '.openclaude.json'))
+  expect(getGlobalClaudeFile()).toBe(join(tempDir, '.opencat.json'))
 })
 
-test('getGlobalClaudeFile: OPENCLAUDE_CONFIG_DIR uses preferred config dir', async () => {
-  const preferredDir = mkdtempSync(join(tmpdir(), 'openclaude-preferred-env-test-'))
+test('getGlobalClaudeFile: OPENCAT_CONFIG_DIR uses preferred config dir', async () => {
+  const preferredDir = mkdtempSync(join(tmpdir(), 'opencat-preferred-env-test-'))
   try {
-    process.env.OPENCLAUDE_CONFIG_DIR = preferredDir
+    process.env.OPENCAT_CONFIG_DIR = preferredDir
     process.env.CLAUDE_CONFIG_DIR = tempDir
 
     const { getGlobalClaudeFile } = await importFreshEnvModule()
 
-    expect(getGlobalClaudeFile()).toBe(join(preferredDir, '.openclaude.json'))
+    expect(getGlobalClaudeFile()).toBe(join(preferredDir, '.opencat.json'))
   } finally {
     rmSync(preferredDir, { recursive: true, force: true })
   }
 })
 
-test('getGlobalClaudeFile: OPENCLAUDE_CONFIG_DIR keeps .claude.json fallback when only legacy file exists', async () => {
-  const preferredDir = mkdtempSync(join(tmpdir(), 'openclaude-preferred-env-test-'))
+test('getGlobalClaudeFile: OPENCAT_CONFIG_DIR keeps .claude.json fallback when only legacy file exists', async () => {
+  const preferredDir = mkdtempSync(join(tmpdir(), 'opencat-preferred-env-test-'))
   try {
-    process.env.OPENCLAUDE_CONFIG_DIR = preferredDir
+    process.env.OPENCAT_CONFIG_DIR = preferredDir
     process.env.CLAUDE_CONFIG_DIR = tempDir
     writeFileSync(join(preferredDir, '.claude.json'), '{}')
 
@@ -117,4 +125,17 @@ test('resolveGlobalClaudeFile: failed default migration keeps legacy file when n
       existsSync: path => path === join(tempDir, '.claude.json'),
     }),
   ).toBe(join(tempDir, '.claude.json'))
+})
+
+test('resolveGlobalClaudeFile: failed default migration keeps OpenCat legacy file when new file is missing', async () => {
+  writeFileSync(join(tempDir, '.openclaude.json'), '{}')
+  const { resolveGlobalClaudeFile } = await importFreshEnvModule()
+
+  expect(
+    resolveGlobalClaudeFile({
+      homeDir: tempDir,
+      migrationSucceeded: false,
+      existsSync: path => path === join(tempDir, '.openclaude.json'),
+    }),
+  ).toBe(join(tempDir, '.openclaude.json'))
 })

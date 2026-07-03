@@ -11,35 +11,35 @@ export const skills: Skill[] = [
     name: 'batch',
     invocation: '/batch',
     description:
-      'Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR. Use for sweeping, mechanical changes (migrations, refactors, bulk renames) that decompose into independent units.',
+      '研究并规划大规模改动，然后在 5-30 个隔离 worktree agent 中并行执行，每个 agent 打开一个 PR。适合可拆成独立单元的机械式批量改动，例如 migration、refactor、批量重命名。',
   },
   {
     name: 'loop',
     invocation: '/loop',
     description:
-      'Run a prompt on a fixed interval or dynamically reschedule it. Use to poll for status, babysit a workflow, or keep re-running a prompt within the current session.',
+      '按固定间隔运行 prompt，或动态重新调度。适合轮询状态、看护工作流，或在当前会话中反复运行同一个 prompt。',
   },
   {
     name: 'simplify',
     invocation: '/simplify',
     description:
-      'Review changed code for reuse, quality, and efficiency, then fix any issues found.',
+      '检查已改代码的复用性、质量和效率，并修复发现的问题。',
   },
   {
     name: 'debug',
     invocation: '/debug',
-    description: 'Enable debug logging for this session and help diagnose issues.',
+    description: '为当前会话启用 debug logging，并辅助诊断问题。',
   },
   {
     name: 'update-config',
     invocation: '/update-config',
     description:
-      'Configure the harness via settings.json: permissions, env vars, hooks, and automated behaviors ("from now on when X…").',
+      '通过 settings.json 配置 harness：permissions、env vars、hooks，以及“从现在开始当 X 时...”这类自动化行为。',
   },
   {
     name: 'keybindings-help',
     invocation: '/keybindings-help',
     description:
-      'Customize keyboard shortcuts: rebind keys, add chord bindings, or modify your keybindings file (default: ~/.openclaude/keybindings.json; override via OPENCLAUDE_CONFIG_DIR).',
+      '自定义快捷键：重绑定按键、添加 chord 绑定，或修改 keybindings 文件（默认 ~/.openclaude/keybindings.json；可通过 OPENCLAUDE_CONFIG_DIR 覆盖）。',
   },
 ]

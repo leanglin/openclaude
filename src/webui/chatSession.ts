@@ -2,6 +2,11 @@ import { spawn, type SpawnOptions } from 'node:child_process'
 import type { Readable, Writable } from 'node:stream'
 import treeKill from 'tree-kill'
 import {
+  extractClaudeCodeHints,
+  type ClaudeCodeHint,
+} from '../utils/claudeCodeHints.js'
+import { resolvePluginHint } from '../utils/plugins/hintRecommendation.js'
+import {
   buildControlResponse,
   buildPermissionControlResult,
   buildUserMessage,
@@ -265,6 +270,7 @@ export class CliChatSession {
   private currentMessageContent = ''
   private readonly secrets: string[]
   private forceKillTimer: ReturnType<typeof setTimeout> | null = null
+  private shownPluginRecommendations = new Set<string>()
 
   constructor(private readonly options: CliChatSessionOptions) {
     this.secrets = [
@@ -444,12 +450,37 @@ export class CliChatSession {
   }
 
   private handleStderr(chunk: string): void {
-    const trimmed = chunk.trim()
+    const { hints, stripped } = extractClaudeCodeHints(chunk, 'web-cli-stderr')
+    for (const hint of hints) {
+      this.emitPluginRecommendationFromHint(hint)
+    }
+    const trimmed = stripped.trim()
     if (!trimmed) return
     if (/^\(node:\d+\)|^DeprecationWarning|^ExperimentalWarning/i.test(trimmed)) {
       return
     }
     this.sendActivity('error', 'CLI stderr', redactSensitiveText(trimmed, this.secrets))
+  }
+
+  private emitPluginRecommendationFromHint(hint: ClaudeCodeHint): void {
+    if (this.shownPluginRecommendations.has(hint.value)) return
+    this.shownPluginRecommendations.add(hint.value)
+    void resolvePluginHint(hint)
+      .then(recommendation => {
+        if (!recommendation) return
+        this.send({
+          type: 'plugin_recommendation',
+          recommendation: {
+            pluginId: recommendation.pluginId,
+            pluginName: recommendation.pluginName,
+            marketplaceName: recommendation.marketplaceName,
+            description: recommendation.pluginDescription,
+            reason: 'Existing hint protocol reported this plugin for the current tool output.',
+            source: recommendation.sourceCommand,
+          },
+        })
+      })
+      .catch(() => {})
   }
 
   private handleCliMessage(message: CliMessage): void {

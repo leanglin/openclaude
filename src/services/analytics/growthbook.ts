@@ -20,6 +20,7 @@ const _openBuildDefaults: Record<string, unknown> = {
 	tengu_sedge_lantern: true, // AWAY_SUMMARY — "while you were away" recap
 	tengu_hive_evidence: true, // VERIFICATION_AGENT — read-only test/verification agent
 	tengu_passport_quail: true, // EXTRACT_MEMORIES — enable memory extraction
+	tengu_slate_thimble: true, // EXTRACT_MEMORIES — enable extraction in --print/Web UI sessions
 	tengu_coral_fern: true, // EXTRACT_MEMORIES — enable memory search in past context
 }
 

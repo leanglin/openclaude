@@ -57,6 +57,8 @@ const featureFlags: Record<string, boolean> = {
   QUICK_SEARCH: true,                 // Ctrl+G quick search across prompts
   SHOT_STATS: true,                   // Shot distribution stats in session summary
   EXTRACT_MEMORIES: true,             // Auto-extract durable memories from conversations
+  CONVERSATION_ARC: true,              // Populate and recall project Knowledge Graph context
+  MULTI_TURN_CONTEXT: true,            // Track multi-turn context in the Knowledge Graph
   FORK_SUBAGENT: true,                // Implicit context-forking when omitting subagent_type
   RESUME_COMPACT_PROMPT: true,        // Prompt to compact on /resume + determinate progress bar
   VERIFICATION_AGENT: true,           // Built-in read-only agent for test/verification

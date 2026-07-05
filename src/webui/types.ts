@@ -109,6 +109,47 @@ export type WebChatMessage = {
   content: string
 }
 
+export type WebPluginScope = 'user' | 'project' | 'local'
+
+export type WebPluginMarketplaceSummary = {
+  name: string
+  source: string
+  pluginCount: number
+  installedCount: number
+}
+
+export type WebPluginSummary = {
+  pluginId: string
+  name: string
+  marketplaceName: string
+  description?: string
+  category?: string
+  tags: string[]
+  keywords: string[]
+  version?: string
+  installed: boolean
+  blocked: boolean
+  installCount?: number
+  needsConfiguration: boolean
+}
+
+export type WebPluginInstallResult = {
+  ok: boolean
+  pluginId: string
+  message?: string
+  error?: string
+  needsConfiguration?: boolean
+}
+
+export type PluginRecommendationEvent = {
+  pluginId: string
+  pluginName: string
+  marketplaceName: string
+  description?: string
+  reason: string
+  source: string
+}
+
 export type ActivityKind =
   | 'thinking'
   | 'preflight'
@@ -186,4 +227,8 @@ export type ServerEvent =
       summary?: string
     }
   | { type: 'permission_request'; request: PermissionRequestEvent }
+  | {
+      type: 'plugin_recommendation'
+      recommendation: PluginRecommendationEvent
+    }
   | { type: 'error'; message: string }

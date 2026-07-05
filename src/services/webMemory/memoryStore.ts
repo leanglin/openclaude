@@ -21,6 +21,7 @@ import {
   getAutoMemEntrypoint,
   getAutoMemPath,
   isAutoMemoryEnabled,
+  isExtractModeActive,
 } from '../../memdir/paths.js'
 import { parseMemoryType } from '../../memdir/memoryTypes.js'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
@@ -266,14 +267,18 @@ export function listMemoryFiles(): MemoryFile[] {
 export async function getMemoryStatus(cwd: string): Promise<MemoryStatus> {
   const files = listMemoryFiles()
   const graph = await getKnowledgeGraphSnapshot(cwd)
+  const autoMemoryEnabled = isAutoMemoryEnabled()
+  const knowledgeGraphEnabled = getGlobalConfig().knowledgeGraphEnabled !== false
   return {
-    autoMemoryEnabled: isAutoMemoryEnabled(),
+    autoMemoryEnabled,
+    autoMemoryExtractionEnabled: autoMemoryEnabled && isExtractModeActive(),
     memoryDir: getMemoryDir(),
     memoryEntrypointPath: getMemoryEntrypoint(),
     hasMemoryIndex: existsSync(getMemoryEntrypoint()),
     memoryFileCount: files.length,
     totalBytes: files.reduce((sum, file) => sum + file.sizeBytes, 0),
-    knowledgeGraphEnabled: getGlobalConfig().knowledgeGraphEnabled !== false,
+    knowledgeGraphEnabled,
+    knowledgeGraphCollectionEnabled: knowledgeGraphEnabled,
     knowledgeGraphStats: {
       entityCount: graph.entities.length,
       relationCount: graph.relations.length,

@@ -147,6 +147,105 @@ function hasMemoryWritesSince(
   return false
 }
 
+const MAX_EXCERPT_MESSAGES = 12
+const MAX_EXCERPT_MESSAGE_CHARS = 2_000
+const MAX_EXCERPT_TOTAL_CHARS = 12_000
+
+function messagesSinceCursor(
+  messages: Message[],
+  sinceUuid: string | undefined,
+): Message[] {
+  if (sinceUuid === undefined) {
+    return messages
+  }
+  const start = messages.findIndex(message => message.uuid === sinceUuid)
+  return start >= 0 ? messages.slice(start + 1) : messages
+}
+
+function truncateForExcerpt(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value
+  }
+  return `${value.slice(0, maxChars)}\n[truncated]`
+}
+
+function contentTextForExcerpt(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+  if (!Array.isArray(content)) {
+    return ''
+  }
+  return content
+    .map(block => {
+      if (typeof block === 'string') {
+        return block
+      }
+      if (
+        typeof block === 'object' &&
+        block !== null &&
+        'type' in block &&
+        (block as { type?: unknown }).type === 'text' &&
+        'text' in block &&
+        typeof (block as { text?: unknown }).text === 'string'
+      ) {
+        return (block as { text: string }).text
+      }
+      return ''
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
+function messageTextForExcerpt(message: Message): string | undefined {
+  if (message.type === 'user') {
+    if (
+      message.isMeta ||
+      message.isVisibleInTranscriptOnly ||
+      message.isVirtual ||
+      message.sourceToolUseID ||
+      (message.origin && message.origin.kind !== 'human')
+    ) {
+      return undefined
+    }
+    return contentTextForExcerpt(message.message.content).trim() || undefined
+  }
+  if (message.type === 'assistant') {
+    return contentTextForExcerpt(message.message.content).trim() || undefined
+  }
+  return undefined
+}
+
+export function buildRecentConversationExcerpt(
+  messages: Message[],
+  sinceUuid: string | undefined,
+): string {
+  const entries = messagesSinceCursor(messages, sinceUuid)
+    .filter(isModelVisibleMessage)
+    .map(message => ({
+      role: message.type,
+      text: messageTextForExcerpt(message),
+    }))
+    .filter((entry): entry is { role: 'user' | 'assistant'; text: string } =>
+      Boolean(entry.text),
+    )
+    .slice(-MAX_EXCERPT_MESSAGES)
+
+  if (entries.length === 0) {
+    return '(No new human user or assistant text was available for extraction.)'
+  }
+
+  let excerpt = entries
+    .map((entry, index) => {
+      const text = truncateForExcerpt(entry.text, MAX_EXCERPT_MESSAGE_CHARS)
+      return `### ${index + 1}. ${entry.role}\n${text}`
+    })
+    .join('\n\n')
+
+  excerpt = truncateForExcerpt(excerpt, MAX_EXCERPT_TOTAL_CHARS)
+  return excerpt
+}
+
 // ============================================================================
 // Tool Permissions
 // ============================================================================
@@ -369,7 +468,17 @@ export function initExtractMemories(): void {
     )
 
     const canUseTool = createAutoMemCanUseTool(memoryDir)
-    const cacheSafeParams = createCacheSafeParams(context)
+    const recentConversationExcerpt = buildRecentConversationExcerpt(
+      messages,
+      lastMemoryMessageUuid,
+    )
+    const cacheSafeParams = {
+      ...createCacheSafeParams(context),
+      // The system prompt contains tool, agent, and skill inventories that are
+      // useful to the main agent but harmful as extraction input. Feed the fork
+      // only the explicit recent excerpt in userPrompt below.
+      forkContextMessages: [],
+    }
 
     // Only run extraction every N eligible turns (tengu_bramble_lintel, default 1).
     // Trailing extractions (from stashed contexts) skip this check since they
@@ -404,11 +513,13 @@ export function initExtractMemories(): void {
           ? buildExtractCombinedPrompt(
               newMessageCount,
               existingMemories,
+              recentConversationExcerpt,
               skipIndex,
             )
           : buildExtractAutoOnlyPrompt(
               newMessageCount,
               existingMemories,
+              recentConversationExcerpt,
               skipIndex,
             )
 

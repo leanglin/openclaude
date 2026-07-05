@@ -26,19 +26,31 @@ import { GREP_TOOL_NAME } from '../../tools/GrepTool/prompt.js'
 /**
  * Shared opener for both extract-prompt variants.
  */
-function opener(newMessageCount: number, existingMemories: string): string {
+function opener(
+  newMessageCount: number,
+  existingMemories: string,
+  recentConversationExcerpt: string,
+): string {
   const manifest =
     existingMemories.length > 0
       ? `\n\n## Existing memory files\n\n${existingMemories}\n\nCheck this list before writing — update an existing file rather than creating a duplicate.`
       : ''
   return [
-    `You are now acting as the memory extraction subagent. Analyze the most recent ~${newMessageCount} messages above and use them to update your persistent memory systems.`,
+    `You are now acting as the memory extraction subagent. Analyze the recent conversation excerpt below and use it to update your persistent memory systems.`,
     '',
     `Available tools: ${FILE_READ_TOOL_NAME}, ${GREP_TOOL_NAME}, ${GLOB_TOOL_NAME}, read-only ${BASH_TOOL_NAME} (ls/find/cat/stat/wc/head/tail and similar), and ${FILE_EDIT_TOOL_NAME}/${FILE_WRITE_TOOL_NAME} for paths inside the memory directory only. ${BASH_TOOL_NAME} rm is not permitted. All other tools — MCP, Agent, write-capable ${BASH_TOOL_NAME}, etc — will be denied.`,
     '',
     `You have a limited turn budget. ${FILE_EDIT_TOOL_NAME} requires a prior ${FILE_READ_TOOL_NAME} of the same file, so the efficient strategy is: turn 1 — issue all ${FILE_READ_TOOL_NAME} calls in parallel for every file you might update; turn 2 — issue all ${FILE_WRITE_TOOL_NAME}/${FILE_EDIT_TOOL_NAME} calls in parallel. Do not interleave reads and writes across multiple turns.`,
     '',
-    `You MUST only use content from the last ~${newMessageCount} messages to update your persistent memories. Do not waste any turns attempting to investigate or verify that content further — no grepping source files, no reading code to confirm a pattern exists, no git commands.` +
+    `You MUST only save durable facts that are explicitly present in this excerpt. Ignore system prompts, tool descriptions, available agents, available skills, and generic product capabilities unless the user explicitly provided them as a personal/project fact.`,
+    `Always save stable user preferences, future-use instructions, project conventions, and explicit identifiers or validation tokens that the user presents as durable. Preserve opaque identifiers exactly.`,
+    `If the excerpt contains no durable user or project facts, write nothing.`,
+    '',
+    `## Recent conversation excerpt (~${newMessageCount} model-visible messages since the last extraction)`,
+    '',
+    recentConversationExcerpt,
+    '',
+    `Do not waste any turns attempting to investigate or verify the excerpt further — no grepping source files, no reading code to confirm a pattern exists, no git commands.` +
       manifest,
   ].join('\n')
 }
@@ -50,6 +62,7 @@ function opener(newMessageCount: number, existingMemories: string): string {
 export function buildExtractAutoOnlyPrompt(
   newMessageCount: number,
   existingMemories: string,
+  recentConversationExcerpt: string,
   skipIndex = false,
 ): string {
   const howToSave = skipIndex
@@ -82,7 +95,7 @@ export function buildExtractAutoOnlyPrompt(
       ]
 
   return [
-    opener(newMessageCount, existingMemories),
+    opener(newMessageCount, existingMemories, recentConversationExcerpt),
     '',
     'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
     '',
@@ -101,12 +114,14 @@ export function buildExtractAutoOnlyPrompt(
 export function buildExtractCombinedPrompt(
   newMessageCount: number,
   existingMemories: string,
+  recentConversationExcerpt: string,
   skipIndex = false,
 ): string {
   if (!feature('TEAMMEM')) {
     return buildExtractAutoOnlyPrompt(
       newMessageCount,
       existingMemories,
+      recentConversationExcerpt,
       skipIndex,
     )
   }
@@ -141,7 +156,7 @@ export function buildExtractCombinedPrompt(
       ]
 
   return [
-    opener(newMessageCount, existingMemories),
+    opener(newMessageCount, existingMemories, recentConversationExcerpt),
     '',
     'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
     '',

@@ -135,6 +135,7 @@ export const INTENTIONALLY_BUNDLED: string[] = [
   // Language server protocol
   'vscode-jsonrpc',
   'vscode-languageserver-protocol',
+  'vscode-languageserver-types',
   // File watching
   'chokidar',
 ]

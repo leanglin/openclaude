@@ -66,6 +66,28 @@ import {
   uploadAssetToHub,
   voteAssetHubAsset,
 } from '../services/platformAssetHub/index.js'
+import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
+import { getInstallCounts } from '../utils/plugins/installCounts.js'
+import { isPluginInstalled } from '../utils/plugins/installedPluginsManager.js'
+import {
+  createPluginId,
+  getMarketplaceSourceDisplay,
+  loadMarketplacesWithGracefulDegradation,
+} from '../utils/plugins/marketplaceHelpers.js'
+import {
+  addMarketplaceSource,
+  getPluginById,
+  loadKnownMarketplacesConfig,
+  saveMarketplaceToSettings,
+} from '../utils/plugins/marketplaceManager.js'
+import { getUnconfiguredChannels } from '../utils/plugins/mcpPluginIntegration.js'
+import { parseMarketplaceInput } from '../utils/plugins/parseMarketplaceInput.js'
+import { installPluginFromMarketplace } from '../utils/plugins/pluginInstallationHelpers.js'
+import { parsePluginIdentifier } from '../utils/plugins/pluginIdentifier.js'
+import { loadAllPlugins } from '../utils/plugins/pluginLoader.js'
+import { getUnconfiguredOptions } from '../utils/plugins/pluginOptionsStorage.js'
+import { isPluginBlockedByPolicy } from '../utils/plugins/pluginPolicy.js'
+import type { PluginMarketplaceEntry } from '../utils/plugins/schemas.js'
 import { renderWebUiPage } from './page.js'
 import {
   createWebChatSession,
@@ -83,6 +105,10 @@ import type {
   ClientMessage,
   ProviderProfilePayload,
   ServerEvent,
+  WebPluginInstallResult,
+  WebPluginMarketplaceSummary,
+  WebPluginScope,
+  WebPluginSummary,
   WebUiPermissionMode,
 } from './types.js'
 
@@ -211,6 +237,140 @@ async function readJsonBody<T>(request: IncomingMessage, limitBytes = 1_000_000)
   }
   const raw = Buffer.concat(chunks).toString('utf8')
   return JSON.parse(raw || '{}') as T
+}
+
+function normalizePluginScope(value: unknown): WebPluginScope {
+  return value === 'project' || value === 'local' ? value : 'user'
+}
+
+function pluginEntryNeedsConfiguration(entry: PluginMarketplaceEntry): boolean {
+  const userConfig = entry.userConfig
+  if (userConfig && Object.keys(userConfig).length > 0) return true
+  return Boolean(
+    entry.channels?.some(
+      channel => channel.userConfig && Object.keys(channel.userConfig).length > 0,
+    ),
+  )
+}
+
+async function loadPluginConfigurationNeeds(
+  pluginIds: Set<string>,
+): Promise<Map<string, boolean>> {
+  const needs = new Map<string, boolean>()
+  if (pluginIds.size === 0) return needs
+  try {
+    const result = await loadAllPlugins()
+    for (const plugin of [...result.enabled, ...result.disabled]) {
+      const pluginId = plugin.repository || plugin.source
+      if (!pluginIds.has(pluginId)) continue
+      const hasUserOptions = Object.keys(getUnconfiguredOptions(plugin)).length > 0
+      const hasChannelOptions = getUnconfiguredChannels(plugin).length > 0
+      needs.set(pluginId, hasUserOptions || hasChannelOptions)
+    }
+  } catch {
+    return needs
+  }
+  return needs
+}
+
+async function pluginNeedsConfiguration(
+  pluginId: string,
+  entry: PluginMarketplaceEntry,
+): Promise<boolean> {
+  const needs = await loadPluginConfigurationNeeds(new Set([pluginId]))
+  return needs.get(pluginId) ?? pluginEntryNeedsConfiguration(entry)
+}
+
+function matchesPluginQuery(plugin: WebPluginSummary, query: string): boolean {
+  if (!query) return true
+  const haystack = [
+    plugin.pluginId,
+    plugin.name,
+    plugin.marketplaceName,
+    plugin.description,
+    plugin.category,
+    ...plugin.tags,
+    ...plugin.keywords,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query.toLowerCase())
+}
+
+async function listWebPlugins(params: {
+  q?: string
+  marketplace?: string
+  status?: string
+}): Promise<{
+  plugins: WebPluginSummary[]
+  marketplaces: WebPluginMarketplaceSummary[]
+  failures: Array<{ name: string; error: string }>
+}> {
+  const config = await loadKnownMarketplacesConfig()
+  const { marketplaces, failures } = await loadMarketplacesWithGracefulDegradation(config)
+  const installCounts = await getInstallCounts().catch(() => null)
+  const summaries: WebPluginSummary[] = []
+  const installedPluginIds = new Set<string>()
+  const marketplaceSummaries: WebPluginMarketplaceSummary[] = []
+
+  for (const marketplace of marketplaces) {
+    const pluginCount = marketplace.data?.plugins.length ?? 0
+    let installedCount = 0
+    for (const entry of marketplace.data?.plugins ?? []) {
+      const pluginId = createPluginId(entry.name, marketplace.name)
+      if (isPluginInstalled(pluginId)) installedCount += 1
+    }
+    marketplaceSummaries.push({
+      name: marketplace.name,
+      source: getMarketplaceSourceDisplay(marketplace.config.source),
+      pluginCount,
+      installedCount,
+    })
+  }
+
+  for (const marketplace of marketplaces) {
+    if (params.marketplace && marketplace.name !== params.marketplace) continue
+    for (const entry of marketplace.data?.plugins ?? []) {
+      const pluginId = createPluginId(entry.name, marketplace.name)
+      const installed = isPluginInstalled(pluginId)
+      if (installed) installedPluginIds.add(pluginId)
+      const summary: WebPluginSummary = {
+        pluginId,
+        name: entry.name,
+        marketplaceName: marketplace.name,
+        description: entry.description,
+        category: entry.category,
+        tags: entry.tags ?? [],
+        keywords: entry.keywords ?? [],
+        version: entry.version,
+        installed,
+        blocked: isPluginBlockedByPolicy(pluginId),
+        installCount: installCounts?.get(pluginId),
+        needsConfiguration: pluginEntryNeedsConfiguration(entry),
+      }
+      if (!matchesPluginQuery(summary, params.q?.trim() ?? '')) continue
+      if (params.status === 'installed' && !summary.installed) continue
+      if (params.status === 'available' && summary.installed) continue
+      summaries.push(summary)
+    }
+  }
+
+  const configNeeds = await loadPluginConfigurationNeeds(installedPluginIds)
+  for (const summary of summaries) {
+    if (configNeeds.has(summary.pluginId)) {
+      summary.needsConfiguration = Boolean(configNeeds.get(summary.pluginId))
+    }
+  }
+
+  summaries.sort((a, b) => {
+    if (a.installed !== b.installed) return a.installed ? -1 : 1
+    const countDelta = (b.installCount ?? -1) - (a.installCount ?? -1)
+    if (countDelta !== 0) return countDelta
+    return a.name.localeCompare(b.name)
+  })
+
+  return { plugins: summaries, marketplaces: marketplaceSummaries, failures }
 }
 
 function resolveIconPath(): string | null {
@@ -573,6 +733,108 @@ async function handleAssetHubApi(
   return true
 }
 
+async function handlePluginsApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/plugins')) return false
+
+  if (request.method === 'GET' && url.pathname === '/api/plugins/marketplaces') {
+    const { marketplaces, failures } = await listWebPlugins({ status: 'all' })
+    sendJson(response, 200, { marketplaces, failures })
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/plugins/marketplaces') {
+    const payload = await readJsonBody<{ source?: unknown }>(request)
+    const source = typeof payload.source === 'string' ? payload.source.trim() : ''
+    if (!source) throw new Error('Marketplace source is required.')
+
+    const parsed = await parseMarketplaceInput(source)
+    if (!parsed) {
+      throw new Error('Invalid marketplace source format. Try owner/repo, https://..., or ./path.')
+    }
+    if ('error' in parsed) throw new Error(parsed.error)
+
+    const { name, alreadyMaterialized, resolvedSource } =
+      await addMarketplaceSource(parsed)
+    saveMarketplaceToSettings(name, { source: resolvedSource })
+    clearAllCaches()
+
+    sendJson(response, 200, {
+      marketplace: {
+        name,
+        source: getMarketplaceSourceDisplay(resolvedSource),
+        alreadyMaterialized,
+      },
+    })
+    return true
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/plugins') {
+    const status = url.searchParams.get('status') || 'all'
+    const marketplace = url.searchParams.get('marketplace') || ''
+    sendJson(
+      response,
+      200,
+      await listWebPlugins({
+        q: url.searchParams.get('q') || '',
+        marketplace,
+        status,
+      }),
+    )
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/plugins/install') {
+    const payload = await readJsonBody<{ pluginId?: unknown; scope?: unknown }>(request)
+    const pluginId = typeof payload.pluginId === 'string' ? payload.pluginId.trim() : ''
+    if (!pluginId) throw new Error('Plugin ID is required.')
+
+    const pluginData = await getPluginById(pluginId)
+    if (!pluginData) {
+      sendJson(response, 404, {
+        ok: false,
+        pluginId,
+        error: `Plugin "${pluginId}" was not found in configured marketplaces.`,
+      } satisfies WebPluginInstallResult)
+      return true
+    }
+
+    const { marketplace: marketplaceName } = parsePluginIdentifier(pluginId)
+    if (!marketplaceName) throw new Error('Plugin ID must use plugin@marketplace format.')
+
+    const result = await installPluginFromMarketplace({
+      pluginId,
+      entry: pluginData.entry,
+      marketplaceName,
+      scope: normalizePluginScope(payload.scope),
+      trigger: 'user',
+    })
+
+    if ('error' in result) {
+      sendJson(response, 400, {
+        ok: false,
+        pluginId,
+        error: result.error,
+      } satisfies WebPluginInstallResult)
+      return true
+    }
+
+    sendJson(response, 200, {
+      ok: true,
+      pluginId,
+      message: result.message,
+      needsConfiguration: await pluginNeedsConfiguration(pluginId, pluginData.entry),
+    } satisfies WebPluginInstallResult)
+    return true
+  }
+
+  sendJson(response, 404, { error: 'Plugins API route was not found.' })
+  return true
+}
+
 async function handlePlatformAuthApi(
   request: IncomingMessage,
   response: ServerResponse,
@@ -763,6 +1025,10 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
         }
 
         if (await handleAssetHubApi(request, response, url, options)) {
+          return
+        }
+
+        if (await handlePluginsApi(request, response, url)) {
           return
         }
 

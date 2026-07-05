@@ -175,6 +175,10 @@ describe('webui page', () => {
     expect(html).toContain('function renderMemoryPanel()')
     expect(html).toContain('.memorySectionStack')
     expect(html).toContain('<div class="memorySectionStack">')
+    expect(html).toContain('autoMemoryExtractionEnabled')
+    expect(html).toContain('knowledgeGraphCollectionEnabled')
+    expect(html).toContain('Auto write')
+    expect(html).toContain('Graph capture')
     expect(html).toContain('function renderAssetsPanel()')
     expect(html).toContain('function renderAssetHubPanel()')
     expect(html).toContain('function renderAssetHubWorkspace()')
@@ -188,5 +192,31 @@ describe('webui page', () => {
     expect(html).not.toContain('ownership')
     expect(html).toContain('id="composerInput"')
     expect(html).toContain('id="activityPanel"')
+  })
+
+  test('renders Tools plugin marketplace controls instead of a placeholder', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('data-menu="tools"')
+    expect(html).toContain('function renderToolsPanel()')
+    expect(html).toContain('function renderToolsWorkspace()')
+    expect(html).toContain('/api/plugins/marketplaces')
+    expect(html).toContain('/api/plugins/install')
+    expect(html).toContain('id="toolsSearch"')
+    expect(html).toContain('id="toolsAddSource"')
+    expect(html).toContain('data-tools-install')
+    expect(html).toContain("menu === 'tools' && state.tools.plugins.length === 0")
+    expect(html).not.toContain('Tools panel will appear here.')
+  })
+
+  test('surfaces plugin recommendations as confirmation UI without silent install', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain("event.type === 'plugin_recommendation'")
+    expect(html).toContain('function renderToolsRecommendation()')
+    expect(html).toContain('data-tools-recommend-install')
+    expect(html).toContain('data-tools-recommend-dismiss')
+    expect(html).toContain("installToolPlugin(button.dataset.toolsRecommendInstall, 'recommendation')")
+    expect(html).not.toContain('autoInstallPlugin')
   })
 })

@@ -2,12 +2,14 @@ export type MemoryFileKind = 'index' | 'topic' | 'daily-log' | 'other'
 
 export type MemoryStatus = {
   autoMemoryEnabled: boolean
+  autoMemoryExtractionEnabled: boolean
   memoryDir: string
   memoryEntrypointPath: string
   hasMemoryIndex: boolean
   memoryFileCount: number
   totalBytes: number
   knowledgeGraphEnabled: boolean
+  knowledgeGraphCollectionEnabled: boolean
   knowledgeGraphStats: {
     entityCount: number
     relationCount: number

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -19,32 +19,70 @@ import {
   setClaudeConfigHomeDirForTesting,
 } from '../utils/envUtils.js'
 import { saveGlobalConfig } from '../utils/config.js'
+import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
+import { clearInstalledPluginsCache } from '../utils/plugins/installedPluginsManager.js'
+import { clearMarketplacesCache } from '../utils/plugins/marketplaceManager.js'
+import {
+  resetSettingsCache,
+  setCachedSettingsForSource,
+} from '../utils/settings/settingsCache.js'
+import { getManagedFilePath } from '../utils/settings/managedPath.js'
 
 let tempApiDir: string | undefined
 let previousMemoryOverride: string | undefined
 let previousConfigHome: string | undefined
+let previousPluginCacheDir: string | undefined
+let previousUserType: string | undefined
+let previousManagedSettingsPath: string | undefined
 
 function setupIsolatedApiState(): {
   cwd: string
   memoryDir: string
   configDir: string
+  pluginCacheDir: string
+  managedDir: string
 } {
   previousMemoryOverride = process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
   previousConfigHome = getClaudeConfigHomeDirOverrideForTesting()
+  previousPluginCacheDir = process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR
+  previousUserType = process.env.USER_TYPE
+  previousManagedSettingsPath = process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH
   tempApiDir = mkdtempSync(join(tmpdir(), 'opencat-webui-api-'))
   const cwd = join(tempApiDir, 'project')
   const memoryDir = join(tempApiDir, 'memory')
   const configDir = join(tempApiDir, 'config')
+  const pluginCacheDir = join(tempApiDir, 'plugins')
+  const managedDir = join(tempApiDir, 'managed')
   mkdirSync(cwd, { recursive: true })
   mkdirSync(memoryDir, { recursive: true })
   mkdirSync(configDir, { recursive: true })
+  mkdirSync(pluginCacheDir, { recursive: true })
+  mkdirSync(managedDir, { recursive: true })
+  writeFileSync(
+    join(pluginCacheDir, 'install-counts-cache.json'),
+    JSON.stringify({
+      version: 1,
+      fetchedAt: new Date().toISOString(),
+      counts: [
+        { plugin: 'sample-plugin@local-tools', unique_installs: 42 },
+      ],
+    }),
+  )
   process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = memoryDir
+  process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR = pluginCacheDir
+  process.env.USER_TYPE = 'ant'
+  process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH = managedDir
   setClaudeConfigHomeDirForTesting(configDir)
   getAutoMemPath.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
+  getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
+  clearInstalledPluginsCache()
+  clearMarketplacesCache()
+  clearAllCaches()
+  resetSettingsCache()
   saveGlobalConfig(current => ({ ...current, knowledgeGraphEnabled: true }))
-  return { cwd, memoryDir, configDir }
+  return { cwd, memoryDir, configDir, pluginCacheDir, managedDir }
 }
 
 afterEach(() => {
@@ -53,16 +91,39 @@ afterEach(() => {
   } else {
     process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = previousMemoryOverride
   }
+  if (previousPluginCacheDir === undefined) {
+    delete process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR
+  } else {
+    process.env.CLAUDE_CODE_PLUGIN_CACHE_DIR = previousPluginCacheDir
+  }
+  if (previousUserType === undefined) {
+    delete process.env.USER_TYPE
+  } else {
+    process.env.USER_TYPE = previousUserType
+  }
+  if (previousManagedSettingsPath === undefined) {
+    delete process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH
+  } else {
+    process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH = previousManagedSettingsPath
+  }
   setClaudeConfigHomeDirForTesting(previousConfigHome)
   getAutoMemPath.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
+  getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
+  clearInstalledPluginsCache()
+  clearMarketplacesCache()
+  clearAllCaches()
+  resetSettingsCache()
   if (tempApiDir) {
     rmSync(tempApiDir, { recursive: true, force: true })
     tempApiDir = undefined
   }
   previousMemoryOverride = undefined
   previousConfigHome = undefined
+  previousPluginCacheDir = undefined
+  previousUserType = undefined
+  previousManagedSettingsPath = undefined
 })
 
 async function withServer<T>(
@@ -202,6 +263,81 @@ function createWsEventReader(ws: WebSocket) {
   }
 }
 
+function createLocalPluginMarketplace(root: string): string {
+  const marketplaceDir = join(root, 'local-marketplace')
+  const marketplaceMetaDir = join(marketplaceDir, '.claude-plugin')
+  const samplePluginDir = join(marketplaceDir, 'sample-plugin')
+  const blockedPluginDir = join(marketplaceDir, 'blocked-plugin')
+  mkdirSync(join(samplePluginDir, '.claude-plugin'), { recursive: true })
+  mkdirSync(join(blockedPluginDir, '.claude-plugin'), { recursive: true })
+  mkdirSync(marketplaceMetaDir, { recursive: true })
+
+  writeFileSync(
+    join(samplePluginDir, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({
+      name: 'sample-plugin',
+      version: '1.0.0',
+      description: 'Sample plugin for Web UI tests',
+      userConfig: {
+        token: {
+          type: 'string',
+          title: 'Token',
+          description: 'Test token',
+          required: true,
+        },
+      },
+    }, null, 2),
+  )
+  writeFileSync(
+    join(blockedPluginDir, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({
+      name: 'blocked-plugin',
+      version: '1.0.0',
+      description: 'Blocked plugin for Web UI tests',
+    }, null, 2),
+  )
+  writeFileSync(
+    join(marketplaceMetaDir, 'marketplace.json'),
+    JSON.stringify({
+      name: 'local-tools',
+      owner: { name: 'OpenCat Test' },
+      metadata: {
+        version: '1.0.0',
+        description: 'Local marketplace for Web UI plugin tests',
+      },
+      plugins: [
+        {
+          name: 'sample-plugin',
+          source: './sample-plugin',
+          description: 'Sample plugin for Web UI tests',
+          category: 'testing',
+          tags: ['webui', 'sample'],
+          keywords: ['browser', 'install'],
+          version: '1.0.0',
+          userConfig: {
+            token: {
+              type: 'string',
+              title: 'Token',
+              description: 'Test token',
+              required: true,
+            },
+          },
+        },
+        {
+          name: 'blocked-plugin',
+          source: './blocked-plugin',
+          description: 'Blocked plugin for Web UI tests',
+          category: 'testing',
+          tags: ['blocked'],
+          version: '1.0.0',
+        },
+      ],
+    }, null, 2),
+  )
+
+  return marketplaceDir
+}
+
 describe('webui server', () => {
   test('creates installed Web workspace, session, and skill directories', () => {
     const { cwd, configDir } = setupIsolatedApiState()
@@ -247,6 +383,182 @@ describe('webui server', () => {
       expect(JSON.stringify(bootstrap)).not.toContain('OpenClaude')
       expect(page).not.toContain('OpenClaude')
     })
+  })
+
+  test('serves plugin marketplace APIs and installs plugins through user scope', async () => {
+    const { cwd, managedDir } = setupIsolatedApiState()
+    const marketplaceSource = createLocalPluginMarketplace(tempApiDir!)
+
+    await withServer(
+      async baseUrl => {
+        const headers = {
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }
+
+        const invalid = await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ source: '' }),
+        })
+        expect(invalid.status).toBe(400)
+
+        const added = await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ source: marketplaceSource }),
+        })
+        expect(added.status).toBe(200)
+        expect((await added.json()).marketplace.name).toBe('local-tools')
+
+        writeFileSync(
+          join(managedDir, 'managed-settings.json'),
+          JSON.stringify({
+            enabledPlugins: { 'blocked-plugin@local-tools': false },
+          }),
+        )
+        resetSettingsCache()
+        clearInstalledPluginsCache()
+        clearMarketplacesCache()
+        clearAllCaches()
+        setCachedSettingsForSource('policySettings', {
+          enabledPlugins: { 'blocked-plugin@local-tools': false },
+        })
+
+        const marketplaces = await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(marketplaces.marketplaces).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: 'local-tools',
+              pluginCount: 2,
+            }),
+          ]),
+        )
+
+        const allPlugins = await fetch(`${baseUrl}/api/plugins?status=all`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(allPlugins.plugins).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              pluginId: 'sample-plugin@local-tools',
+              marketplaceName: 'local-tools',
+              category: 'testing',
+              tags: ['webui', 'sample'],
+              keywords: ['browser', 'install'],
+              installed: false,
+              blocked: false,
+              installCount: 42,
+              needsConfiguration: true,
+            }),
+            expect.objectContaining({
+              pluginId: 'blocked-plugin@local-tools',
+              blocked: true,
+            }),
+          ]),
+        )
+
+        const searched = await fetch(`${baseUrl}/api/plugins?q=sample&marketplace=local-tools&status=available`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(searched.plugins.map((plugin: { pluginId: string }) => plugin.pluginId)).toEqual([
+          'sample-plugin@local-tools',
+        ])
+
+        const missing = await fetch(`${baseUrl}/api/plugins/install`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pluginId: 'missing-plugin@local-tools', scope: 'user' }),
+        })
+        expect(missing.status).toBe(404)
+
+        const installed = await fetch(`${baseUrl}/api/plugins/install`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pluginId: 'sample-plugin@local-tools', scope: 'user' }),
+        })
+        expect(installed.status).toBe(200)
+        expect(await installed.json()).toEqual(
+          expect.objectContaining({
+            ok: true,
+            pluginId: 'sample-plugin@local-tools',
+            needsConfiguration: true,
+          }),
+        )
+
+        const installedList = await fetch(`${baseUrl}/api/plugins?status=installed`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(installedList.plugins).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              pluginId: 'sample-plugin@local-tools',
+              installed: true,
+            }),
+          ]),
+        )
+      },
+      { cwd },
+    )
+  })
+
+  test('emits plugin recommendations from hint evidence without silently installing', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const marketplaceSource = createLocalPluginMarketplace(tempApiDir!)
+    let child: ReturnType<typeof createMockChild> | undefined
+
+    await withServer(
+      async baseUrl => {
+        const headers = {
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }
+        const added = await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ source: marketplaceSource }),
+        })
+        expect(added.status).toBe(200)
+
+        const { ws, reader } = await connectWebSocket(baseUrl)
+        try {
+          await reader.waitFor(event => event.type === 'ready')
+          ws.send(JSON.stringify({ type: 'send_message', text: 'run tool that can emit hints' }))
+          await reader.waitFor(event => event.type === 'status' && event.status === 'Running')
+          expect(child).toBeDefined()
+          child!.stderr.write('<claude-code-hint v=1 type=plugin value="sample-plugin@local-tools" />\n')
+
+          const event = await reader.waitFor(
+            candidate => candidate.type === 'plugin_recommendation',
+          )
+          expect(event).toEqual({
+            type: 'plugin_recommendation',
+            recommendation: expect.objectContaining({
+              pluginId: 'sample-plugin@local-tools',
+              pluginName: 'sample-plugin',
+              marketplaceName: 'local-tools',
+              source: 'web-cli-stderr',
+            }),
+          })
+
+          const installedList = await fetch(`${baseUrl}/api/plugins?status=installed`, {
+            headers: { Authorization: 'Bearer test-token' },
+          }).then(response => response.json())
+          expect(installedList.plugins).toEqual([])
+        } finally {
+          await terminateWebSocket(ws)
+        }
+      },
+      {
+        cwd,
+        spawnFactory: () => {
+          child = createMockChild()
+          return child
+        },
+      },
+    )
   })
 
   test('serves platform auth SSO APIs and manual usage report without token login route', async () => {
@@ -817,6 +1129,10 @@ describe('webui server', () => {
         }).then(response => response.json())
         expect(status.memoryDir).toBe(memoryDir)
         expect(status.hasMemoryIndex).toBe(false)
+        expect(status.autoMemoryEnabled).toBe(true)
+        expect(status.autoMemoryExtractionEnabled).toBe(true)
+        expect(status.knowledgeGraphEnabled).toBe(true)
+        expect(status.knowledgeGraphCollectionEnabled).toBe(true)
 
         const createdResponse = await fetch(`${baseUrl}/api/memory/files`, {
           method: 'POST',

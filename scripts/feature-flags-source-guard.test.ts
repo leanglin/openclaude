@@ -23,6 +23,14 @@ type FlagGuard = {
 const FLAG_REQUIRES_SOURCE: FlagGuard[] = [
   { flag: 'MCP_SKILLS', source: 'src/skills/mcpSkills.ts' },
   { flag: 'CONTEXT_COLLAPSE', source: 'src/services/contextCollapse/index.ts' },
+  { flag: 'CONVERSATION_ARC', source: 'src/utils/conversationArc.ts' },
+  { flag: 'MULTI_TURN_CONTEXT', source: 'src/utils/multiTurnContext.ts' },
+]
+
+const MEMORY_FLAGS_ENABLED = [
+  'EXTRACT_MEMORIES',
+  'CONVERSATION_ARC',
+  'MULTI_TURN_CONTEXT',
 ]
 
 test('build feature flags are not enabled without their source files', () => {
@@ -44,5 +52,13 @@ test('build feature flags are not enabled without their source files', () => {
     // When the source IS present, the flag can be either true or false; either
     // is fine. We only care about the "enabled but missing" combination.
     expect(isEnabled && !sourceExists).toBe(false)
+  }
+})
+
+test('memory feature flags are enabled in the open build', () => {
+  const buildScript = readFileSync(BUILD_SCRIPT, 'utf-8')
+
+  for (const flag of MEMORY_FLAGS_ENABLED) {
+    expect(new RegExp(`^\\s*${flag}\\s*:\\s*true\\b`, 'm').test(buildScript)).toBe(true)
   }
 })

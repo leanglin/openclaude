@@ -1013,11 +1013,21 @@ export function renderWebUiPage(): string {
       height: 38px;
       border: 1px solid var(--border-strong);
       border-radius: 8px;
-      padding: 0 10px;
       color: var(--text);
       background: var(--surface);
       outline: none;
       min-width: 0;
+    }
+
+    input {
+      padding: 0 10px;
+    }
+
+    select {
+      padding: 0 32px 0 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .profileSummary {
@@ -1055,6 +1065,10 @@ export function renderWebUiPage(): string {
     .formSection {
       margin-bottom: 18px;
       min-width: 0;
+    }
+
+    .toolsMarketplaceSection {
+      margin-top: 14px;
     }
 
     .memorySectionStack {
@@ -1867,6 +1881,24 @@ export function renderWebUiPage(): string {
       line-height: 18px;
     }
 
+    .toolsGrid {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.4fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .toolsListScroll {
+      max-height: calc(100vh - 210px);
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .toolsDescription {
+      margin-top: 12px;
+      min-height: 120px;
+    }
+
     .skeletonStack {
       display: grid;
       gap: 10px;
@@ -1978,7 +2010,8 @@ export function renderWebUiPage(): string {
       }
 
       .usageGrid,
-      .captchaRow {
+      .captchaRow,
+      .toolsGrid {
         grid-template-columns: 1fr;
       }
     }
@@ -2222,6 +2255,22 @@ export function renderWebUiPage(): string {
         uploadBusiness: '',
         uploadDescription: '',
         uploadError: ''
+      },
+      tools: {
+        marketplaces: [],
+        failures: [],
+        plugins: [],
+        search: '',
+        marketplace: '',
+        status: 'available',
+        selectedId: '',
+        loading: false,
+        adding: false,
+        installingId: '',
+        addSource: '',
+        error: '',
+        notice: '',
+        recommendation: null
       },
       platformAuth: {
         status: null,
@@ -2563,7 +2612,7 @@ export function renderWebUiPage(): string {
     }
 
     function isWorkspaceMenu(menu) {
-      return menu === 'memory' || menu === 'assets' || menu === 'assetHub';
+      return menu === 'memory' || menu === 'assets' || menu === 'assetHub' || menu === 'tools';
     }
 
     function animateMainView(activeView) {
@@ -2594,6 +2643,8 @@ export function renderWebUiPage(): string {
         renderAssetsWorkspace();
       } else if (state.activeMenu === 'assetHub') {
         renderAssetHubWorkspace();
+      } else if (state.activeMenu === 'tools') {
+        renderToolsWorkspace();
       }
     }
 
@@ -2682,6 +2733,9 @@ export function renderWebUiPage(): string {
         if (state.assetHub.items.length === 0) refreshAssetHub();
         if (state.assets.list.length === 0) refreshAssets(false);
       }
+      if (menu === 'tools' && state.tools.plugins.length === 0 && !state.tools.loading) {
+        refreshTools();
+      }
       if (menu === 'settings' && !state.platformAuth.status) {
         refreshPlatformSettings();
       }
@@ -2709,6 +2763,8 @@ export function renderWebUiPage(): string {
         renderAssetsPanel();
       } else if (state.activeMenu === 'assetHub') {
         renderAssetHubPanel();
+      } else if (state.activeMenu === 'tools') {
+        renderToolsPanel();
       } else if (state.activeMenu === 'settings') {
         renderSettingsPanel();
       } else {
@@ -2805,11 +2861,15 @@ export function renderWebUiPage(): string {
         '</button>'
       ].join('');
       const searchResults = state.memory.searchResults || [];
+      const extractionEnabled = Boolean(status?.autoMemoryExtractionEnabled);
+      const graphCollectionEnabled = Boolean(status?.knowledgeGraphCollectionEnabled);
       secondaryBody.innerHTML = [
         state.memory.error ? '<div class="errorBox"><strong>记忆加载失败</strong><div>' + escapeHtml(state.memory.error) + '</div><button class="miniButton" type="button" data-memory-refresh>重试</button></div>' : '',
         '<div class="profileSummary">',
         status ? [
           '<strong class="summaryLine">' + escapeHtml(status.autoMemoryEnabled ? '自动记忆已启用' : '自动记忆已禁用') + ' <span class="statusBadge ' + (status.autoMemoryEnabled ? 'success' : '') + '">' + (status.autoMemoryEnabled ? 'Enabled' : 'Disabled') + '</span></strong>',
+          '<span class="summaryLine">Auto write <span class="statusBadge ' + (extractionEnabled ? 'success' : '') + '">' + (extractionEnabled ? 'Enabled' : 'Disabled') + '</span></span>',
+          '<span class="summaryLine">Graph capture <span class="statusBadge ' + (graphCollectionEnabled ? 'success' : '') + '">' + (graphCollectionEnabled ? 'Enabled' : 'Disabled') + '</span></span>',
           '<span class="summaryLine">' + escapeHtml(status.memoryDir || '') + '</span>',
           '<span class="summaryLine">' + escapeHtml((status.memoryFileCount || 0) + ' 个文件 / ' + formatBytes(status.totalBytes || 0)) + '</span>'
         ].join('') : skeletonStack(),
@@ -3728,6 +3788,242 @@ export function renderWebUiPage(): string {
       workspaceView.querySelector('[data-hub-download]')?.addEventListener('click', () => downloadAssetHubItem(detail));
     }
 
+    function selectedToolPlugin() {
+      return (state.tools.plugins || []).find(plugin => plugin.pluginId === state.tools.selectedId) || (state.tools.plugins || [])[0] || null;
+    }
+
+    function toolStatusTags(plugin) {
+      const tags = [
+        '<span class="tag">' + escapeHtml(plugin.marketplaceName || 'marketplace') + '</span>'
+      ];
+      if (plugin.category) tags.push('<span class="tag">' + escapeHtml(plugin.category) + '</span>');
+      if (plugin.version) tags.push('<span class="tag">v' + escapeHtml(plugin.version) + '</span>');
+      tags.push('<span class="tag ' + (plugin.installed ? 'success' : 'warning') + '">' + (plugin.installed ? '已安装' : '未安装') + '</span>');
+      if (plugin.blocked) tags.push('<span class="tag danger">策略阻止</span>');
+      if (plugin.needsConfiguration) tags.push('<span class="tag warning">需要配置</span>');
+      return tags.join('');
+    }
+
+    function toolSearchParams() {
+      const params = new URLSearchParams();
+      if (state.tools.search.trim()) params.set('q', state.tools.search.trim());
+      if (state.tools.marketplace.trim()) params.set('marketplace', state.tools.marketplace.trim());
+      params.set('status', state.tools.status || 'available');
+      return params.toString();
+    }
+
+    async function refreshTools() {
+      state.tools.loading = true;
+      state.tools.error = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        const [marketplaces, plugins] = await Promise.all([
+          api('/api/plugins/marketplaces'),
+          api('/api/plugins?' + toolSearchParams())
+        ]);
+        state.tools.marketplaces = marketplaces.marketplaces || plugins.marketplaces || [];
+        state.tools.failures = [...(marketplaces.failures || []), ...(plugins.failures || [])];
+        state.tools.plugins = plugins.plugins || [];
+        if (state.tools.selectedId && !state.tools.plugins.some(plugin => plugin.pluginId === state.tools.selectedId)) {
+          state.tools.selectedId = '';
+        }
+        if (!state.tools.selectedId && state.tools.plugins[0]) {
+          state.tools.selectedId = state.tools.plugins[0].pluginId;
+        }
+      } catch (error) {
+        state.tools.error = getErrorMessage(error);
+      } finally {
+        state.tools.loading = false;
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    async function addToolsMarketplace() {
+      const source = state.tools.addSource.trim();
+      if (!source) {
+        state.tools.error = '请输入 marketplace source。';
+        renderToolsPanel();
+        return;
+      }
+      state.tools.adding = true;
+      state.tools.error = '';
+      state.tools.notice = '';
+      renderToolsPanel();
+      try {
+        const result = await api('/api/plugins/marketplaces', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source })
+        });
+        state.tools.notice = (result.marketplace?.alreadyMaterialized ? 'Marketplace 已存在: ' : '已添加 marketplace: ') + (result.marketplace?.name || source);
+        state.tools.addSource = '';
+        await refreshTools();
+        showToast('Marketplace 已更新', 'success');
+      } catch (error) {
+        state.tools.error = getErrorMessage(error);
+        renderToolsPanel();
+        showToast('添加 marketplace 失败', 'error');
+      } finally {
+        state.tools.adding = false;
+        renderToolsPanel();
+      }
+    }
+
+    async function installToolPlugin(pluginId, source) {
+      if (!pluginId || state.tools.installingId) return;
+      state.tools.installingId = pluginId;
+      state.tools.error = '';
+      state.tools.notice = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        const result = await api('/api/plugins/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pluginId, scope: 'user' })
+        });
+        const configText = result.needsConfiguration ? '，需要补充配置后使用' : '';
+        state.tools.notice = '已安装' + configText + '，下次刷新会话后生效。';
+        if (state.running) state.tools.notice += ' 当前会话正在运行，可手动刷新会话。';
+        if (state.tools.recommendation?.pluginId === pluginId) {
+          state.tools.recommendation = null;
+        }
+        addActivity({ kind: 'status', title: 'Plugin installed', detail: pluginId + ' installed from ' + (source || 'tools menu'), at: Date.now() });
+        await refreshTools();
+        showToast('插件已安装', 'success');
+      } catch (error) {
+        state.tools.error = getErrorMessage(error);
+        showToast('安装插件失败', 'error');
+      } finally {
+        state.tools.installingId = '';
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    function renderToolsRecommendation() {
+      const recommendation = state.tools.recommendation;
+      if (!recommendation) return '';
+      return [
+        '<section class="formSection">',
+        '<div class="sectionHeader"><h3>插件推荐</h3></div>',
+        '<div class="profileSummary"><strong class="summaryLine">' + escapeHtml(recommendation.pluginName || recommendation.pluginId) + '</strong><span class="summaryLine">' + escapeHtml(recommendation.marketplaceName || '') + '</span><span class="summaryLine">' + escapeHtml(recommendation.reason || '检测到当前任务可能需要这个插件') + '</span></div>',
+        recommendation.description ? '<div class="readonlyNotice">' + escapeHtml(recommendation.description) + '</div>' : '',
+        '<div class="toolbarRow"><button class="miniButton" type="button" data-tools-recommend-install="' + escapeHtml(recommendation.pluginId) + '">确认安装</button><button class="miniButton" type="button" data-tools-recommend-dismiss>暂不安装</button></div>',
+        '</section>'
+      ].join('');
+    }
+
+    function renderToolsPanel() {
+      const marketplaceOptions = ['<option value="">全部 marketplace</option>'].concat((state.tools.marketplaces || []).map(item => '<option value="' + escapeHtml(item.name) + '" ' + (state.tools.marketplace === item.name ? 'selected' : '') + '>' + escapeHtml(item.name) + '</option>')).join('');
+      const failures = (state.tools.failures || []).map(failure => '<div class="readonlyNotice">' + escapeHtml(failure.name) + ': ' + escapeHtml(failure.error || '加载失败') + '</div>').join('');
+      secondaryBody.innerHTML = [
+        state.tools.error ? '<div class="errorBox"><strong>插件操作失败</strong><div>' + escapeHtml(state.tools.error) + '</div></div>' : '',
+        state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + (state.running ? '<div style="margin-top:8px"><button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button></div>' : '') + '</div>' : '',
+        renderToolsRecommendation(),
+        '<div class="profileSummary"><strong class="summaryLine">' + escapeHtml(String(state.tools.plugins.length)) + ' 个插件</strong><span class="summaryLine">' + escapeHtml(String(state.tools.marketplaces.length)) + ' 个 marketplace</span></div>',
+        '<div class="toolbarRow"><button class="miniButton ' + (state.tools.loading ? 'buttonLoading' : '') + '" type="button" data-tools-refresh>' + (state.tools.loading ? '刷新中' : '刷新') + '</button></div>',
+        '<div class="field"><label for="toolsSearch">搜索插件</label><input id="toolsSearch" value="' + escapeHtml(state.tools.search) + '" autocomplete="off" placeholder="名称 / 标签 / 描述"></div>',
+        '<div class="splitFields">',
+        '<div class="field"><label for="toolsMarketplace">Marketplace</label><select id="toolsMarketplace">' + marketplaceOptions + '</select></div>',
+        '<div class="field"><label for="toolsStatus">状态</label><select id="toolsStatus"><option value="available" ' + (state.tools.status === 'available' ? 'selected' : '') + '>可安装</option><option value="installed" ' + (state.tools.status === 'installed' ? 'selected' : '') + '>已安装</option><option value="all" ' + (state.tools.status === 'all' ? 'selected' : '') + '>全部</option></select></div>',
+        '</div>',
+        '<button class="secondaryAction" type="button" data-tools-apply>应用筛选</button>',
+        '<section class="formSection toolsMarketplaceSection"><div class="sectionHeader"><h3>添加 Marketplace</h3></div>',
+        '<div class="field"><label for="toolsAddSource">Source</label><input id="toolsAddSource" value="' + escapeHtml(state.tools.addSource) + '" autocomplete="off" placeholder="owner/repo、https://... 或 ./path"></div>',
+        '<button class="secondaryAction ' + (state.tools.adding ? 'buttonLoading' : '') + '" type="button" data-tools-add-marketplace ' + (state.tools.adding ? 'disabled' : '') + '>' + (state.tools.adding ? '添加中' : '添加 Marketplace') + '</button>',
+        '</section>',
+        failures
+      ].join('');
+      const search = document.getElementById('toolsSearch');
+      const marketplace = document.getElementById('toolsMarketplace');
+      const status = document.getElementById('toolsStatus');
+      const addSource = document.getElementById('toolsAddSource');
+      search?.addEventListener('input', () => { state.tools.search = search.value; });
+      search?.addEventListener('keydown', event => { if (event.key === 'Enter') refreshTools(); });
+      marketplace?.addEventListener('change', () => { state.tools.marketplace = marketplace.value; refreshTools(); });
+      status?.addEventListener('change', () => { state.tools.status = status.value; refreshTools(); });
+      addSource?.addEventListener('input', () => { state.tools.addSource = addSource.value; });
+      addSource?.addEventListener('keydown', event => { if (event.key === 'Enter') addToolsMarketplace(); });
+      secondaryBody.querySelector('[data-tools-refresh]')?.addEventListener('click', () => refreshTools());
+      secondaryBody.querySelector('[data-tools-apply]')?.addEventListener('click', () => refreshTools());
+      secondaryBody.querySelector('[data-tools-add-marketplace]')?.addEventListener('click', () => addToolsMarketplace());
+      secondaryBody.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
+        sendWs({ type: 'refresh_session' });
+        state.tools.notice = '会话已刷新，新安装插件会在下一次任务中加载。';
+        renderToolsPanel();
+      });
+      secondaryBody.querySelector('[data-tools-recommend-install]')?.addEventListener('click', event => {
+        const button = event.currentTarget;
+        installToolPlugin(button.dataset.toolsRecommendInstall, 'recommendation');
+      });
+      secondaryBody.querySelector('[data-tools-recommend-dismiss]')?.addEventListener('click', () => {
+        state.tools.recommendation = null;
+        renderToolsPanel();
+      });
+    }
+
+    function renderToolsWorkspace() {
+      const plugins = state.tools.plugins || [];
+      const selected = selectedToolPlugin();
+      workspaceView.innerHTML = [
+        '<div class="workspaceHeader"><div><h2>工具</h2><div class="workspaceMeta">从 marketplace 查找、检查并安装插件；默认安装到 user scope</div></div><div class="toolbarRow"><button class="miniButton" type="button" data-tools-refresh-main>刷新</button></div></div>',
+        state.tools.loading ? skeletonStack() : '',
+        '<div class="toolsGrid">',
+        '<div class="workspaceCard">',
+        '<div class="profileSummary"><strong class="summaryLine">插件列表</strong><span class="summaryLine">' + escapeHtml(String(plugins.length)) + ' 个匹配项</span></div>',
+        plugins.length ? '<div class="itemList toolsListScroll">' + plugins.map(plugin => {
+          const active = selected?.pluginId === plugin.pluginId;
+          const status = plugin.blocked ? '策略阻止' : plugin.installed ? '已安装' : '可安装';
+          return [
+            '<button class="listItem ' + (active ? 'active' : '') + '" data-tools-plugin="' + escapeHtml(plugin.pluginId) + '">',
+            '<div class="listItemHeader"><strong>' + escapeHtml(plugin.name) + '</strong><span class="statusBadge">' + escapeHtml(status) + '</span></div>',
+            '<span>' + escapeHtml(plugin.marketplaceName || '') + (plugin.version ? ' / v' + escapeHtml(plugin.version) : '') + '</span>',
+            '<span>' + escapeHtml(plugin.description || '暂无描述') + '</span>',
+            '</button>'
+          ].join('');
+        }).join('') + '</div>' : '<div class="ghostState">没有匹配当前筛选条件的插件。</div>',
+        '</div>',
+        selected ? [
+          '<div class="workspaceCard">',
+          '<div class="workspaceHeader"><div><h2>' + escapeHtml(selected.name) + '</h2><div class="workspaceMeta">' + escapeHtml(selected.pluginId) + '</div></div></div>',
+          '<div class="tagRow">' + toolStatusTags(selected) + '</div>',
+          '<div class="metaGrid">',
+          '<div class="metaCard"><span>Marketplace</span><strong>' + escapeHtml(selected.marketplaceName || '-') + '</strong></div>',
+          '<div class="metaCard"><span>Version</span><strong>' + escapeHtml(selected.version || '未标注') + '</strong></div>',
+          '<div class="metaCard"><span>Installs</span><strong>' + escapeHtml(selected.installCount === undefined ? '未提供' : formatNumber(selected.installCount)) + '</strong></div>',
+          '<div class="metaCard"><span>Scope</span><strong>user</strong></div>',
+          '</div>',
+          selected.tags?.length || selected.keywords?.length ? '<div class="tagRow">' + (selected.tags || []).concat(selected.keywords || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '',
+          '<div class="contentPanel toolsDescription">' + escapeHtml(selected.description || '暂无描述') + '</div>',
+          selected.blocked ? '<div class="errorBox">此插件被策略阻止，无法安装。</div>' : '',
+          '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton ' + (state.tools.installingId === selected.pluginId ? 'buttonLoading' : '') + '" type="button" data-tools-install="' + escapeHtml(selected.pluginId) + '" ' + (selected.installed || selected.blocked || state.tools.installingId ? 'disabled' : '') + '>' + (state.tools.installingId === selected.pluginId ? '安装中' : selected.installed ? '已安装' : '安装插件') + '</button>' + (state.running ? '<button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button>' : '') + '</div>',
+          state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + '</div>' : '',
+          '</div>'
+        ].join('') : '<div class="workspaceCard ghostState">选择一个插件查看详情。</div>',
+        '</div>'
+      ].join('');
+      workspaceView.querySelector('[data-tools-refresh-main]')?.addEventListener('click', () => refreshTools());
+      workspaceView.querySelectorAll('[data-tools-plugin]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.tools.selectedId = button.dataset.toolsPlugin || '';
+          renderToolsWorkspace();
+        });
+      });
+      workspaceView.querySelector('[data-tools-install]')?.addEventListener('click', event => {
+        const button = event.currentTarget;
+        installToolPlugin(button.dataset.toolsInstall, 'tools menu');
+      });
+      workspaceView.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
+        sendWs({ type: 'refresh_session' });
+        state.tools.notice = '会话已刷新，新安装插件会在下一次任务中加载。';
+        renderSecondary();
+        renderToolsWorkspace();
+      });
+    }
+
     function formatSessionTime(value) {
       if (!value) return '';
       const date = new Date(value);
@@ -4457,6 +4753,14 @@ export function renderWebUiPage(): string {
         addToolRow(event);
       } else if (event.type === 'permission_request') {
         showPermission(event.request);
+      } else if (event.type === 'plugin_recommendation') {
+        state.tools.recommendation = event.recommendation;
+        addActivity({ kind: 'status', title: 'Plugin recommendation', detail: (event.recommendation?.pluginId || '') + ' from ' + (event.recommendation?.source || 'runtime'), at: Date.now() });
+        showToast('检测到可选插件推荐，请到工具菜单确认安装。', 'warning');
+        if (state.activeMenu === 'tools') {
+          renderSecondary();
+          renderMainView();
+        }
       } else if (event.type === 'error') {
         addActivity({ kind: 'error', title: 'Error', detail: event.message, at: Date.now() });
         setStatus('Error');

@@ -1,8 +1,12 @@
-import { afterEach, beforeEach, expect, test, mock } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { setAllowedSettingSources } from '../bootstrap/state.js'
 import { SETTING_SOURCES } from '../utils/settings/constants.js'
-import * as realSettings from '../utils/settings/settings.js'
-import { isAutoMemoryEnabled } from './paths.ts'
+import type { SettingSource } from '../utils/settings/constants.js'
+import {
+  resetSettingsCache,
+  setCachedSettingsForSource,
+} from '../utils/settings/settingsCache.js'
+import { isAutoMemoryEnabled, isExtractModeActive } from './paths.ts'
 
 // Pin issue #1326: `memory.autoWrite` is a discoverable alias for the legacy
 // `autoMemoryEnabled` setting, and either key opts out for governance /
@@ -14,15 +18,23 @@ import { isAutoMemoryEnabled } from './paths.ts'
 let _originalEnv: Record<string, string | undefined> = {}
 
 type SourceFixture = { source: string; settings: Record<string, unknown> }
-let _sources: SourceFixture[] = []
 
 // Drive the raw per-source view that isAutoMemoryEnabled() reads. Sources are
 // listed low-to-high priority (userSettings lowest, policySettings highest) —
-// the order getEnabledSettingSources() yields. We use the REAL enabled-sources
-// list (all sources are allowed below) and only stub getSettingsForSource, so
-// no shared module other than settings.js is mocked.
+// the order getEnabledSettingSources() yields. Use the real settings module's
+// per-source cache instead of mock.module so this test does not leak module
+// replacements into later files in the same Bun process.
 function mockSources(sources: SourceFixture[]): void {
-  _sources = sources
+  resetSettingsCache()
+  for (const source of SETTING_SOURCES) {
+    setCachedSettingsForSource(source, null)
+  }
+  for (const source of sources) {
+    setCachedSettingsForSource(
+      source.source as SettingSource,
+      source.settings,
+    )
+  }
 }
 
 beforeEach(() => {
@@ -37,17 +49,10 @@ beforeEach(() => {
   delete process.env.CLAUDE_CODE_REMOTE
   delete process.env.CLAUDE_CODE_REMOTE_MEMORY_DIR
 
-  _sources = []
   // Enable every source so getEnabledSettingSources() returns the full set in
   // priority order; the fixtures decide which of them carry a value.
   setAllowedSettingSources([...SETTING_SOURCES])
-  // Stub only the per-source reader. Spread the real module so every other
-  // export keeps its real binding.
-  mock.module('../utils/settings/settings.js', () => ({
-    ...realSettings,
-    getSettingsForSource: (source: string) =>
-      _sources.find(s => s.source === source)?.settings ?? null,
-  }))
+  resetSettingsCache()
 })
 
 afterEach(() => {
@@ -59,16 +64,18 @@ afterEach(() => {
     }
   }
   setAllowedSettingSources([...SETTING_SOURCES])
-  // mock.restore() undoes spies but NOT mock.module() registrations, which
-  // otherwise leak into later test files in the same (serial) run. Re-register
-  // the real settings module so the process is left clean.
-  mock.module('../utils/settings/settings.js', () => ({ ...realSettings }))
-  mock.restore()
+  resetSettingsCache()
 })
 
 test('defaults to enabled when no source sets the key and no env override', () => {
   mockSources([{ source: 'userSettings', settings: {} }])
   expect(isAutoMemoryEnabled()).toBe(true)
+})
+
+test('memory extraction is enabled for default non-interactive Web-style sessions', () => {
+  mockSources([{ source: 'userSettings', settings: {} }])
+  expect(isAutoMemoryEnabled()).toBe(true)
+  expect(isExtractModeActive()).toBe(true)
 })
 
 test('memory.autoWrite: false opts out via the new discoverable alias (#1326)', () => {

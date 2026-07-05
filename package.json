@@ -97,6 +97,7 @@
     "@anthropic-ai/sdk": "0.94.0",
     "@aws-sdk/client-bedrock-runtime": "3.1047.0",
     "@aws-sdk/credential-provider-node": "3.972.41",
+    "@aws-sdk/credential-providers": "3.1047.0",
     "@commander-js/extra-typings": "12.1.0",
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
@@ -160,6 +161,7 @@
     "usehooks-ts": "3.1.1",
     "vscode-jsonrpc": "8.2.0",
     "vscode-languageserver-protocol": "3.17.5",
+    "vscode-languageserver-types": "3.17.5",
     "wrap-ansi": "9.0.2",
     "ws": "8.21.0",
     "xss": "1.0.15",
@@ -171,6 +173,7 @@
     "@types/node": "25.5.0",
     "@types/react": "19.2.14",
     "knip": "^6.16.1",
+    "strip-ansi": "7.2.0",
     "typescript": "5.9.3"
   },
   "engines": {

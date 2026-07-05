@@ -13,6 +13,7 @@ import {
 import {
   basename,
   dirname,
+  extname,
   isAbsolute,
   join,
   relative,
@@ -43,7 +44,9 @@ import type {
   AssetKind,
   AssetSource,
   AssetSummary,
+  CreateKnowledgeInput,
   CreateSkillInput,
+  ImportKnowledgeInput,
   ImportSkillInput,
   UpdateSkillInput,
 } from './types.js'
@@ -75,6 +78,10 @@ function getUserSkillsRoot(): string {
 
 function getProjectSkillsRoot(cwd: string): string {
   return resolve(cwd, PRODUCT_PROJECT_CONFIG_DIR_NAME, 'skills')
+}
+
+function getUserKnowledgeRoot(): string {
+  return getUserSkillsRoot()
 }
 
 function sourceFromCommand(command: Command): AssetSource {
@@ -190,6 +197,64 @@ function mcpPlaceholderAsset(): AssetSummary {
   }
 }
 
+function titleFromMarkdown(content: string): string | undefined {
+  return content.match(/^#\s+(.+)$/m)?.[1]?.trim()
+}
+
+function knowledgeFileToAsset(filePath: string): AssetSummary | null {
+  const root = getUserKnowledgeRoot()
+  const absolutePath = resolve(filePath)
+  if (dirname(absolutePath) !== resolve(root)) return null
+  if (extname(absolutePath).toLowerCase() !== '.md') return null
+  if (basename(absolutePath).toLowerCase() === 'skill.md') return null
+  let content = ''
+  let frontmatter: Record<string, unknown> = {}
+  try {
+    const stats = statSync(absolutePath)
+    if (stats.size <= MAX_SKILL_FILE_BYTES) {
+      content = readFileSync(absolutePath, 'utf8')
+      frontmatter = parseFrontmatter(content, absolutePath).frontmatter
+    }
+  } catch {
+    return null
+  }
+
+  const name = basename(absolutePath, extname(absolutePath))
+  const title =
+    typeof frontmatter.title === 'string'
+      ? frontmatter.title
+      : titleFromMarkdown(content)
+  const description =
+    typeof frontmatter.description === 'string'
+      ? frontmatter.description
+      : undefined
+  return {
+    id: encodeAssetId(['knowledge', 'user', absolutePath].join(':')),
+    name,
+    displayName: title || name,
+    kind: 'knowledge',
+    source: 'user',
+    description,
+    path: absolutePath,
+    readonly: false,
+    enabled: true,
+    tags: ['markdown'],
+  }
+}
+
+function listUserKnowledgeAssets(): AssetSummary[] {
+  const root = getUserKnowledgeRoot()
+  if (!existsSync(root)) return []
+  const assets: AssetSummary[] = []
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue
+    if (extname(entry.name).toLowerCase() !== '.md') continue
+    const asset = knowledgeFileToAsset(join(root, entry.name))
+    if (asset) assets.push(asset)
+  }
+  return assets
+}
+
 function ensureBundledRegistries(): void {
   if (getBundledSkills().length === 0) {
     initBundledSkills()
@@ -235,6 +300,7 @@ export async function listAssets(
   ])
 
   const assets = [
+    ...listUserKnowledgeAssets(),
     ...skillDirCommands.map(command => commandToAsset(command, cwd)),
     ...getDynamicSkills().map(command => ({
       ...commandToAsset(command, cwd, 'dynamic-skill'),
@@ -305,6 +371,59 @@ export function toSafeSkillName(name: string): string {
   return safe
 }
 
+function toSafeKnowledgeName(name: string): string {
+  const safe = name
+    .trim()
+    .normalize('NFC')
+    .replace(/\.md$/i, '')
+    .replace(/[\\/:*?"<>|\s]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+  if (!safe) {
+    throw new Error('Knowledge filename is required.')
+  }
+  return safe
+}
+
+function uniquePath(basePath: string): string {
+  if (!existsSync(basePath)) return basePath
+  const dir = dirname(basePath)
+  const ext = extname(basePath)
+  const base = basename(basePath, ext)
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = join(dir, `${base}-${index}${ext}`)
+    if (!existsSync(candidate)) return candidate
+  }
+  throw new Error('Unable to choose a unique file path.')
+}
+
+function uniqueUserSkillPath(name: string): { safeName: string; skillPath: string } {
+  const root = getUserSkillsRoot()
+  const safeName = toSafeSkillName(name)
+  for (let index = 1; index < 1000; index += 1) {
+    const candidateName = index === 1 ? safeName : `${safeName}-${index}`
+    const skillDir = resolve(root, candidateName)
+    const skillPath = join(skillDir, 'SKILL.md')
+    if (!isWithin(resolve(root), skillPath)) {
+      throw new Error('Skill path escapes the skill directory.')
+    }
+    if (!existsSync(skillDir) && !existsSync(skillPath)) {
+      return { safeName: candidateName, skillPath }
+    }
+  }
+  throw new Error('Unable to choose a unique skill path.')
+}
+
+function uniqueUserKnowledgePath(filename: string): string {
+  const root = getUserKnowledgeRoot()
+  const safeName = toSafeKnowledgeName(filename)
+  const knowledgePath = resolve(root, `${safeName}.md`)
+  if (!isWithin(resolve(root), knowledgePath)) {
+    throw new Error('Knowledge path escapes the knowledge directory.')
+  }
+  return uniquePath(knowledgePath)
+}
+
 function yamlString(value: string): string {
   return JSON.stringify(value)
 }
@@ -367,6 +486,38 @@ function writeSkillFile(filePath: string, content: string): void {
   renameSync(tempPath, filePath)
 }
 
+function buildKnowledgeMarkdown(input: CreateKnowledgeInput): string {
+  const lines = ['---']
+  if (input.title?.trim()) {
+    lines.push(`title: ${yamlString(input.title.trim())}`)
+  }
+  if (input.description?.trim()) {
+    lines.push(`description: ${yamlString(input.description.trim())}`)
+  }
+  lines.push('---', '')
+  const body = input.content?.trim() ?? ''
+  if (input.title?.trim() && !body.startsWith('#')) {
+    lines.push(`# ${input.title.trim()}`, '')
+  }
+  if (body) lines.push(body, '')
+  return lines.join('\n')
+}
+
+function assertEditableKnowledge(asset: AssetSummary): string {
+  if (asset.readonly || asset.kind !== 'knowledge' || asset.source !== 'user') {
+    throw new Error('Only user knowledge markdown files can be modified.')
+  }
+  if (!asset.path) throw new Error('Knowledge path is missing.')
+  const root = getUserKnowledgeRoot()
+  if (dirname(resolve(asset.path)) !== resolve(root)) {
+    throw new Error('Knowledge path is not editable.')
+  }
+  if (basename(asset.path).toLowerCase() === 'skill.md') {
+    throw new Error('SKILL.md is not a knowledge file.')
+  }
+  return asset.path
+}
+
 function assertEditableSkill(asset: AssetSummary, cwd: string): string {
   if (asset.readonly || asset.kind !== 'skill') {
     throw new Error('Only user and project skills can be modified.')
@@ -414,6 +565,20 @@ export async function createSkillAsset(
   return getAssetDetail(cwd, created.id)
 }
 
+export async function createKnowledgeAsset(
+  cwd: string,
+  input: CreateKnowledgeInput,
+): Promise<AssetDetail> {
+  const filename = input.filename?.trim() || input.title?.trim() || ''
+  const knowledgePath = uniqueUserKnowledgePath(filename)
+  writeSkillFile(knowledgePath, buildKnowledgeMarkdown(input))
+  const created = (await listAssets(cwd)).find(asset => asset.path === resolve(knowledgePath))
+  if (!created) {
+    throw new Error('Created knowledge file could not be reloaded.')
+  }
+  return getAssetDetail(cwd, created.id)
+}
+
 export async function updateSkillAsset(
   cwd: string,
   assetId: string,
@@ -427,6 +592,20 @@ export async function updateSkillAsset(
   writeSkillFile(skillPath, input.content)
   clearCommandsCache()
   clearAgentDefinitionsCache()
+  return getAssetDetail(cwd, assetId)
+}
+
+export async function updateKnowledgeAsset(
+  cwd: string,
+  assetId: string,
+  input: UpdateSkillInput,
+): Promise<AssetDetail> {
+  if (typeof input.content !== 'string') {
+    throw new Error('Knowledge content must be a string.')
+  }
+  const asset = await findAsset(cwd, assetId)
+  const knowledgePath = assertEditableKnowledge(asset)
+  writeSkillFile(knowledgePath, input.content)
   return getAssetDetail(cwd, assetId)
 }
 
@@ -447,6 +626,19 @@ export async function deleteSkillAsset(
   }
   clearCommandsCache()
   clearAgentDefinitionsCache()
+}
+
+export async function deleteKnowledgeAsset(
+  cwd: string,
+  assetId: string,
+  confirm: unknown,
+): Promise<void> {
+  if (confirm !== true) {
+    throw new Error('Deleting knowledge requires confirm=true.')
+  }
+  const asset = await findAsset(cwd, assetId)
+  const knowledgePath = assertEditableKnowledge(asset)
+  unlinkSync(knowledgePath)
 }
 
 export async function importSkillAsset(
@@ -487,6 +679,65 @@ export async function importSkillAsset(
   const created = (await listAssets(cwd)).find(asset => asset.path === resolve(skillPath))
   if (!created) throw new Error('Imported skill could not be reloaded.')
   return getAssetDetail(cwd, created.id)
+}
+
+export async function importKnowledgeAsset(
+  cwd: string,
+  input: ImportKnowledgeInput,
+): Promise<AssetDetail> {
+  const content = input.content
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new Error('Imported knowledge markdown content is required.')
+  }
+  if (Buffer.byteLength(content, 'utf8') > MAX_SKILL_FILE_BYTES) {
+    throw new Error('Imported knowledge markdown exceeds the 1 MB limit.')
+  }
+  const parsed = parseFrontmatter(content)
+  const filename =
+    input.filename?.trim() ||
+    (typeof parsed.frontmatter.title === 'string' ? parsed.frontmatter.title : undefined) ||
+    titleFromMarkdown(content) ||
+    'knowledge'
+  const knowledgePath = uniqueUserKnowledgePath(filename)
+  writeSkillFile(knowledgePath, content.endsWith('\n') ? content : `${content}\n`)
+  const created = (await listAssets(cwd)).find(asset => asset.path === resolve(knowledgePath))
+  if (!created) throw new Error('Imported knowledge could not be reloaded.')
+  return getAssetDetail(cwd, created.id)
+}
+
+export async function importHubSkillAsset(
+  cwd: string,
+  input: { name?: string; content: string },
+): Promise<AssetDetail> {
+  if (!input.content.trim()) {
+    throw new Error('Hub skill markdown is empty.')
+  }
+  if (Buffer.byteLength(input.content, 'utf8') > MAX_SKILL_FILE_BYTES) {
+    throw new Error('Hub skill markdown exceeds the 1 MB limit.')
+  }
+  const parsed = parseFrontmatter(input.content)
+  const name =
+    input.name?.trim() ||
+    (typeof parsed.frontmatter.name === 'string' ? parsed.frontmatter.name : undefined) ||
+    titleFromMarkdown(input.content) ||
+    'skill'
+  const { skillPath } = uniqueUserSkillPath(name)
+  writeSkillFile(skillPath, input.content.endsWith('\n') ? input.content : `${input.content}\n`)
+  clearCommandsCache()
+  clearAgentDefinitionsCache()
+  const created = (await listAssets(cwd)).find(asset => asset.path === resolve(skillPath))
+  if (!created) throw new Error('Downloaded skill could not be reloaded.')
+  return getAssetDetail(cwd, created.id)
+}
+
+export async function importHubKnowledgeAsset(
+  cwd: string,
+  input: { filename?: string; title?: string; content: string },
+): Promise<AssetDetail> {
+  return importKnowledgeAsset(cwd, {
+    filename: input.filename || input.title || 'knowledge',
+    content: input.content,
+  })
 }
 
 export async function reloadAssets(cwd: string): Promise<{ count: number }> {

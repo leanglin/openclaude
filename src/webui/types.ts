@@ -12,8 +12,8 @@ export type PrimaryMenuId =
   | 'chat'
   | 'memory'
   | 'assets'
+  | 'assetHub'
   | 'providers'
-  | 'sessions'
   | 'tools'
   | 'settings'
 

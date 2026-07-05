@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -131,6 +131,14 @@ function createMockChild() {
   return child
 }
 
+async function readRequestJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<string, unknown>
+}
+
 async function terminateWebSocket(ws: WebSocket): Promise<void> {
   if (ws.readyState === WebSocket.CLOSED) return
   await new Promise<void>(resolve => {
@@ -240,6 +248,389 @@ describe('webui server', () => {
       expect(page).not.toContain('OpenClaude')
     })
   })
+
+  test('serves platform auth SSO APIs and manual usage report without token login route', async () => {
+    const { cwd } = setupIsolatedApiState()
+    let reportedPayload: Record<string, unknown> | null = null
+    const platformServer = createServer(async (request, response) => {
+      const url = new URL(request.url || '/', 'http://127.0.0.1')
+      if (request.method === 'POST' && url.pathname === '/api/sso/send-code/') {
+        const body = await readRequestJson(request)
+        expect(body).toEqual({ username: 'alice@example.test' })
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ code: 2000, data: { uuid: 'uuid-1' } }))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/sso/login/') {
+        const body = await readRequestJson(request)
+        expect(body).toMatchObject({
+          username: 'alice@example.test',
+          code: '123456',
+          uuid: 'uuid-1',
+        })
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: { access: 'access-token', token: 'api-token' },
+        }))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/system/agent_usage_data/report/') {
+        expect(request.headers.authorization).toBe('JWT access-token')
+        reportedPayload = await readRequestJson(request)
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ success: true }))
+        return
+      }
+      response.writeHead(404, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'not found' }))
+    })
+    await new Promise<void>(resolve => platformServer.listen(0, '127.0.0.1', resolve))
+    const platformAddress = platformServer.address() as AddressInfo
+    const platformBaseUrl = `http://127.0.0.1:${platformAddress.port}`
+
+    try {
+      await withServer(
+        async baseUrl => {
+          const headers = {
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          }
+          const sendCode = await fetch(`${baseUrl}/api/platform-auth/sso/send-code`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              baseUrl: platformBaseUrl,
+              account: 'alice@example.test',
+            }),
+          }).then(response => response.json())
+          expect(sendCode).toMatchObject({ success: true, uuid: 'uuid-1' })
+
+          const login = await fetch(`${baseUrl}/api/platform-auth/sso/login`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              baseUrl: platformBaseUrl,
+              account: 'alice@example.test',
+              code: '123456',
+              uuid: 'uuid-1',
+            }),
+          }).then(response => response.json())
+          expect(login).toMatchObject({
+            success: true,
+            status: {
+              authenticated: true,
+              method: 'sso',
+              identityName: 'alice@example.test',
+            },
+          })
+          expect(JSON.stringify(login)).not.toContain('access-token')
+
+          const tokenRoute = await fetch(`${baseUrl}/api/platform-auth/token`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ token: 'manual-token' }),
+          })
+          expect(tokenRoute.status).toBe(404)
+
+          const report = await fetch(`${baseUrl}/api/platform-usage/report`, {
+            method: 'POST',
+            headers,
+          }).then(response => response.json())
+          expect(report.success).toBe(true)
+          expect(reportedPayload).toMatchObject({
+            payload_version: 2,
+            report_mode: 'snapshot',
+            timezone: 'Asia/Shanghai',
+          })
+        },
+        { cwd },
+      )
+    } finally {
+      await new Promise<void>(resolve => platformServer.close(() => resolve()))
+    }
+  })
+
+  test('serves Asset Hub APIs using saved platform auth and local knowledge assets', async () => {
+    const { cwd, configDir } = setupIsolatedApiState()
+    let platformBaseUrl = ''
+    const completedUploads: Record<string, unknown>[] = []
+    let objectUploadBytes = 0
+    const seenRequests: Array<{ method: string; path: string; authorization?: string }> = []
+
+    const platformServer = createServer(async (request, response) => {
+      const url = new URL(request.url || '/', 'http://127.0.0.1')
+      seenRequests.push({
+        method: request.method || 'GET',
+        path: url.pathname,
+        authorization: request.headers.authorization,
+      })
+
+      if (request.method === 'POST' && url.pathname === '/api/sso/login/') {
+        const body = await readRequestJson(request)
+        expect(body).toMatchObject({
+          username: 'hub-user@example.test',
+          code: '654321',
+          uuid: 'uuid-hub',
+        })
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ code: 2000, data: { access: 'hub-access-token' } }))
+        return
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/system/agent_hub_asset/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        expect(url.searchParams.get('asset_type')).toBe('knowledge')
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: [
+            {
+              id: 'hub-knowledge',
+              asset_type: 'knowledge',
+              title: 'Hub Knowledge',
+              version: 'v1',
+              description_text: 'Reusable hub note',
+              like_count: 2,
+              download_count: 3,
+            },
+          ],
+          total: 1,
+          page: 1,
+          limit: 8,
+        }))
+        return
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/system/agent_hub_asset/hub-knowledge/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: {
+            id: 'hub-knowledge',
+            asset_type: 'knowledge',
+            title: 'Hub Knowledge',
+            version: 'v1',
+            description_text: 'Reusable hub note',
+          },
+        }))
+        return
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/system/agent_hub_asset/hub-knowledge/preview/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ code: 2000, data: { markdown: '# Hub Knowledge Preview\n' } }))
+        return
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/system/agent_hub_asset/hub-knowledge/download/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: {
+            asset_type: 'knowledge',
+            file_name: 'Hub Knowledge.md',
+            markdown: '# Hub Knowledge\n\nDownloaded from Hub.\n',
+          },
+        }))
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/system/agent_hub_asset/init_upload/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        const body = await readRequestJson(request)
+        const assetType = String(body.asset_type || '')
+        expect(['knowledge', 'skill']).toContain(assetType)
+        expect(body.file_name).toBe(assetType === 'skill' ? 'SKILL.md' : 'Local-Knowledge.md')
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: {
+            upload_url: `${platformBaseUrl}/object-upload/${assetType}.md`,
+            object_name: `objects/${assetType}.md`,
+          },
+        }))
+        return
+      }
+
+      if (
+        request.method === 'PUT' &&
+        (url.pathname === '/object-upload/knowledge.md' || url.pathname === '/object-upload/skill.md')
+      ) {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+        }
+        objectUploadBytes = Buffer.concat(chunks).length
+        response.writeHead(200)
+        response.end('')
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/system/agent_hub_asset/complete_upload/') {
+        expect(request.headers.authorization).toBe('JWT hub-access-token')
+        const completed = await readRequestJson(request)
+        completedUploads.push(completed)
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({
+          code: 2000,
+          data: { id: `uploaded-${completed.asset_type || 'asset'}`, title: completed.title },
+        }))
+        return
+      }
+
+      response.writeHead(404, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'not found' }))
+    })
+    await new Promise<void>(resolve => platformServer.listen(0, '127.0.0.1', resolve))
+    const platformAddress = platformServer.address() as AddressInfo
+    platformBaseUrl = `http://127.0.0.1:${platformAddress.port}`
+
+    try {
+      await withServer(
+        async baseUrl => {
+          const headers = {
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          }
+
+          const unauthorized = await fetch(`${baseUrl}/api/asset-hub/assets`, {
+            headers: { Authorization: 'Bearer test-token' },
+          })
+          expect(unauthorized.status).toBe(401)
+
+          const login = await fetch(`${baseUrl}/api/platform-auth/sso/login`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              baseUrl: platformBaseUrl,
+              account: 'hub-user@example.test',
+              code: '654321',
+              uuid: 'uuid-hub',
+            }),
+          }).then(response => response.json())
+          expect(login).toMatchObject({ success: true })
+
+          const list = await fetch(`${baseUrl}/api/asset-hub/assets?asset_type=knowledge`, {
+            headers,
+          }).then(response => response.json())
+          expect(list.items).toHaveLength(1)
+          expect(list.items[0]).toMatchObject({ id: 'hub-knowledge', asset_type: 'knowledge' })
+
+          const detail = await fetch(`${baseUrl}/api/asset-hub/assets/hub-knowledge`, {
+            headers,
+          }).then(response => response.json())
+          expect(detail.markdown).toContain('Preview')
+
+          const download = await fetch(`${baseUrl}/api/asset-hub/assets/hub-knowledge/download`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ assetSnapshot: list.items[0] }),
+          }).then(response => response.json())
+          expect(download.asset).toMatchObject({ kind: 'knowledge', source: 'user' })
+          const downloadedPath = join(configDir, 'skills', 'Hub-Knowledge.md')
+          expect(existsSync(downloadedPath)).toBe(true)
+          expect(readFileSync(downloadedPath, 'utf8')).toContain('Downloaded from Hub.')
+
+          const localKnowledge = await fetch(`${baseUrl}/api/assets/knowledge`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              filename: 'Local Knowledge.md',
+              title: 'Local Knowledge',
+              description: 'Uploadable local note',
+              content: '# Local Knowledge\n\nUpload me.\n',
+            }),
+          }).then(response => response.json())
+          expect(localKnowledge.asset).toMatchObject({ kind: 'knowledge', source: 'user' })
+
+          const upload = await fetch(
+            `${baseUrl}/api/asset-hub/local-assets/${encodeURIComponent(localKnowledge.asset.id)}/upload`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                title: 'Local Knowledge',
+                version: 'v1',
+                applicableRoles: 'tester',
+                applicableBusiness: 'app testing',
+                description: 'Uploadable local note',
+              }),
+            },
+          ).then(response => response.json())
+          expect(upload).toMatchObject({ id: 'uploaded-knowledge' })
+          expect(objectUploadBytes).toBeGreaterThan(0)
+          expect(completedUploads).toContainEqual(expect.objectContaining({
+            asset_type: 'knowledge',
+            title: 'Local Knowledge',
+            file_name: 'Local-Knowledge.md',
+            object_name: 'objects/knowledge.md',
+          }))
+
+          const localSkill = await fetch(`${baseUrl}/api/assets/skills`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              scope: 'user',
+              name: 'Upload Skill',
+              description: 'Uploadable local skill',
+              whenToUse: 'Use when uploading skill assets.',
+              content: 'Skill upload body.',
+            }),
+          }).then(response => response.json())
+          expect(localSkill.asset).toMatchObject({ kind: 'skill', source: 'user' })
+
+          const skillUpload = await fetch(
+            `${baseUrl}/api/asset-hub/local-assets/${encodeURIComponent(localSkill.asset.id)}/upload`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                title: 'Upload Skill',
+                version: 'v1',
+                applicableRoles: 'tester',
+                applicableBusiness: 'app testing',
+                description: 'Uploadable local skill',
+              }),
+            },
+          ).then(response => response.json())
+          expect(skillUpload).toMatchObject({ id: 'uploaded-skill' })
+          expect(completedUploads).toContainEqual(expect.objectContaining({
+            asset_type: 'skill',
+            title: 'Upload Skill',
+            file_name: 'SKILL.md',
+            object_name: 'objects/skill.md',
+          }))
+
+          const mcpOnly = await fetch(`${baseUrl}/api/assets?source=mcp`, {
+            headers,
+          }).then(response => response.json())
+          const blockedUpload = await fetch(
+            `${baseUrl}/api/asset-hub/local-assets/${encodeURIComponent(mcpOnly.assets[0].id)}/upload`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                title: 'Blocked',
+                version: 'v1',
+                applicableRoles: 'tester',
+                applicableBusiness: 'app testing',
+                description: 'Should not upload',
+              }),
+            },
+          )
+          expect(blockedUpload.status).toBe(403)
+        },
+        { cwd },
+      )
+      expect(seenRequests.some(request => request.path === '/api/system/agent_hub_asset/')).toBe(true)
+    } finally {
+      await new Promise<void>(resolve => platformServer.close(() => resolve()))
+    }
+  }, 15000)
 
   test('saves Midscene settings through the provider API and exposes child env', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-server-midscene-'))

@@ -1,4 +1,5 @@
 export type AssetKind =
+  | 'knowledge'
   | 'skill'
   | 'plugin-skill'
   | 'plugin-command'
@@ -70,5 +71,17 @@ export type ImportSkillInput = {
   scope?: 'user' | 'project'
   name?: string
   description?: string
+  content?: string
+}
+
+export type CreateKnowledgeInput = {
+  filename?: string
+  title?: string
+  description?: string
+  content?: string
+}
+
+export type ImportKnowledgeInput = {
+  filename?: string
   content?: string
 }

@@ -1,14 +1,21 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAppTest } from './runner.js'
+import {
+  getClaudeConfigHomeDir,
+  getClaudeConfigHomeDirOverrideForTesting,
+  setClaudeConfigHomeDirForTesting,
+} from '../../utils/envUtils.js'
+import { readPlatformUsageEvents } from '../platformUsage/index.js'
 
 const originalOpenCatRunner = process.env.OPENCAT_APP_TEST_RUNNER
 const originalOpenCatNode = process.env.OPENCAT_APP_TEST_NODE
 const originalLegacyRunner = process.env.OPENCLAUDE_APP_TEST_RUNNER
 const originalLegacyNode = process.env.OPENCLAUDE_APP_TEST_NODE
 let tempDir = ''
+let previousConfigHome: string | undefined
 
 function writeMockRunner(): string {
   tempDir = mkdtempSync(join(tmpdir(), 'opencat-app-test-'))
@@ -78,10 +85,15 @@ process.stdin.on('end', () => {
 }
 
 beforeEach(() => {
+  previousConfigHome = getClaudeConfigHomeDirOverrideForTesting()
   process.env.OPENCAT_APP_TEST_RUNNER = writeMockRunner()
   process.env.OPENCAT_APP_TEST_NODE = process.execPath
   delete process.env.OPENCLAUDE_APP_TEST_RUNNER
   delete process.env.OPENCLAUDE_APP_TEST_NODE
+  const configDir = join(tempDir, 'config')
+  mkdirSync(configDir, { recursive: true })
+  setClaudeConfigHomeDirForTesting(configDir)
+  getClaudeConfigHomeDir.cache?.clear?.()
 })
 
 afterEach(() => {
@@ -93,8 +105,11 @@ afterEach(() => {
   else process.env.OPENCLAUDE_APP_TEST_RUNNER = originalLegacyRunner
   if (originalLegacyNode === undefined) delete process.env.OPENCLAUDE_APP_TEST_NODE
   else process.env.OPENCLAUDE_APP_TEST_NODE = originalLegacyNode
+  setClaudeConfigHomeDirForTesting(previousConfigHome)
+  getClaudeConfigHomeDir.cache?.clear?.()
   if (tempDir) rmSync(tempDir, { recursive: true, force: true })
   tempDir = ''
+  previousConfigHome = undefined
 })
 
 describe('runAppTest', () => {
@@ -116,6 +131,11 @@ describe('runAppTest', () => {
     expect(result.report_path).toBe(join(tempDir, 'midscene_report.html'))
     expect(result.post_run_guidance).toContain('call Read on that exact file path')
     expect(result.post_run_guidance).toContain('reflection_report.json')
+    expect(readPlatformUsageEvents()).toEqual([
+      expect.objectContaining({ eventType: 'case_generated', platform: 'android' }),
+      expect.objectContaining({ eventType: 'case_adopted', platform: 'android' }),
+      expect.objectContaining({ eventType: 'case_executed', platform: 'android', success: true }),
+    ])
   })
 
   test('parses Web JSONL events and result', async () => {

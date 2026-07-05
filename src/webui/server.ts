@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import type { Duplex } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
@@ -30,15 +30,42 @@ import {
   updateKnowledgeGraphEnabled,
 } from '../services/webMemory/memoryStore.js'
 import {
+  createKnowledgeAsset,
   createSkillAsset,
+  deleteKnowledgeAsset,
   deleteSkillAsset,
   getAssetDetail,
   getAssetRoots,
+  importHubKnowledgeAsset,
+  importHubSkillAsset,
+  importKnowledgeAsset,
   importSkillAsset,
   listAssets,
   reloadAssets,
+  updateKnowledgeAsset,
   updateSkillAsset,
 } from '../services/webAssets/assetStore.js'
+import {
+  clearPlatformAuthSession,
+  getPlatformAuthStatus,
+  getPlatformCaptcha,
+  loadPlatformAuthSession,
+  loginPlatformPassword,
+  loginPlatformSso,
+  sendPlatformSsoCode,
+} from '../services/platformAuth/index.js'
+import {
+  collectPlatformUsageSummary,
+  reportPlatformUsage,
+} from '../services/platformUsage/index.js'
+import {
+  downloadAssetHubAsset,
+  getAssetHubAsset,
+  listAssetHubAssets,
+  previewAssetHubAsset,
+  uploadAssetToHub,
+  voteAssetHubAsset,
+} from '../services/platformAssetHub/index.js'
 import { renderWebUiPage } from './page.js'
 import {
   createWebChatSession,
@@ -326,6 +353,18 @@ async function handleAssetsApi(
     return true
   }
 
+  if (request.method === 'POST' && url.pathname === '/api/assets/knowledge') {
+    const payload = await readJsonBody<Parameters<typeof createKnowledgeAsset>[1]>(request)
+    sendJson(response, 200, { asset: await createKnowledgeAsset(options.cwd, payload) })
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/assets/knowledge/import') {
+    const payload = await readJsonBody<Parameters<typeof importKnowledgeAsset>[1]>(request)
+    sendJson(response, 200, { asset: await importKnowledgeAsset(options.cwd, payload) })
+    return true
+  }
+
   if (parts[0] === 'api' && parts[1] === 'assets' && parts[2] === 'skills' && parts[3]) {
     const assetId = decodeURIComponent(parts[3])
     if (request.method === 'PUT') {
@@ -341,6 +380,21 @@ async function handleAssetsApi(
     }
   }
 
+  if (parts[0] === 'api' && parts[1] === 'assets' && parts[2] === 'knowledge' && parts[3]) {
+    const assetId = decodeURIComponent(parts[3])
+    if (request.method === 'PUT') {
+      const payload = await readJsonBody<Parameters<typeof updateKnowledgeAsset>[2]>(request)
+      sendJson(response, 200, { asset: await updateKnowledgeAsset(options.cwd, assetId, payload) })
+      return true
+    }
+    if (request.method === 'DELETE') {
+      const payload = await readJsonBody<{ confirm?: unknown }>(request)
+      await deleteKnowledgeAsset(options.cwd, assetId, payload.confirm)
+      sendJson(response, 200, { ok: true })
+      return true
+    }
+  }
+
   if (request.method === 'GET' && parts[0] === 'api' && parts[1] === 'assets' && parts[2]) {
     const assetId = decodeURIComponent(parts[2])
     sendJson(response, 200, { asset: await getAssetDetail(options.cwd, assetId) })
@@ -348,6 +402,281 @@ async function handleAssetsApi(
   }
 
   sendJson(response, 404, { error: 'Assets API route was not found.' })
+  return true
+}
+
+function requirePlatformAuthSession(response: ServerResponse): ReturnType<typeof loadPlatformAuthSession> {
+  const session = loadPlatformAuthSession()
+  if (!session) {
+    sendJson(response, 401, { error: 'Platform authentication is required.' })
+    return null
+  }
+  return session
+}
+
+function recordValue(value: unknown, key: string): string {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? String((value as Record<string, unknown>)[key] ?? '').trim()
+    : ''
+}
+
+function normalizeHubAssetType(value: unknown): 'skill' | 'knowledge' {
+  const text = String(value || '').trim().toLowerCase()
+  return text === 'skill' ? 'skill' : 'knowledge'
+}
+
+async function handleAssetHubApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  options: WebUiAppOptions,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/asset-hub')) return false
+
+  const session = requirePlatformAuthSession(response)
+  if (!session) return true
+  const parts = url.pathname.split('/').filter(Boolean)
+
+  if (request.method === 'GET' && url.pathname === '/api/asset-hub/assets') {
+    sendJson(response, 200, await listAssetHubAssets({
+      baseUrl: session.baseUrl,
+      accessToken: session.accessToken,
+      search: url.searchParams.get('search') || '',
+      assetType: url.searchParams.get('asset_type') || '',
+      ordering: url.searchParams.get('ordering') || '',
+      page: Number(url.searchParams.get('page') || 1),
+      limit: Number(url.searchParams.get('limit') || 10),
+    }))
+    return true
+  }
+
+  if (parts[0] === 'api' && parts[1] === 'asset-hub' && parts[2] === 'assets' && parts[3]) {
+    const hubAssetId = decodeURIComponent(parts[3])
+    if (request.method === 'GET' && parts.length === 4) {
+      const [item, preview] = await Promise.all([
+        getAssetHubAsset({
+          baseUrl: session.baseUrl,
+          accessToken: session.accessToken,
+          assetId: hubAssetId,
+        }),
+        previewAssetHubAsset({
+          baseUrl: session.baseUrl,
+          accessToken: session.accessToken,
+          assetId: hubAssetId,
+        }),
+      ])
+      sendJson(response, 200, { item, markdown: preview.markdown || '' })
+      return true
+    }
+
+    if (request.method === 'POST' && parts[4] === 'vote') {
+      const payload = await readJsonBody<{ vote?: unknown }>(request)
+      sendJson(response, 200, await voteAssetHubAsset({
+        baseUrl: session.baseUrl,
+        accessToken: session.accessToken,
+        assetId: hubAssetId,
+        vote: typeof payload.vote === 'string' ? payload.vote : 'none',
+      }))
+      return true
+    }
+
+    if (request.method === 'POST' && parts[4] === 'download') {
+      const payload = await readJsonBody<{ assetSnapshot?: unknown }>(request)
+      const snapshot = payload.assetSnapshot
+      const item = await getAssetHubAsset({
+        baseUrl: session.baseUrl,
+        accessToken: session.accessToken,
+        assetId: hubAssetId,
+      }).catch(() => snapshot && typeof snapshot === 'object' ? snapshot as Record<string, unknown> : {})
+      const downloaded = await downloadAssetHubAsset({
+        baseUrl: session.baseUrl,
+        accessToken: session.accessToken,
+        assetId: hubAssetId,
+      })
+      const markdown = String(downloaded.markdown || '')
+      if (!markdown.trim()) throw new Error('Hub asset markdown is empty.')
+      const assetType = normalizeHubAssetType(
+        downloaded.asset_type || recordValue(item, 'asset_type') || recordValue(snapshot, 'asset_type'),
+      )
+      const title =
+        recordValue(item, 'title') ||
+        recordValue(snapshot, 'title') ||
+        hubAssetId
+      const fileName =
+        String(downloaded.file_name || '').trim() ||
+        recordValue(item, 'file_name') ||
+        title
+      const asset = assetType === 'skill'
+        ? await importHubSkillAsset(options.cwd, { name: title, content: markdown })
+        : await importHubKnowledgeAsset(options.cwd, { filename: fileName, title, content: markdown })
+      sendJson(response, 200, { item, download: downloaded, asset })
+      return true
+    }
+  }
+
+  if (
+    request.method === 'POST' &&
+    parts[0] === 'api' &&
+    parts[1] === 'asset-hub' &&
+    parts[2] === 'local-assets' &&
+    parts[3] &&
+    parts[4] === 'upload'
+  ) {
+    const assetId = decodeURIComponent(parts[3])
+    const asset = await getAssetDetail(options.cwd, assetId)
+    if (asset.source !== 'user' || (asset.kind !== 'skill' && asset.kind !== 'knowledge') || asset.readonly) {
+      sendJson(response, 403, { error: 'Only user Skill and Knowledge assets can be uploaded to Hub.' })
+      return true
+    }
+    if (!asset.content?.trim()) {
+      throw new Error('Asset markdown source is empty.')
+    }
+    const payload = await readJsonBody<{
+      title?: unknown
+      version?: unknown
+      applicableRoles?: unknown
+      applicable_roles?: unknown
+      applicableBusiness?: unknown
+      applicable_business?: unknown
+      description?: unknown
+    }>(request)
+    const title = String(payload.title || asset.displayName || asset.name || '').trim()
+    const version = String(payload.version || 'v1').trim()
+    const applicableRoles = String(payload.applicableRoles || payload.applicable_roles || '').trim()
+    const applicableBusiness = String(payload.applicableBusiness || payload.applicable_business || '').trim()
+    const description = String(payload.description || asset.description || '').trim()
+    if (!title || !version || !applicableRoles || !applicableBusiness || !description) {
+      sendJson(response, 400, { error: 'Title, version, applicable roles, applicable business, and description are required.' })
+      return true
+    }
+    const result = await uploadAssetToHub({
+      baseUrl: session.baseUrl,
+      accessToken: session.accessToken,
+      metadata: {
+        title,
+        version,
+        applicableRoles,
+        applicableBusiness,
+        description,
+        assetType: asset.kind === 'skill' ? 'skill' : 'knowledge',
+        sourceAssetId: asset.id,
+        sourceAssetVersion: version,
+      },
+      filename: asset.kind === 'skill' ? 'SKILL.md' : basename(asset.path || `${asset.name}.md`),
+      markdown: asset.content,
+    })
+    sendJson(response, 200, result)
+    return true
+  }
+
+  sendJson(response, 404, { error: 'Asset Hub API route was not found.' })
+  return true
+}
+
+async function handlePlatformAuthApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/platform-auth')) return false
+
+  if (request.method === 'GET' && url.pathname === '/api/platform-auth/status') {
+    sendJson(response, 200, await getPlatformAuthStatus({
+      forceValidate: url.searchParams.get('force_validate') === 'true',
+    }))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-auth/captcha') {
+    const payload = await readJsonBody<{ baseUrl?: unknown }>(request)
+    sendJson(response, 200, await getPlatformCaptcha({
+      baseUrl: typeof payload.baseUrl === 'string' ? payload.baseUrl : '',
+    }))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-auth/login/password') {
+    const payload = await readJsonBody<{
+      baseUrl?: unknown
+      username?: unknown
+      password?: unknown
+      captcha?: unknown
+      captchaKey?: unknown
+    }>(request)
+    sendJson(response, 200, await loginPlatformPassword({
+      baseUrl: typeof payload.baseUrl === 'string' ? payload.baseUrl : '',
+      username: typeof payload.username === 'string' ? payload.username : '',
+      password: typeof payload.password === 'string' ? payload.password : '',
+      captcha: typeof payload.captcha === 'string' ? payload.captcha : '',
+      captchaKey: typeof payload.captchaKey === 'string' ? payload.captchaKey : '',
+    }))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-auth/sso/send-code') {
+    const payload = await readJsonBody<{
+      baseUrl?: unknown
+      account?: unknown
+    }>(request)
+    sendJson(response, 200, await sendPlatformSsoCode({
+      baseUrl: typeof payload.baseUrl === 'string' ? payload.baseUrl : '',
+      account: typeof payload.account === 'string' ? payload.account : '',
+    }))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-auth/sso/login') {
+    const payload = await readJsonBody<{
+      baseUrl?: unknown
+      account?: unknown
+      code?: unknown
+      uuid?: unknown
+    }>(request)
+    sendJson(response, 200, await loginPlatformSso({
+      baseUrl: typeof payload.baseUrl === 'string' ? payload.baseUrl : '',
+      account: typeof payload.account === 'string' ? payload.account : '',
+      code: typeof payload.code === 'string' ? payload.code : '',
+      uuid: typeof payload.uuid === 'string' ? payload.uuid : '',
+    }))
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-auth/logout') {
+    clearPlatformAuthSession()
+    sendJson(response, 200, await getPlatformAuthStatus())
+    return true
+  }
+
+  sendJson(response, 404, { error: 'Platform auth API route was not found.' })
+  return true
+}
+
+async function handlePlatformUsageApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/platform-usage')) return false
+
+  if (request.method === 'GET' && url.pathname === '/api/platform-usage/summary') {
+    sendJson(response, 200, await collectPlatformUsageSummary())
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/platform-usage/report') {
+    const session = loadPlatformAuthSession()
+    if (!session) {
+      sendJson(response, 401, { error: 'Platform authentication is required.' })
+      return true
+    }
+    sendJson(response, 200, await reportPlatformUsage({
+      baseUrl: session.baseUrl,
+      accessToken: session.accessToken,
+    }))
+    return true
+  }
+
+  sendJson(response, 404, { error: 'Platform usage API route was not found.' })
   return true
 }
 
@@ -430,6 +759,18 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
         }
 
         if (await handleAssetsApi(request, response, url, options)) {
+          return
+        }
+
+        if (await handleAssetHubApi(request, response, url, options)) {
+          return
+        }
+
+        if (await handlePlatformAuthApi(request, response, url)) {
+          return
+        }
+
+        if (await handlePlatformUsageApi(request, response, url)) {
           return
         }
 

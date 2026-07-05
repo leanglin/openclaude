@@ -44,6 +44,22 @@ describe('webui page', () => {
     expect(html).toContain("sendWs({ type: 'refresh_session' })")
   })
 
+  test('renders Settings auth and manual usage upload without visible token login', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('function renderSettingsPanel()')
+    expect(html).toContain('身份认证')
+    expect(html).toContain('SSO 登录')
+    expect(html).toContain('账号密码登录')
+    expect(html).toContain('/api/platform-auth/sso/send-code')
+    expect(html).toContain('/api/platform-auth/login/password')
+    expect(html).toContain('数据统计上传')
+    expect(html).toContain('/api/platform-usage/report')
+    expect(html).toContain('登录后才能上传统计')
+    expect(html).not.toContain('/api/platform-auth/token')
+    expect(html).not.toContain('Token 登录')
+  })
+
   test('renders collapsible provider sections and saved key placeholders', () => {
     const html = renderWebUiPage()
 
@@ -153,9 +169,23 @@ describe('webui page', () => {
 
     expect(html).toContain('data-menu="memory"')
     expect(html).toContain('data-menu="assets"')
+    expect(html).toContain('data-menu="assetHub"')
+    expect(html).not.toContain('data-menu="sessions"')
     expect(html).toContain('id="workspaceView"')
     expect(html).toContain('function renderMemoryPanel()')
+    expect(html).toContain('.memorySectionStack')
+    expect(html).toContain('<div class="memorySectionStack">')
     expect(html).toContain('function renderAssetsPanel()')
+    expect(html).toContain('function renderAssetHubPanel()')
+    expect(html).toContain('function renderAssetHubWorkspace()')
+    expect(html).toContain('/api/asset-hub/assets')
+    expect(html).toContain('/api/asset-hub/local-assets/')
+    expect(html).toContain('data-knowledge-new')
+    expect(html).toContain('knowledgeImportFile')
+    expect(html).toContain('/api/assets/knowledge')
+    expect(html).toContain("asset.kind === 'knowledge'")
+    expect(html).not.toContain('downloadTarget')
+    expect(html).not.toContain('ownership')
     expect(html).toContain('id="composerInput"')
     expect(html).toContain('id="activityPanel"')
   })

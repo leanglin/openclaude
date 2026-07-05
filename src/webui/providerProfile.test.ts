@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import {
+  PRIMARY_MENUS,
   buildBootstrapState,
   buildProfileFromPayload,
   saveProviderProfileFromPayload,
@@ -10,6 +11,19 @@ import {
 import { redactServerEvent } from './redaction.js'
 
 describe('webui provider profiles', () => {
+  test('exposes Asset Hub instead of Sessions in primary menus', () => {
+    expect(PRIMARY_MENUS.map(menu => menu.id)).toEqual([
+      'chat',
+      'memory',
+      'assets',
+      'assetHub',
+      'providers',
+      'tools',
+      'settings',
+    ])
+    expect(PRIMARY_MENUS.some(menu => String(menu.id) === 'sessions')).toBe(false)
+  })
+
   test('converts OpenAI-compatible payload into a profile env', () => {
     const profile = buildProfileFromPayload(
       {

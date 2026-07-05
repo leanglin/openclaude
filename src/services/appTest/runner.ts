@@ -22,6 +22,10 @@ import type {
   AppTestResult,
   AppTestRunnerRequest,
 } from './types.js'
+import {
+  recordAppTestUsageExecuted,
+  recordAppTestUsageStart,
+} from '../platformUsage/index.js'
 
 function platformOf(input: AppTestInput): AppTestPlatform {
   return input.platform === 'web' ? 'web' : 'android'
@@ -115,6 +119,14 @@ export async function runAppTest(
   const events: AppTestEvent[] = []
   const stderrLines: string[] = []
   let rawResult: Record<string, unknown> | undefined
+  const startedAt = Date.now()
+  const usageCaseId = request.job_id || `opencat-${startedAt}`
+  recordAppTestUsageStart({
+    caseId: usageCaseId,
+    platform: platformOf(input),
+    executionMode: executionModeOf(input),
+    at: new Date(startedAt),
+  })
 
   const child = spawn(resolveAppTestNodePath(), [runnerPath, command], {
     cwd: process.cwd(),
@@ -194,7 +206,7 @@ export async function runAppTest(
   const traceDir = input.trace_dir
   const compactEvents = truncateEvents(events)
 
-  return {
+  const result: AppTestResult = {
     success,
     message,
     platform: platformOf(input),
@@ -208,4 +220,12 @@ export async function runAppTest(
     post_run_guidance: APP_TEST_POST_RUN_GUIDANCE,
     raw_result: rawResult,
   }
+  recordAppTestUsageExecuted({
+    caseId: usageCaseId,
+    platform: result.platform,
+    executionMode: result.execution_mode || executionModeOf(input),
+    success,
+    durationMs: Date.now() - startedAt,
+  })
+  return result
 }

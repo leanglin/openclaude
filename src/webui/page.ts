@@ -1057,6 +1057,10 @@ export function renderWebUiPage(): string {
       min-width: 0;
     }
 
+    .memorySectionStack {
+      margin-top: 14px;
+    }
+
     .formSection h3 {
       margin: 0;
       color: var(--text);
@@ -1227,6 +1231,97 @@ export function renderWebUiPage(): string {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .settingsTabs,
+    .settingsActions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .settingsStatus {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .settingsDot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .settingsDot.ok {
+      background: var(--success);
+    }
+
+    .settingsDot.error {
+      background: var(--danger);
+    }
+
+    .captchaRow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .captchaImage {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .captchaImage img {
+      display: block;
+      max-width: 100%;
+      height: 42px;
+      object-fit: contain;
+    }
+
+    .usageGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .usageMetric {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .usageMetric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 16px;
+    }
+
+    .usageMetric strong {
+      display: block;
+      color: var(--text);
+      font-size: 18px;
+      line-height: 24px;
+      overflow-wrap: anywhere;
     }
 
     .editorArea {
@@ -1881,6 +1976,11 @@ export function renderWebUiPage(): string {
       .splitFields {
         grid-template-columns: 1fr;
       }
+
+      .usageGrid,
+      .captchaRow {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 640px) {
@@ -1922,8 +2022,8 @@ export function renderWebUiPage(): string {
       <button class="navButton" data-menu="chat" title="对话" aria-label="对话"></button>
       <button class="navButton" data-menu="memory" title="记忆" aria-label="记忆"></button>
       <button class="navButton" data-menu="assets" title="资产" aria-label="资产"></button>
+      <button class="navButton" data-menu="assetHub" title="资产 Hub" aria-label="资产 Hub"></button>
       <button class="navButton active" data-menu="providers" title="模型提供方" aria-label="模型提供方"></button>
-      <button class="navButton" data-menu="sessions" title="会话" aria-label="会话"></button>
       <button class="navButton" data-menu="tools" title="工具" aria-label="工具"></button>
       <button class="navButton" data-menu="settings" title="设置" aria-label="设置"></button>
     </nav>
@@ -2006,6 +2106,7 @@ export function renderWebUiPage(): string {
       "message-square": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
       brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.2A4 4 0 0 0 4 13a4 4 0 0 0 3.5 6H9V2z"/><path d="M14.5 2A3.5 3.5 0 0 1 18 5.5v.2A4 4 0 0 1 20 13a4 4 0 0 1-3.5 6H15V2z"/><path d="M9 8H7"/><path d="M15 8h2"/><path d="M9 14H7"/><path d="M15 14h2"/></svg>',
       package: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21 8-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+      cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17.5 19H8a5 5 0 1 1 1.1-9.9A6 6 0 0 1 20 12.5 3.5 3.5 0 0 1 17.5 19z"/><path d="M12 13v-6"/><path d="m9 10 3-3 3 3"/></svg>',
       plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v4a6 6 0 0 1-12 0V8z"/></svg>',
       history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg>',
       wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg>',
@@ -2093,10 +2194,55 @@ export function renderWebUiPage(): string {
         source: '',
         error: '',
         newDraft: false,
+        draftKind: 'skill',
         editing: false,
         loading: false,
         saving: false,
         reloading: false
+      },
+      assetHub: {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 8,
+        search: '',
+        assetType: '',
+        ordering: '-create_datetime',
+        selectedId: '',
+        selectedDetail: null,
+        selectedMarkdown: '',
+        loading: false,
+        actionId: '',
+        error: '',
+        uploadOpen: false,
+        uploadAssetId: '',
+        uploadTitle: '',
+        uploadVersion: 'v1',
+        uploadRoles: '',
+        uploadBusiness: '',
+        uploadDescription: '',
+        uploadError: ''
+      },
+      platformAuth: {
+        status: null,
+        usage: null,
+        tab: 'sso',
+        baseUrl: '',
+        ssoAccount: '',
+        ssoCode: '',
+        ssoUuid: '',
+        username: '',
+        password: '',
+        captcha: '',
+        captchaKey: '',
+        captchaImageBase64: '',
+        loading: false,
+        sendingCode: false,
+        loggingIn: false,
+        captchaLoading: false,
+        uploading: false,
+        error: '',
+        usageError: ''
       }
     };
 
@@ -2296,8 +2442,8 @@ export function renderWebUiPage(): string {
       chat: '对话',
       memory: '记忆',
       assets: '资产',
+      assetHub: '资产 Hub',
       providers: '模型提供方',
-      sessions: '会话',
       tools: '工具',
       settings: '设置'
     };
@@ -2417,7 +2563,7 @@ export function renderWebUiPage(): string {
     }
 
     function isWorkspaceMenu(menu) {
-      return menu === 'memory' || menu === 'assets';
+      return menu === 'memory' || menu === 'assets' || menu === 'assetHub';
     }
 
     function animateMainView(activeView) {
@@ -2446,6 +2592,8 @@ export function renderWebUiPage(): string {
         renderMemoryWorkspace();
       } else if (state.activeMenu === 'assets') {
         renderAssetsWorkspace();
+      } else if (state.activeMenu === 'assetHub') {
+        renderAssetHubWorkspace();
       }
     }
 
@@ -2530,6 +2678,13 @@ export function renderWebUiPage(): string {
       if (menu === 'assets' && state.assets.list.length === 0) {
         refreshAssets();
       }
+      if (menu === 'assetHub') {
+        if (state.assetHub.items.length === 0) refreshAssetHub();
+        if (state.assets.list.length === 0) refreshAssets(false);
+      }
+      if (menu === 'settings' && !state.platformAuth.status) {
+        refreshPlatformSettings();
+      }
     }
 
     function renderLayout() {
@@ -2552,6 +2707,10 @@ export function renderWebUiPage(): string {
         renderMemoryPanel();
       } else if (state.activeMenu === 'assets') {
         renderAssetsPanel();
+      } else if (state.activeMenu === 'assetHub') {
+        renderAssetHubPanel();
+      } else if (state.activeMenu === 'settings') {
+        renderSettingsPanel();
       } else {
         secondaryBody.innerHTML = '<div class="ghostState">' + escapeHtml(label) + ' 面板尚未开放。</div>';
       }
@@ -2661,6 +2820,7 @@ export function renderWebUiPage(): string {
         '</div>',
         '<div class="field"><label for="memorySearch">搜索</label><input id="memorySearch" value="' + escapeHtml(state.memory.search) + '" autocomplete="off"></div>',
         '<button class="secondaryAction" type="button" data-memory-search>搜索记忆</button>',
+        '<div class="memorySectionStack">',
         searchResults.length ? '<section class="formSection"><div class="sectionHeader"><h3>结果</h3></div><div class="itemList">' + searchResults.map(result => [
           '<button class="listItem" data-memory-file="' + escapeHtml(result.fileId) + '">',
           '<strong>' + escapeHtml(result.relativePath) + '</strong>',
@@ -2671,7 +2831,8 @@ export function renderWebUiPage(): string {
         '<section class="formSection"><div class="sectionHeader"><h3>索引</h3></div><div class="itemList">' + (indexFiles.length ? indexFiles.map(fileButton).join('') : '<div class="ghostState">还没有 MEMORY.md。</div>') + '</div></section>',
         '<section class="formSection"><div class="sectionHeader"><h3>主题文件</h3></div><div class="itemList">' + (topicFiles.length ? topicFiles.map(fileButton).join('') : '<div class="ghostState">还没有主题记忆。</div>') + '</div></section>',
         dailyLogs.length ? '<section class="formSection"><div class="sectionHeader"><h3>每日日志</h3></div><div class="itemList">' + dailyLogs.map(fileButton).join('') + '</div></section>' : '',
-        '<section class="formSection"><div class="sectionHeader"><h3>知识</h3></div><div class="itemList"><button class="listItem ' + (state.memory.selectedId === 'knowledge-graph' ? 'active' : '') + '" data-memory-graph><strong>Knowledge Graph</strong><span>' + escapeHtml(status ? String(status.knowledgeGraphStats.entityCount) + ' 个实体 / ' + String(status.knowledgeGraphStats.summaryCount) + ' 条摘要' : '图谱状态') + '</span></button></div></section>'
+        '<section class="formSection"><div class="sectionHeader"><h3>知识</h3></div><div class="itemList"><button class="listItem ' + (state.memory.selectedId === 'knowledge-graph' ? 'active' : '') + '" data-memory-graph><strong>Knowledge Graph</strong><span>' + escapeHtml(status ? String(status.knowledgeGraphStats.entityCount) + ' 个实体 / ' + String(status.knowledgeGraphStats.summaryCount) + ' 条摘要' : '图谱状态') + '</span></button></div></section>',
+        '</div>'
       ].join('');
       const search = document.getElementById('memorySearch');
       if (search) {
@@ -2970,8 +3131,11 @@ export function renderWebUiPage(): string {
         '<div class="toolbarRow">',
         '<button class="miniButton ' + (state.assets.reloading ? 'buttonLoading' : '') + '" type="button" data-assets-reload aria-busy="' + String(state.assets.reloading) + '">' + (state.assets.reloading ? '加载中' : '重新加载') + '</button>',
         '<button class="miniButton" type="button" data-assets-new>新建 Skill</button>',
+        '<button class="miniButton" type="button" data-knowledge-new>新建 Knowledge</button>',
         '<button class="miniButton" type="button" data-assets-import>导入 SKILL.md</button>',
+        '<button class="miniButton" type="button" data-knowledge-import>导入 Knowledge</button>',
         '<input id="assetImportFile" type="file" accept=".md,text/markdown" hidden>',
+        '<input id="knowledgeImportFile" type="file" accept=".md,text/markdown" hidden>',
         '</div>',
         '<div class="field"><label for="assetSearch">搜索</label><input id="assetSearch" value="' + escapeHtml(state.assets.query) + '" autocomplete="off"></div>',
         '<div class="splitFields">',
@@ -3024,6 +3188,15 @@ export function renderWebUiPage(): string {
       }));
       secondaryBody.querySelectorAll('[data-assets-new]').forEach(button => button.addEventListener('click', () => {
         state.assets.newDraft = true;
+        state.assets.draftKind = 'skill';
+        state.assets.editing = false;
+        state.assets.selectedId = null;
+        state.assets.selectedAsset = null;
+        renderMainView();
+      }));
+      secondaryBody.querySelectorAll('[data-knowledge-new]').forEach(button => button.addEventListener('click', () => {
+        state.assets.newDraft = true;
+        state.assets.draftKind = 'knowledge';
         state.assets.editing = false;
         state.assets.selectedId = null;
         state.assets.selectedAsset = null;
@@ -3031,6 +3204,9 @@ export function renderWebUiPage(): string {
       }));
       secondaryBody.querySelector('[data-assets-import]')?.addEventListener('click', () => {
         document.getElementById('assetImportFile')?.click();
+      });
+      secondaryBody.querySelector('[data-knowledge-import]')?.addEventListener('click', () => {
+        document.getElementById('knowledgeImportFile')?.click();
       });
       document.getElementById('assetImportFile')?.addEventListener('change', event => {
         const file = event.target.files?.[0];
@@ -3056,6 +3232,33 @@ export function renderWebUiPage(): string {
             state.assets.error = getErrorMessage(error);
             renderAssetsPanel();
             showToast('导入 Skill 失败', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+      document.getElementById('knowledgeImportFile')?.addEventListener('change', event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const result = await api('/api/assets/knowledge/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: file.name,
+                content: String(reader.result || '')
+              })
+            });
+            state.assets.selectedId = result.asset.id;
+            state.assets.selectedAsset = result.asset;
+            await refreshAssets(false);
+            renderMainView();
+            showToast('Knowledge 已导入', 'success');
+          } catch (error) {
+            state.assets.error = getErrorMessage(error);
+            renderAssetsPanel();
+            showToast('导入 Knowledge 失败', 'error');
           }
         };
         reader.readAsText(file);
@@ -3127,9 +3330,65 @@ export function renderWebUiPage(): string {
       });
     }
 
+    function renderKnowledgeForm(kind, asset) {
+      const isEdit = kind === 'edit';
+      const content = isEdit ? asset?.content || '' : '';
+      workspaceView.innerHTML = [
+        '<div class="workspaceHeader"><div><h2>' + (isEdit ? '编辑 Knowledge' : '新建 Knowledge') + '</h2><div class="workspaceMeta">' + (isEdit ? escapeHtml(asset.path || '') : '创建用户级 Knowledge Markdown 文件') + '</div></div></div>',
+        state.assets.error ? '<div class="errorBox">' + escapeHtml(state.assets.error) + '</div>' : '',
+        '<form id="knowledgeForm" class="workspaceCard oc-scale-in">',
+        isEdit ? '' : '<div class="field"><label for="knowledgeFilename">文件名</label><input id="knowledgeFilename" autocomplete="off" placeholder="my-knowledge.md"></div>',
+        isEdit ? '' : '<div class="field"><label for="knowledgeTitle">标题</label><input id="knowledgeTitle" autocomplete="off"></div>',
+        isEdit ? '' : '<div class="field"><label for="knowledgeDescription">描述</label><input id="knowledgeDescription" autocomplete="off"></div>',
+        '<div class="field"><label for="knowledgeContent">Markdown</label><textarea id="knowledgeContent" class="editorArea">' + escapeHtml(content) + '</textarea></div>',
+        '<button class="primaryButton ' + (state.assets.saving ? 'buttonLoading' : '') + '" type="submit" aria-busy="' + String(state.assets.saving) + '" ' + (state.assets.saving ? 'disabled' : '') + '>' + (state.assets.saving ? '保存中' : (isEdit ? '保存 Knowledge' : '创建 Knowledge')) + '</button>',
+        '</form>'
+      ].join('');
+      document.getElementById('knowledgeForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        try {
+          state.assets.saving = true;
+          let result;
+          if (isEdit) {
+            result = await api('/api/assets/knowledge/' + encodeURIComponent(asset.id), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: document.getElementById('knowledgeContent').value })
+            });
+          } else {
+            result = await api('/api/assets/knowledge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: document.getElementById('knowledgeFilename').value,
+                title: document.getElementById('knowledgeTitle').value,
+                description: document.getElementById('knowledgeDescription').value,
+                content: document.getElementById('knowledgeContent').value
+              })
+            });
+          }
+          state.assets.newDraft = false;
+          state.assets.editing = false;
+          state.assets.selectedId = result.asset.id;
+          state.assets.selectedAsset = result.asset;
+          state.assets.saving = false;
+          await refreshAssets(false);
+          renderMainView();
+          showToast(isEdit ? 'Knowledge 已保存' : 'Knowledge 已创建', 'success');
+        } catch (error) {
+          state.assets.saving = false;
+          state.assets.error = getErrorMessage(error);
+          renderSecondary();
+          renderKnowledgeForm(kind, asset);
+          showToast('保存 Knowledge 失败', 'error');
+        }
+      });
+    }
+
     function renderAssetsWorkspace() {
       if (state.assets.newDraft) {
-        renderSkillForm('new');
+        if (state.assets.draftKind === 'knowledge') renderKnowledgeForm('new');
+        else renderSkillForm('new');
         return;
       }
       const asset = state.assets.selectedAsset;
@@ -3138,7 +3397,8 @@ export function renderWebUiPage(): string {
         return;
       }
       if (state.assets.editing && !asset.readonly) {
-        renderSkillForm('edit', asset);
+        if (asset.kind === 'knowledge') renderKnowledgeForm('edit', asset);
+        else renderSkillForm('edit', asset);
         return;
       }
       const enabledClass = asset.enabled ? 'success' : 'warning';
@@ -3170,9 +3430,10 @@ export function renderWebUiPage(): string {
         renderAssetsWorkspace();
       });
       workspaceView.querySelector('[data-asset-delete]')?.addEventListener('click', async () => {
-        if (!confirm('确定删除这个 Skill 吗？')) return;
+        if (!confirm('确定删除这个 ' + (asset.kind === 'knowledge' ? 'Knowledge' : 'Skill') + ' 吗？')) return;
         try {
-          await api('/api/assets/skills/' + encodeURIComponent(asset.id), {
+          const route = asset.kind === 'knowledge' ? '/api/assets/knowledge/' : '/api/assets/skills/';
+          await api(route + encodeURIComponent(asset.id), {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ confirm: true })
@@ -3180,14 +3441,291 @@ export function renderWebUiPage(): string {
           state.assets.selectedId = null;
           state.assets.selectedAsset = null;
           await refreshAssets();
-          showToast('Skill 已删除', 'success');
+          showToast((asset.kind === 'knowledge' ? 'Knowledge' : 'Skill') + ' 已删除', 'success');
         } catch (error) {
           state.assets.error = getErrorMessage(error);
           renderSecondary();
           renderMainView();
-          showToast('删除 Skill 失败', 'error');
+          showToast('删除资产失败', 'error');
         }
       });
+    }
+
+    function assetHubTotalPages() {
+      return Math.max(1, Math.ceil(Number(state.assetHub.total || 0) / Math.max(1, Number(state.assetHub.limit || 8))));
+    }
+
+    function assetHubItemKey(item) {
+      return String(item?.id || item?.asset_id || '').trim();
+    }
+
+    function assetHubSnapshot(item) {
+      return {
+        id: assetHubItemKey(item),
+        asset_type: item?.asset_type || '',
+        title: item?.title || '',
+        version: item?.version || '',
+        description_text: item?.description_text || '',
+        applicable_roles: item?.applicable_roles || '',
+        applicable_business: item?.applicable_business || '',
+        uploader_name_display: item?.uploader_name_display || item?.uploader_name || item?.uploader_username || '',
+        like_count: item?.like_count || 0,
+        download_count: item?.download_count || 0
+      };
+    }
+
+    async function refreshAssetHub() {
+      state.assetHub.loading = true;
+      state.assetHub.error = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        const params = new URLSearchParams();
+        params.set('page', String(state.assetHub.page || 1));
+        params.set('limit', String(state.assetHub.limit || 8));
+        params.set('ordering', state.assetHub.ordering || '-create_datetime');
+        if (state.assetHub.search.trim()) params.set('search', state.assetHub.search.trim());
+        if (state.assetHub.assetType.trim()) params.set('asset_type', state.assetHub.assetType.trim());
+        const result = await api('/api/asset-hub/assets?' + params.toString());
+        state.assetHub.items = result.items || [];
+        state.assetHub.total = Number(result.total || state.assetHub.items.length || 0);
+        state.assetHub.page = Number(result.page || state.assetHub.page || 1);
+        state.assetHub.limit = Number(result.limit || state.assetHub.limit || 8);
+        if (state.assetHub.selectedId && !state.assetHub.items.some(item => assetHubItemKey(item) === state.assetHub.selectedId)) {
+          state.assetHub.selectedId = '';
+          state.assetHub.selectedDetail = null;
+          state.assetHub.selectedMarkdown = '';
+        }
+      } catch (error) {
+        state.assetHub.error = getErrorMessage(error);
+      } finally {
+        state.assetHub.loading = false;
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    async function loadAssetHubDetail(item) {
+      const hubId = assetHubItemKey(item);
+      if (!hubId) return;
+      state.assetHub.selectedId = hubId;
+      state.assetHub.selectedDetail = item;
+      state.assetHub.selectedMarkdown = '';
+      renderMainView();
+      try {
+        const result = await api('/api/asset-hub/assets/' + encodeURIComponent(hubId));
+        state.assetHub.selectedDetail = result.item || item;
+        state.assetHub.selectedMarkdown = result.markdown || '';
+      } catch (error) {
+        state.assetHub.error = getErrorMessage(error);
+      } finally {
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    async function voteAssetHubItem(item, vote) {
+      const hubId = assetHubItemKey(item);
+      if (!hubId || state.assetHub.actionId) return;
+      state.assetHub.actionId = 'vote:' + hubId;
+      renderMainView();
+      try {
+        await api('/api/asset-hub/assets/' + encodeURIComponent(hubId) + '/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vote })
+        });
+        await refreshAssetHub();
+      } catch (error) {
+        state.assetHub.error = getErrorMessage(error);
+        renderMainView();
+      } finally {
+        state.assetHub.actionId = '';
+        renderMainView();
+      }
+    }
+
+    async function downloadAssetHubItem(item) {
+      const hubId = assetHubItemKey(item);
+      if (!hubId || state.assetHub.actionId) return;
+      state.assetHub.actionId = 'download:' + hubId;
+      state.assetHub.error = '';
+      renderMainView();
+      try {
+        const result = await api('/api/asset-hub/assets/' + encodeURIComponent(hubId) + '/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetSnapshot: assetHubSnapshot(item) })
+        });
+        addActivity({ kind: 'status', title: 'Asset Hub', detail: '已下载到本地资产: ' + (result.asset?.path || result.asset?.name || hubId), at: Date.now() });
+        await refreshAssets(false);
+        showToast('Hub 资产已下载', 'success');
+      } catch (error) {
+        state.assetHub.error = getErrorMessage(error);
+        showToast('Hub 下载失败', 'error');
+      } finally {
+        state.assetHub.actionId = '';
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    function uploadableAssets() {
+      return (state.assets.list || []).filter(asset => asset.source === 'user' && !asset.readonly && (asset.kind === 'skill' || asset.kind === 'knowledge'));
+    }
+
+    function syncAssetHubUploadFromSelected() {
+      const asset = uploadableAssets().find(item => item.id === state.assetHub.uploadAssetId);
+      if (!asset) return;
+      if (!state.assetHub.uploadTitle) state.assetHub.uploadTitle = asset.displayName || asset.name || '';
+      if (!state.assetHub.uploadDescription) state.assetHub.uploadDescription = asset.description || '';
+    }
+
+    async function uploadAssetHubLocalAsset() {
+      const assetId = state.assetHub.uploadAssetId;
+      if (!assetId || state.assetHub.actionId) return;
+      state.assetHub.actionId = 'upload:' + assetId;
+      state.assetHub.uploadError = '';
+      renderSecondary();
+      try {
+        const result = await api('/api/asset-hub/local-assets/' + encodeURIComponent(assetId) + '/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: state.assetHub.uploadTitle,
+            version: state.assetHub.uploadVersion,
+            applicableRoles: state.assetHub.uploadRoles,
+            applicableBusiness: state.assetHub.uploadBusiness,
+            description: state.assetHub.uploadDescription
+          })
+        });
+        addActivity({ kind: 'status', title: 'Asset Hub', detail: '上传成功: ' + (result.title || state.assetHub.uploadTitle), at: Date.now() });
+        state.assetHub.uploadOpen = false;
+        showToast('资产已上传 Hub', 'success');
+        await refreshAssetHub();
+      } catch (error) {
+        state.assetHub.uploadError = getErrorMessage(error);
+        showToast('上传 Hub 失败', 'error');
+      } finally {
+        state.assetHub.actionId = '';
+        renderSecondary();
+      }
+    }
+
+    function renderAssetHubPanel() {
+      const choices = uploadableAssets();
+      const selectedUpload = choices.find(asset => asset.id === state.assetHub.uploadAssetId);
+      secondaryBody.innerHTML = [
+        state.assetHub.error ? '<div class="errorBox"><strong>Asset Hub 加载失败</strong><div>' + escapeHtml(state.assetHub.error) + '</div></div>' : '',
+        '<div class="profileSummary"><strong class="summaryLine">' + escapeHtml(String(state.assetHub.total || state.assetHub.items.length || 0)) + ' 个 Hub 资产</strong><span class="summaryLine">远端 Skill / Knowledge，可下载到本地资产</span></div>',
+        '<div class="toolbarRow"><button class="miniButton ' + (state.assetHub.loading ? 'buttonLoading' : '') + '" type="button" data-hub-refresh>' + (state.assetHub.loading ? '刷新中' : '刷新 Hub') + '</button><button class="miniButton" type="button" data-hub-upload-toggle>上传本地资产</button></div>',
+        '<div class="field"><label for="hubSearch">搜索</label><input id="hubSearch" value="' + escapeHtml(state.assetHub.search) + '" autocomplete="off" placeholder="标题 / 上传者 / 描述"></div>',
+        '<div class="splitFields">',
+        '<div class="field"><label for="hubType">类型</label><select id="hubType"><option value="">全部</option><option value="skill" ' + (state.assetHub.assetType === 'skill' ? 'selected' : '') + '>Skill</option><option value="knowledge" ' + (state.assetHub.assetType === 'knowledge' ? 'selected' : '') + '>Knowledge</option></select></div>',
+        '<div class="field"><label for="hubOrdering">排序</label><select id="hubOrdering"><option value="-create_datetime" ' + (state.assetHub.ordering === '-create_datetime' ? 'selected' : '') + '>最新上传</option><option value="-like_count" ' + (state.assetHub.ordering === '-like_count' ? 'selected' : '') + '>好评最多</option><option value="-download_count" ' + (state.assetHub.ordering === '-download_count' ? 'selected' : '') + '>下载最多</option><option value="title" ' + (state.assetHub.ordering === 'title' ? 'selected' : '') + '>标题升序</option></select></div>',
+        '</div>',
+        '<button class="secondaryAction" type="button" data-hub-search>应用筛选</button>',
+        state.assetHub.uploadOpen ? [
+          '<section class="formSection"><div class="sectionHeader"><h3>上传到 Hub</h3></div>',
+          choices.length ? '<div class="field"><label for="hubUploadAsset">本地资产</label><select id="hubUploadAsset">' + choices.map(asset => '<option value="' + escapeHtml(asset.id) + '" ' + (state.assetHub.uploadAssetId === asset.id ? 'selected' : '') + '>' + escapeHtml((asset.kind === 'knowledge' ? 'Knowledge: ' : 'Skill: ') + (asset.displayName || asset.name)) + '</option>').join('') + '</select></div>' : '<div class="readonlyNotice">没有可上传的 User Skill 或 User Knowledge。</div>',
+          '<div class="field"><label for="hubUploadTitle">标题</label><input id="hubUploadTitle" value="' + escapeHtml(state.assetHub.uploadTitle || selectedUpload?.displayName || '') + '"></div>',
+          '<div class="splitFields"><div class="field"><label for="hubUploadVersion">版本</label><input id="hubUploadVersion" value="' + escapeHtml(state.assetHub.uploadVersion || 'v1') + '"></div><div class="field"><label for="hubUploadRoles">适用角色</label><input id="hubUploadRoles" value="' + escapeHtml(state.assetHub.uploadRoles) + '"></div></div>',
+          '<div class="field"><label for="hubUploadBusiness">适用业务</label><input id="hubUploadBusiness" value="' + escapeHtml(state.assetHub.uploadBusiness) + '"></div>',
+          '<div class="field"><label for="hubUploadDescription">描述</label><textarea id="hubUploadDescription" rows="3">' + escapeHtml(state.assetHub.uploadDescription || selectedUpload?.description || '') + '</textarea></div>',
+          state.assetHub.uploadError ? '<div class="errorBox">' + escapeHtml(state.assetHub.uploadError) + '</div>' : '',
+          '<button class="secondaryAction" type="button" data-hub-upload-submit ' + (!choices.length || state.assetHub.actionId.startsWith('upload:') ? 'disabled' : '') + '>' + (state.assetHub.actionId.startsWith('upload:') ? '上传中' : '确认上传') + '</button>',
+          '</section>'
+        ].join('') : ''
+      ].join('');
+      const search = document.getElementById('hubSearch');
+      const type = document.getElementById('hubType');
+      const ordering = document.getElementById('hubOrdering');
+      search?.addEventListener('input', () => { state.assetHub.search = search.value; });
+      search?.addEventListener('keydown', event => { if (event.key === 'Enter') { state.assetHub.page = 1; refreshAssetHub(); } });
+      type?.addEventListener('change', () => { state.assetHub.assetType = type.value; state.assetHub.page = 1; refreshAssetHub(); });
+      ordering?.addEventListener('change', () => { state.assetHub.ordering = ordering.value; state.assetHub.page = 1; refreshAssetHub(); });
+      secondaryBody.querySelector('[data-hub-refresh]')?.addEventListener('click', () => refreshAssetHub());
+      secondaryBody.querySelector('[data-hub-search]')?.addEventListener('click', () => { state.assetHub.page = 1; refreshAssetHub(); });
+      secondaryBody.querySelector('[data-hub-upload-toggle]')?.addEventListener('click', () => {
+        state.assetHub.uploadOpen = !state.assetHub.uploadOpen;
+        if (!state.assetHub.uploadAssetId && choices[0]) state.assetHub.uploadAssetId = choices[0].id;
+        syncAssetHubUploadFromSelected();
+        renderAssetHubPanel();
+      });
+      document.getElementById('hubUploadAsset')?.addEventListener('change', event => {
+        state.assetHub.uploadAssetId = event.target.value;
+        state.assetHub.uploadTitle = '';
+        state.assetHub.uploadDescription = '';
+        syncAssetHubUploadFromSelected();
+        renderAssetHubPanel();
+      });
+      const bindUploadInput = (id, key) => {
+        document.getElementById(id)?.addEventListener('input', event => {
+          state.assetHub[key] = event.target.value;
+        });
+      };
+      bindUploadInput('hubUploadTitle', 'uploadTitle');
+      bindUploadInput('hubUploadVersion', 'uploadVersion');
+      bindUploadInput('hubUploadRoles', 'uploadRoles');
+      bindUploadInput('hubUploadBusiness', 'uploadBusiness');
+      bindUploadInput('hubUploadDescription', 'uploadDescription');
+      secondaryBody.querySelector('[data-hub-upload-submit]')?.addEventListener('click', () => uploadAssetHubLocalAsset());
+    }
+
+    function renderAssetHubWorkspace() {
+      const items = state.assetHub.items || [];
+      const detail = state.assetHub.selectedDetail;
+      workspaceView.innerHTML = [
+        '<div class="workspaceHeader"><div><h2>资产 Hub</h2><div class="workspaceMeta">平台远端 Skill / Knowledge，下载后进入本地资产菜单</div></div><div class="toolbarRow"><button class="miniButton" type="button" data-hub-prev ' + (state.assetHub.page <= 1 ? 'disabled' : '') + '>上一页</button><button class="miniButton" type="button" data-hub-next ' + (state.assetHub.page >= assetHubTotalPages() ? 'disabled' : '') + '>下一页</button></div></div>',
+        state.assetHub.loading ? skeletonStack() : '',
+        '<div class="workspaceCard">',
+        '<div class="profileSummary"><strong class="summaryLine">第 ' + escapeHtml(String(state.assetHub.page)) + ' / ' + escapeHtml(String(assetHubTotalPages())) + ' 页</strong><span class="summaryLine">共 ' + escapeHtml(String(state.assetHub.total || 0)) + ' 项</span></div>',
+        items.length ? '<div class="itemList">' + items.map(item => {
+          const hubId = assetHubItemKey(item);
+          const active = state.assetHub.selectedId === hubId;
+          const title = item.title || hubId || 'Hub 资产';
+          return [
+            '<button class="listItem ' + (active ? 'active' : '') + '" data-hub-item="' + escapeHtml(hubId) + '">',
+            '<div class="listItemHeader"><strong>' + escapeHtml(title) + '</strong><span class="statusBadge">' + escapeHtml(item.asset_type || '-') + '</span></div>',
+            '<span>' + escapeHtml(item.uploader_name_display || item.uploader_name || item.uploader_username || '-') + ' / ' + escapeHtml(item.version || '-') + '</span>',
+            '<span>好评 ' + escapeHtml(String(item.like_count || 0)) + ' / 下载 ' + escapeHtml(String(item.download_count || 0)) + '</span>',
+            '</button>'
+          ].join('');
+        }).join('') + '</div>' : '<div class="ghostState">暂无 Hub 资产。</div>',
+        '</div>',
+        detail ? [
+          '<div class="workspaceCard">',
+          '<div class="workspaceHeader"><div><h2>' + escapeHtml(detail.title || state.assetHub.selectedId) + '</h2><div class="workspaceMeta">' + escapeHtml(detail.asset_type || '') + ' / ' + escapeHtml(detail.version || '') + '</div></div></div>',
+          '<div class="tagRow"><span class="tag">好评 ' + escapeHtml(String(detail.like_count || 0)) + '</span><span class="tag">下载 ' + escapeHtml(String(detail.download_count || 0)) + '</span><span class="tag">' + escapeHtml(detail.applicable_roles || '未设置角色') + '</span><span class="tag">' + escapeHtml(detail.applicable_business || '未设置业务') + '</span></div>',
+          '<div class="profileSummary" style="margin-top:12px"><strong class="summaryLine">' + escapeHtml(detail.description_text || '暂无描述') + '</strong></div>',
+          '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton" type="button" data-hub-like>点赞</button><button class="miniButton" type="button" data-hub-dislike>踩</button><button class="miniButton" type="button" data-hub-download ' + (state.assetHub.actionId === 'download:' + state.assetHub.selectedId ? 'disabled' : '') + '>' + (state.assetHub.actionId === 'download:' + state.assetHub.selectedId ? '下载中' : '下载到本地资产') + '</button></div>',
+          state.assetHub.selectedMarkdown ? '<div class="field" style="margin-top:12px"><label>预览</label><div class="contentPanel markdownBody">' + renderMarkdownContent(state.assetHub.selectedMarkdown) + '</div></div>' : '',
+          '</div>'
+        ].join('') : ''
+      ].join('');
+      workspaceView.querySelector('[data-hub-prev]')?.addEventListener('click', () => {
+        if (state.assetHub.page <= 1) return;
+        state.assetHub.page -= 1;
+        state.assetHub.selectedId = '';
+        state.assetHub.selectedDetail = null;
+        refreshAssetHub();
+      });
+      workspaceView.querySelector('[data-hub-next]')?.addEventListener('click', () => {
+        if (state.assetHub.page >= assetHubTotalPages()) return;
+        state.assetHub.page += 1;
+        state.assetHub.selectedId = '';
+        state.assetHub.selectedDetail = null;
+        refreshAssetHub();
+      });
+      workspaceView.querySelectorAll('[data-hub-item]').forEach(button => {
+        button.addEventListener('click', () => {
+          const item = state.assetHub.items.find(candidate => assetHubItemKey(candidate) === button.dataset.hubItem);
+          if (item) loadAssetHubDetail(item);
+        });
+      });
+      workspaceView.querySelector('[data-hub-like]')?.addEventListener('click', () => voteAssetHubItem(detail, 'like'));
+      workspaceView.querySelector('[data-hub-dislike]')?.addEventListener('click', () => voteAssetHubItem(detail, 'dislike'));
+      workspaceView.querySelector('[data-hub-download]')?.addEventListener('click', () => downloadAssetHubItem(detail));
     }
 
     function formatSessionTime(value) {
@@ -3199,6 +3737,290 @@ export function renderWebUiPage(): string {
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
+      });
+    }
+
+    function formatNumber(value) {
+      const number = Number(value || 0);
+      if (!Number.isFinite(number)) return '0';
+      return new Intl.NumberFormat('zh-CN').format(number);
+    }
+
+    function syncPlatformAuthDraftFromInputs() {
+      const read = (id, fallback) => {
+        const element = document.getElementById(id);
+        return element && 'value' in element ? element.value : fallback;
+      };
+      state.platformAuth.baseUrl = read('platformBaseUrl', state.platformAuth.baseUrl || state.platformAuth.status?.baseUrl || '');
+      state.platformAuth.ssoAccount = read('platformSsoAccount', state.platformAuth.ssoAccount);
+      state.platformAuth.ssoCode = read('platformSsoCode', state.platformAuth.ssoCode);
+      state.platformAuth.username = read('platformUsername', state.platformAuth.username);
+      state.platformAuth.password = read('platformPassword', state.platformAuth.password);
+      state.platformAuth.captcha = read('platformCaptcha', state.platformAuth.captcha);
+    }
+
+    async function refreshPlatformAuthStatus(forceValidate) {
+      syncPlatformAuthDraftFromInputs();
+      state.platformAuth.loading = true;
+      state.platformAuth.error = '';
+      if (state.activeMenu === 'settings') renderSettingsPanel();
+      try {
+        const suffix = forceValidate ? '?force_validate=true' : '';
+        const status = await api('/api/platform-auth/status' + suffix);
+        state.platformAuth.status = status;
+        state.platformAuth.baseUrl = status.baseUrl || state.platformAuth.baseUrl;
+      } catch (error) {
+        state.platformAuth.error = getErrorMessage(error);
+      } finally {
+        state.platformAuth.loading = false;
+        if (state.activeMenu === 'settings') renderSettingsPanel();
+      }
+    }
+
+    async function refreshPlatformUsageSummary() {
+      state.platformAuth.usageError = '';
+      try {
+        state.platformAuth.usage = await api('/api/platform-usage/summary');
+      } catch (error) {
+        state.platformAuth.usageError = getErrorMessage(error);
+      } finally {
+        if (state.activeMenu === 'settings') renderSettingsPanel();
+      }
+    }
+
+    async function refreshPlatformSettings() {
+      await refreshPlatformAuthStatus(false);
+      await refreshPlatformUsageSummary();
+    }
+
+    function renderSettingsPanel() {
+      const auth = state.platformAuth.status || {
+        authenticated: false,
+        baseUrl: state.platformAuth.baseUrl || '',
+        validationStatus: 'unknown',
+        message: '未登录'
+      };
+      const baseUrl = state.platformAuth.baseUrl || auth.baseUrl || '';
+      const authenticated = Boolean(auth.authenticated);
+      const dotClass = authenticated ? (auth.validationStatus === 'invalid' || auth.validationStatus === 'error' ? 'error' : 'ok') : '';
+      const methodLabel = auth.method === 'sso' ? 'SSO' : auth.method === 'password' ? '账号密码' : '未登录';
+      const usage = state.platformAuth.usage?.payload || null;
+      const tab = state.platformAuth.tab === 'password' ? 'password' : 'sso';
+      secondaryBody.innerHTML = [
+        state.platformAuth.error ? '<div class="errorBox"><strong>认证操作失败</strong><div>' + escapeHtml(state.platformAuth.error) + '</div></div>' : '',
+        '<section class="formSection">',
+        '<div class="sectionHeader"><h3>身份认证</h3></div>',
+        '<div class="profileSummary">',
+        '<div class="settingsStatus"><span class="settingsDot ' + dotClass + '"></span><span>' + escapeHtml(authenticated ? '已认证' : '未登录') + '</span></div>',
+        '<span class="summaryLine">服务地址：' + escapeHtml(baseUrl || '未配置') + '</span>',
+        '<span class="summaryLine">方式：' + escapeHtml(methodLabel) + '</span>',
+        authenticated && auth.identityName ? '<span class="summaryLine">账号：' + escapeHtml(auth.identityName) + '</span>' : '',
+        auth.lastValidatedAt ? '<span class="summaryLine">校验时间：' + escapeHtml(shortTime(auth.lastValidatedAt)) + '</span>' : '',
+        '<span class="summaryLine">' + escapeHtml(auth.message || '') + '</span>',
+        '</div>',
+        authenticated ? [
+          '<div class="settingsActions">',
+          '<button class="miniButton" type="button" data-platform-refresh-status ' + (state.platformAuth.loading ? 'disabled' : '') + '>刷新状态</button>',
+          '<button class="miniButton danger" type="button" data-platform-logout>退出认证</button>',
+          '</div>'
+        ].join('') : [
+          '<div class="field"><label for="platformBaseUrl">平台服务地址</label><input id="platformBaseUrl" autocomplete="off" value="' + escapeHtml(baseUrl) + '"></div>',
+          '<div class="settingsTabs">',
+          '<button class="miniButton ' + (tab === 'sso' ? 'active' : '') + '" type="button" data-platform-auth-tab="sso">SSO 登录</button>',
+          '<button class="miniButton ' + (tab === 'password' ? 'active' : '') + '" type="button" data-platform-auth-tab="password">账号密码登录</button>',
+          '</div>',
+          tab === 'sso' ? [
+            '<div class="field"><label for="platformSsoAccount">账号</label><input id="platformSsoAccount" autocomplete="username" value="' + escapeHtml(state.platformAuth.ssoAccount) + '"></div>',
+            '<div class="splitFields">',
+            '<div class="field"><label for="platformSsoCode">验证码</label><input id="platformSsoCode" autocomplete="one-time-code" value="' + escapeHtml(state.platformAuth.ssoCode) + '"></div>',
+            '<div class="field"><label>&nbsp;</label><button class="miniButton" type="button" data-platform-send-sso ' + (state.platformAuth.sendingCode ? 'disabled' : '') + '>' + (state.platformAuth.sendingCode ? '发送中' : '发送验证码') + '</button></div>',
+            '</div>',
+            '<button class="secondaryAction" type="button" data-platform-login-sso ' + (state.platformAuth.loggingIn ? 'disabled' : '') + '>' + (state.platformAuth.loggingIn ? '登录中' : '登录') + '</button>'
+          ].join('') : [
+            '<div class="field"><label for="platformUsername">用户名</label><input id="platformUsername" autocomplete="username" value="' + escapeHtml(state.platformAuth.username) + '"></div>',
+            '<div class="field"><label for="platformPassword">密码</label><input id="platformPassword" type="password" autocomplete="current-password" value="' + escapeHtml(state.platformAuth.password) + '"></div>',
+            state.platformAuth.captchaImageBase64 ? '<div class="captchaImage"><img alt="验证码" src="data:image/png;base64,' + escapeHtml(state.platformAuth.captchaImageBase64) + '"></div>' : '<div class="captchaImage"><span>请先获取验证码</span></div>',
+            '<div class="captchaRow">',
+            '<div class="field"><label for="platformCaptcha">验证码</label><input id="platformCaptcha" autocomplete="off" value="' + escapeHtml(state.platformAuth.captcha) + '"></div>',
+            '<div class="field"><label>&nbsp;</label><button class="miniButton" type="button" data-platform-captcha ' + (state.platformAuth.captchaLoading ? 'disabled' : '') + '>' + (state.platformAuth.captchaLoading ? '获取中' : '获取验证码') + '</button></div>',
+            '</div>',
+            '<button class="secondaryAction" type="button" data-platform-login-password ' + (state.platformAuth.loggingIn ? 'disabled' : '') + '>' + (state.platformAuth.loggingIn ? '登录中' : '登录') + '</button>'
+          ].join('')
+        ].join(''),
+        '</section>',
+        '<section class="formSection">',
+        '<div class="sectionHeader"><h3>数据统计上传</h3><button class="sectionToggle" type="button" data-platform-refresh-usage>刷新</button></div>',
+        state.platformAuth.usageError ? '<div class="errorBox"><strong>统计加载失败</strong><div>' + escapeHtml(state.platformAuth.usageError) + '</div></div>' : '',
+        '<div class="usageGrid">',
+        '<div class="usageMetric"><span>本周生成</span><strong>' + formatNumber(usage?.generated_case_count_week) + '</strong></div>',
+        '<div class="usageMetric"><span>累计生成</span><strong>' + formatNumber(usage?.generated_case_count_total) + '</strong></div>',
+        '<div class="usageMetric"><span>本周执行</span><strong>' + formatNumber(usage?.executed_case_count_week) + '</strong></div>',
+        '<div class="usageMetric"><span>累计执行</span><strong>' + formatNumber(usage?.executed_case_count_total) + '</strong></div>',
+        '<div class="usageMetric"><span>本周 Token</span><strong>' + formatNumber(usage?.token_usage_week) + '</strong></div>',
+        '<div class="usageMetric"><span>累计 Token</span><strong>' + formatNumber(usage?.token_usage_total) + '</strong></div>',
+        '</div>',
+        '<div class="profileSummary">',
+        '<span class="summaryLine">本周起点：' + escapeHtml(usage?.week_start_at ? shortTime(usage.week_start_at) : '暂无') + '</span>',
+        '<span class="summaryLine">上传方式：手动触发，不会自动后台上传。</span>',
+        '</div>',
+        '<button class="secondaryAction" type="button" data-platform-upload ' + (!authenticated || state.platformAuth.uploading ? 'disabled' : '') + '>' + (state.platformAuth.uploading ? '上传中' : '上传统计') + '</button>',
+        !authenticated ? '<div class="ghostState" style="margin-top:12px">登录后才能上传统计。</div>' : '',
+        '</section>'
+      ].join('');
+
+      secondaryBody.querySelectorAll('[data-platform-auth-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+          syncPlatformAuthDraftFromInputs();
+          state.platformAuth.tab = button.dataset.platformAuthTab === 'password' ? 'password' : 'sso';
+          renderSettingsPanel();
+        });
+      });
+      secondaryBody.querySelector('[data-platform-refresh-status]')?.addEventListener('click', () => {
+        refreshPlatformAuthStatus(true);
+      });
+      secondaryBody.querySelector('[data-platform-refresh-usage]')?.addEventListener('click', () => {
+        refreshPlatformUsageSummary();
+      });
+      secondaryBody.querySelector('[data-platform-logout]')?.addEventListener('click', async () => {
+        state.platformAuth.error = '';
+        try {
+          const status = await api('/api/platform-auth/logout', { method: 'POST' });
+          state.platformAuth.status = status;
+          state.platformAuth.password = '';
+          state.platformAuth.captcha = '';
+          state.platformAuth.captchaKey = '';
+          state.platformAuth.captchaImageBase64 = '';
+          renderSettingsPanel();
+          addActivity({ kind: 'status', title: '身份认证', detail: '已退出认证', at: Date.now() });
+        } catch (error) {
+          state.platformAuth.error = getErrorMessage(error);
+          renderSettingsPanel();
+        }
+      });
+      secondaryBody.querySelector('[data-platform-captcha]')?.addEventListener('click', async () => {
+        syncPlatformAuthDraftFromInputs();
+        state.platformAuth.captchaLoading = true;
+        state.platformAuth.error = '';
+        renderSettingsPanel();
+        try {
+          const result = await api('/api/platform-auth/captcha', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ baseUrl: state.platformAuth.baseUrl })
+          });
+          if (!result.success) throw new Error(result.message || '验证码获取失败');
+          state.platformAuth.baseUrl = result.baseUrl || state.platformAuth.baseUrl;
+          state.platformAuth.captchaKey = result.captchaKey || '';
+          state.platformAuth.captchaImageBase64 = result.captchaImageBase64 || '';
+          state.platformAuth.captcha = '';
+        } catch (error) {
+          state.platformAuth.error = getErrorMessage(error);
+        } finally {
+          state.platformAuth.captchaLoading = false;
+          renderSettingsPanel();
+        }
+      });
+      secondaryBody.querySelector('[data-platform-send-sso]')?.addEventListener('click', async () => {
+        syncPlatformAuthDraftFromInputs();
+        state.platformAuth.sendingCode = true;
+        state.platformAuth.error = '';
+        renderSettingsPanel();
+        try {
+          const result = await api('/api/platform-auth/sso/send-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseUrl: state.platformAuth.baseUrl,
+              account: state.platformAuth.ssoAccount
+            })
+          });
+          if (!result.success) throw new Error(result.message || '验证码发送失败');
+          state.platformAuth.baseUrl = result.baseUrl || state.platformAuth.baseUrl;
+          state.platformAuth.ssoUuid = result.uuid || '';
+          addActivity({ kind: 'status', title: '身份认证', detail: 'SSO 验证码已发送', at: Date.now() });
+        } catch (error) {
+          state.platformAuth.error = getErrorMessage(error);
+        } finally {
+          state.platformAuth.sendingCode = false;
+          renderSettingsPanel();
+        }
+      });
+      secondaryBody.querySelector('[data-platform-login-sso]')?.addEventListener('click', async () => {
+        syncPlatformAuthDraftFromInputs();
+        state.platformAuth.loggingIn = true;
+        state.platformAuth.error = '';
+        renderSettingsPanel();
+        try {
+          const result = await api('/api/platform-auth/sso/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseUrl: state.platformAuth.baseUrl,
+              account: state.platformAuth.ssoAccount,
+              code: state.platformAuth.ssoCode,
+              uuid: state.platformAuth.ssoUuid
+            })
+          });
+          if (!result.success) throw new Error(result.message || '登录失败');
+          state.platformAuth.status = result.status;
+          state.platformAuth.ssoCode = '';
+          await refreshPlatformUsageSummary();
+          addActivity({ kind: 'status', title: '身份认证', detail: 'SSO 登录成功', at: Date.now() });
+        } catch (error) {
+          state.platformAuth.error = getErrorMessage(error);
+        } finally {
+          state.platformAuth.loggingIn = false;
+          renderSettingsPanel();
+        }
+      });
+      secondaryBody.querySelector('[data-platform-login-password]')?.addEventListener('click', async () => {
+        syncPlatformAuthDraftFromInputs();
+        state.platformAuth.loggingIn = true;
+        state.platformAuth.error = '';
+        renderSettingsPanel();
+        try {
+          const result = await api('/api/platform-auth/login/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              baseUrl: state.platformAuth.baseUrl,
+              username: state.platformAuth.username,
+              password: state.platformAuth.password,
+              captcha: state.platformAuth.captcha,
+              captchaKey: state.platformAuth.captchaKey
+            })
+          });
+          if (!result.success) throw new Error(result.message || '登录失败');
+          state.platformAuth.status = result.status;
+          state.platformAuth.password = '';
+          state.platformAuth.captcha = '';
+          state.platformAuth.captchaKey = '';
+          state.platformAuth.captchaImageBase64 = '';
+          await refreshPlatformUsageSummary();
+          addActivity({ kind: 'status', title: '身份认证', detail: '账号密码登录成功', at: Date.now() });
+        } catch (error) {
+          state.platformAuth.error = getErrorMessage(error);
+        } finally {
+          state.platformAuth.loggingIn = false;
+          renderSettingsPanel();
+        }
+      });
+      secondaryBody.querySelector('[data-platform-upload]')?.addEventListener('click', async () => {
+        state.platformAuth.uploading = true;
+        state.platformAuth.usageError = '';
+        renderSettingsPanel();
+        try {
+          const result = await api('/api/platform-usage/report', { method: 'POST' });
+          state.platformAuth.usage = { payload: result.payload };
+          addActivity({ kind: 'status', title: '数据统计上传', detail: '统计上传成功', at: Date.now() });
+          showToast('统计上传成功', 'success');
+        } catch (error) {
+          state.platformAuth.usageError = getErrorMessage(error);
+          addActivity({ kind: 'error', title: '数据统计上传', detail: state.platformAuth.usageError, at: Date.now() });
+        } finally {
+          state.platformAuth.uploading = false;
+          renderSettingsPanel();
+        }
       });
     }
 

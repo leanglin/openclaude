@@ -65,8 +65,8 @@ export const PRIMARY_MENUS: PrimaryMenuOption[] = [
   { id: 'chat', label: 'Chat', icon: 'message-square' },
   { id: 'memory', label: 'Memory', icon: 'brain' },
   { id: 'assets', label: 'Assets', icon: 'package' },
+  { id: 'assetHub', label: 'Asset Hub', icon: 'cloud' },
   { id: 'providers', label: 'Providers', icon: 'plug' },
-  { id: 'sessions', label: 'Sessions', icon: 'history' },
   { id: 'tools', label: 'Tools', icon: 'wrench' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ]

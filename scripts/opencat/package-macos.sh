@@ -154,6 +154,7 @@ ensure_xcode_tools() {
 ensure_system_tools() {
   step "Checking macOS packaging tools"
   require_command hdiutil "hdiutil is required to create DMG packages."
+  require_command ditto "ditto is required to stage the app bundle for DMG packaging."
   require_command shasum "shasum is required to print package hashes."
   require_command file "file is required to verify bundled runtime architecture."
   require_command tar "tar is required to extract downloaded Node.js runtimes."
@@ -270,6 +271,45 @@ assert_runtime_staging() {
   fi
 }
 
+assert_app_bundle_runtime() {
+  local arch="$1"
+  local app_path="$2"
+  local resources_dir="$app_path/Contents/Resources"
+  local runtime_dir="$resources_dir/opencat-runtime"
+  local nested_runtime_dir="$resources_dir/resources/opencat-runtime"
+  local node_path="$runtime_dir/node/bin/node"
+  local cli_path="$runtime_dir/dist/cli.mjs"
+  local node_modules="$runtime_dir/node_modules"
+  local manifest="$runtime_dir/opencat-runtime.json"
+  local expected_label
+  expected_label="$(node_label_for_arch "$arch")"
+
+  step "Checking bundled OpenCat runtime in app bundle for macOS $arch"
+  if [[ -d "$nested_runtime_dir" ]]; then
+    fail "OpenCat runtime was bundled at the legacy nested path: $nested_runtime_dir. Expected: $runtime_dir"
+  fi
+
+  [[ -d "$runtime_dir" ]] || fail "OpenCat runtime directory is missing from app bundle: $runtime_dir"
+  [[ -x "$node_path" ]] || fail "Bundled Node runtime is missing or not executable in app bundle: $node_path"
+  [[ -f "$cli_path" ]] || fail "OpenCat CLI bundle is missing from app bundle: $cli_path"
+  [[ -d "$node_modules" ]] || fail "Runtime node_modules is missing from app bundle: $node_modules"
+  [[ -f "$manifest" ]] || fail "Runtime manifest is missing from app bundle: $manifest"
+
+  local node_file
+  node_file="$(file "$node_path")"
+  info "$node_file"
+  if [[ "$node_file" != *"$expected_label"* ]]; then
+    fail "Bundled app Node architecture does not match $arch: $node_file"
+  fi
+
+  local version
+  version="$("$node_path" "$cli_path" --version)"
+  info "bundled runtime version = $version"
+  if [[ "$version" != "7.0.0 (OpenCat)" ]]; then
+    fail "Unexpected bundled runtime version output: $version"
+  fi
+}
+
 build_source() {
   step "Installing source dependencies"
   (cd "$REPO_ROOT" && bun install)
@@ -282,43 +322,48 @@ build_source() {
   (cd "$REPO_ROOT" && bun run build)
 }
 
-find_latest_dmg() {
-  local marker="$1"
-  local newest=""
-  while IFS= read -r path; do
-    newest="$path"
-  done < <(find "$TARGET_DIR" -type f -path "*/bundle/dmg/*.dmg" -newer "$marker" -print | sort)
-  [[ -n "$newest" ]] || return 1
-  echo "$newest"
-}
-
 build_dmg() {
   local arch="$1"
   local rust_target
   rust_target="$(rust_target_for_arch "$arch")"
-  local marker
-  marker="$(mktemp)"
+  local app_path="$TARGET_DIR/$rust_target/release/bundle/macos/OpenCat.app"
 
   prepare_runtime "$arch"
   assert_runtime_staging "$arch"
 
-  step "Building Tauri DMG for macOS $arch"
-  touch "$marker"
+  step "Building Tauri app bundle for macOS $arch"
+  rm -rf "$app_path"
   (
     cd "$REPO_ROOT"
     bun run --cwd launcher tauri build \
       --target "$rust_target" \
-      --bundles dmg \
+      --bundles app \
       --no-sign \
       --config src-tauri/tauri.macos.conf.json
   )
 
-  local dmg
-  if ! dmg="$(find_latest_dmg "$marker")"; then
-    rm -f "$marker"
-    fail "Tauri build finished, but no DMG was found for $arch."
+  [[ -d "$app_path" ]] || fail "Tauri build finished, but no app bundle was found: $app_path"
+  assert_app_bundle_runtime "$arch" "$app_path"
+
+  step "Creating simple DMG for macOS $arch"
+  local dmg_dir="$TARGET_DIR/$rust_target/release/bundle/dmg"
+  local dmg="$dmg_dir/OpenCat_7.0.0_${rust_target%%-*}.dmg"
+  local dmg_root
+  dmg_root="$(mktemp -d)"
+  mkdir -p "$dmg_dir"
+  rm -f "$dmg"
+  ditto "$app_path" "$dmg_root/OpenCat.app"
+  ln -s /Applications "$dmg_root/Applications"
+  if ! hdiutil create \
+    -volname OpenCat \
+    -srcfolder "$dmg_root" \
+    -ov \
+    -format UDZO \
+    "$dmg"; then
+    rm -rf "$dmg_root"
+    fail "Failed to create DMG for $arch."
   fi
-  rm -f "$marker"
+  rm -rf "$dmg_root"
 
   local size
   size="$(stat -f%z "$dmg")"

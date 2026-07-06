@@ -193,6 +193,7 @@ fn resource_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
   if let Ok(resource_dir) = app.path().resource_dir() {
     candidates.push(resource_dir.join("opencat-runtime"));
+    candidates.push(resource_dir.join("resources").join("opencat-runtime"));
   }
 
   if let Ok(exe_path) = std::env::current_exe() {

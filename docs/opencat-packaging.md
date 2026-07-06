@@ -102,7 +102,8 @@ Useful flags:
 The package log is written to
 `launcher/src-tauri/target/opencat-package-macos.log`.
 
-The DMG files are emitted by Tauri under architecture-specific target
+The script builds an unsigned `.app` with Tauri and then creates a simple DMG
+with `hdiutil`. DMG files are emitted under architecture-specific target
 directories such as:
 
 - `launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/`
@@ -118,7 +119,13 @@ npm --prefix packages/app-test-runner install
 npm --prefix packages/app-test-runner run build
 bun run build
 OPENCAT_RUNTIME_PLATFORM=darwin OPENCAT_RUNTIME_ARCH=arm64 bun run opencat:prepare-runtime
-bun run --cwd launcher tauri build --target aarch64-apple-darwin --bundles dmg --no-sign --config src-tauri/tauri.macos.conf.json
+bun run --cwd launcher tauri build --target aarch64-apple-darwin --bundles app --no-sign --config src-tauri/tauri.macos.conf.json
+DMG_ROOT="$(mktemp -d)"
+ditto launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OpenCat.app "$DMG_ROOT/OpenCat.app"
+ln -s /Applications "$DMG_ROOT/Applications"
+mkdir -p launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+hdiutil create -volname OpenCat -srcfolder "$DMG_ROOT" -ov -format UDZO launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OpenCat_7.0.0_aarch64.dmg
+rm -rf "$DMG_ROOT"
 ```
 
 Use `OPENCAT_RUNTIME_ARCH=x64` and `--target x86_64-apple-darwin` for the Intel
@@ -130,14 +137,18 @@ after first launch.
 
 ### DMG Verification
 
-Mount a DMG and check the bundled runtime:
+Mount a DMG and check the bundled runtime in the final `.app` bundle. The
+runtime must live directly under `Contents/Resources/opencat-runtime`, not under
+an extra nested `Contents/Resources/resources/` directory:
 
 ```bash
 hdiutil attach path/to/OpenCat.dmg
 test -d "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime"
 test -f "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime/dist/cli.mjs"
+test -f "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime/opencat-runtime.json"
+! test -d "/Volumes/OpenCat/OpenCat.app/Contents/Resources/resources/opencat-runtime"
 file "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime/node/bin/node"
-lipo -archs "/Volumes/OpenCat/OpenCat.app/Contents/MacOS/OpenCat"
+lipo -archs "/Volumes/OpenCat/OpenCat.app/Contents/MacOS/opencat-launcher"
 hdiutil detach "/Volumes/OpenCat"
 ```
 

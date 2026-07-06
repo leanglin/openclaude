@@ -16,7 +16,7 @@ import {
 } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import { tmpdir } from 'node:os'
+import { release, tmpdir } from 'node:os'
 
 const require = createRequire(import.meta.url)
 const rootDir = resolve(import.meta.dirname, '..', '..')
@@ -34,6 +34,7 @@ const runtimeNodeModulesCacheDir = join(targetCacheDir, 'runtime-node_modules')
 const runtimeNodeModulesCacheMetaPath = join(targetCacheDir, 'runtime-node_modules.json')
 const runtimePackageLockCachePath = join(targetCacheDir, 'runtime-package-lock.json')
 const playwrightBuildCacheDir = join(targetCacheDir, 'ms-playwright')
+const playwrightBuildCacheMetaPath = join(targetCacheDir, 'ms-playwright.json')
 const cleanRuntimeCache = process.env.OPENCAT_CLEAN_RUNTIME_CACHE === '1'
 const cleanPlaywrightCache = process.env.OPENCAT_CLEAN_PLAYWRIGHT_CACHE === '1'
 const runtimeNodeModulesCacheVersion = '3'
@@ -51,9 +52,10 @@ type RuntimeNodeModulesCacheMeta = {
   version?: string
 }
 
-type RuntimeManifest = {
+type PlaywrightCacheMeta = {
   runtimePlatform?: string
   runtimeArch?: string
+  hostPlatform?: string | null
 }
 
 function normalizeRuntimePlatform(value: string): NodeJS.Platform {
@@ -70,6 +72,29 @@ function normalizeRuntimeArch(value: string): NodeJS.Architecture {
     return arch
   }
   throw new Error(`Unsupported OPENCAT_RUNTIME_ARCH: ${value}`)
+}
+
+function playwrightHostPlatformOverride(): string | undefined {
+  if (targetPlatform !== 'darwin') {
+    return undefined
+  }
+
+  const darwinMajor = Number.parseInt(release().split('.')[0] ?? '', 10)
+  let macVersion = 'mac12'
+  if (Number.isFinite(darwinMajor)) {
+    if (darwinMajor < 18) {
+      macVersion = 'mac10.13'
+    } else if (darwinMajor === 18) {
+      macVersion = 'mac10.14'
+    } else if (darwinMajor === 19) {
+      macVersion = 'mac10.15'
+    } else if (darwinMajor < 25) {
+      macVersion = `mac${darwinMajor - 9}`
+    } else {
+      macVersion = `mac${Math.min(darwinMajor + 1, 26)}`
+    }
+  }
+  return targetArch === 'arm64' ? `${macVersion}-arm64` : macVersion
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -222,10 +247,20 @@ async function downloadedDarwinNodeExecutable(): Promise<string> {
   return cachedNode
 }
 
+async function nodeRuntimeSource(): Promise<string> {
+  if (targetPlatform === 'darwin') {
+    return downloadedDarwinNodeExecutable()
+  }
+
+  if (process.platform === targetPlatform && process.arch === targetArch) {
+    return detectNodeExecutable()
+  }
+
+  throw new Error(`Cross-platform Node runtime staging is only supported for darwin, got ${runtimeTargetId}.`)
+}
+
 async function copyNodeRuntime(): Promise<void> {
-  const nodeSource = process.platform === targetPlatform && process.arch === targetArch
-    ? detectNodeExecutable()
-    : await downloadedDarwinNodeExecutable()
+  const nodeSource = await nodeRuntimeSource()
   const nodeTarget = bundledNodeRuntimePath()
   await mkdir(dirname(nodeTarget), { recursive: true })
   await copyFile(nodeSource, nodeTarget)
@@ -260,25 +295,38 @@ async function hasPlaywrightChromiumCache(path: string): Promise<boolean> {
   }
 }
 
-async function hydratePlaywrightCacheFromExistingRuntime(): Promise<void> {
-  const existingRuntimeCache = join(runtimeDir, 'ms-playwright')
-  if (
-    cleanPlaywrightCache ||
-    await hasPlaywrightChromiumCache(playwrightBuildCacheDir) ||
-    !(await hasPlaywrightChromiumCache(existingRuntimeCache)) ||
-    !(await existingRuntimeMatchesTarget())
-  ) {
-    return
+async function readPlaywrightCacheMeta(): Promise<PlaywrightCacheMeta | null> {
+  try {
+    return JSON.parse(await readFile(playwrightBuildCacheMetaPath, 'utf8')) as PlaywrightCacheMeta
+  } catch {
+    return null
   }
+}
 
-  console.log(`Saving existing staged Playwright Chromium cache to ${playwrightBuildCacheDir}`)
+async function hasTargetPlaywrightCache(): Promise<boolean> {
+  if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
+    return false
+  }
+  const meta = await readPlaywrightCacheMeta()
+  return (
+    meta?.runtimePlatform === targetPlatform &&
+    meta.runtimeArch === targetArch &&
+    meta.hostPlatform === (playwrightHostPlatformOverride() ?? null)
+  )
+}
+
+async function writePlaywrightCacheMeta(): Promise<void> {
   await mkdir(targetCacheDir, { recursive: true })
-  await rm(playwrightBuildCacheDir, { recursive: true, force: true })
-  await cp(existingRuntimeCache, playwrightBuildCacheDir, {
-    recursive: true,
-    force: true,
-    dereference: true,
-  })
+  await writeFile(
+    playwrightBuildCacheMetaPath,
+    `${JSON.stringify({
+      runtimePlatform: targetPlatform,
+      runtimeArch: targetArch,
+      hostPlatform: playwrightHostPlatformOverride() ?? null,
+      preparedAt: new Date().toISOString(),
+    }, null, 2)}\n`,
+    'utf8',
+  )
 }
 
 async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
@@ -298,6 +346,7 @@ async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
       force: true,
       dereference: true,
     })
+    await writePlaywrightCacheMeta()
     return true
   }
   return false
@@ -305,8 +354,13 @@ async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
 
 async function installPlaywrightChromiumToCache(): Promise<void> {
   console.log(`Installing Playwright Chromium into ${playwrightBuildCacheDir}`)
+  const hostPlatform = playwrightHostPlatformOverride()
+  if (hostPlatform) {
+    console.log(`Using Playwright host platform override: ${hostPlatform}`)
+  }
   await mkdir(targetCacheDir, { recursive: true })
   await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+  await rm(playwrightBuildCacheMetaPath, { force: true })
   await mkdir(playwrightBuildCacheDir, { recursive: true })
   const installerNode = targetPlatform === process.platform
     ? bundledNodeRuntimePath()
@@ -319,6 +373,7 @@ async function installPlaywrightChromiumToCache(): Promise<void> {
       PLAYWRIGHT_BROWSERS_PATH: playwrightBuildCacheDir,
       npm_config_os: targetPlatform,
       npm_config_cpu: targetArch,
+      ...(hostPlatform ? { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostPlatform } : {}),
     },
     windowsHide: true,
   })
@@ -328,6 +383,7 @@ async function installPlaywrightChromiumToCache(): Promise<void> {
   if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
     throw new Error(`Playwright Chromium cache was not created at ${playwrightBuildCacheDir}.`)
   }
+  await writePlaywrightCacheMeta()
 }
 
 async function copyOrInstallPlaywrightChromium(): Promise<void> {
@@ -335,9 +391,12 @@ async function copyOrInstallPlaywrightChromium(): Promise<void> {
   if (cleanPlaywrightCache) {
     console.log(`Cleaning OpenCat Playwright cache at ${playwrightBuildCacheDir}`)
     await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+    await rm(playwrightBuildCacheMetaPath, { force: true })
   }
 
-  if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
+  if (!(await hasTargetPlaywrightCache())) {
+    await rm(playwrightBuildCacheDir, { recursive: true, force: true })
+    await rm(playwrightBuildCacheMetaPath, { force: true })
     const seeded = await seedPlaywrightCacheFromCandidates()
     if (!seeded) {
       await installPlaywrightChromiumToCache()
@@ -603,17 +662,6 @@ async function writeRuntimeManifest(): Promise<void> {
   )
 }
 
-async function existingRuntimeMatchesTarget(): Promise<boolean> {
-  try {
-    const manifest = JSON.parse(
-      await readFile(join(runtimeDir, 'opencat-runtime.json'), 'utf8'),
-    ) as RuntimeManifest
-    return manifest.runtimePlatform === targetPlatform && manifest.runtimeArch === targetArch
-  } catch {
-    return process.platform === targetPlatform && process.arch === targetArch
-  }
-}
-
 async function scanVisibleLeaks(): Promise<void> {
   const allowedExtensions = new Set([
     '.html',
@@ -654,7 +702,6 @@ async function scanVisibleLeaks(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await hydratePlaywrightCacheFromExistingRuntime()
   await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
 

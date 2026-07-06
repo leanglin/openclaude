@@ -2257,20 +2257,39 @@ export function renderWebUiPage(): string {
         uploadError: ''
       },
       tools: {
+        view: 'plugins',
         marketplaces: [],
         failures: [],
         plugins: [],
+        mcpServers: [],
+        mcpErrors: [],
         search: '',
         marketplace: '',
         status: 'available',
         selectedId: '',
+        selectedMcpName: '',
         loading: false,
+        mcpLoading: false,
         adding: false,
+        mcpAdding: false,
         installingId: '',
+        removingMcp: '',
         addSource: '',
         error: '',
+        mcpError: '',
         notice: '',
-        recommendation: null
+        mcpNotice: '',
+        recommendation: null,
+        mcpForm: {
+          name: '',
+          scope: 'user',
+          transport: 'stdio',
+          command: '',
+          args: '',
+          env: '',
+          url: '',
+          headers: ''
+        }
       },
       platformAuth: {
         status: null,
@@ -2735,6 +2754,9 @@ export function renderWebUiPage(): string {
       }
       if (menu === 'tools' && state.tools.plugins.length === 0 && !state.tools.loading) {
         refreshTools();
+      }
+      if (menu === 'tools' && state.tools.mcpServers.length === 0 && !state.tools.mcpLoading) {
+        refreshMcpServers();
       }
       if (menu === 'settings' && !state.platformAuth.status) {
         refreshPlatformSettings();
@@ -3792,6 +3814,162 @@ export function renderWebUiPage(): string {
       return (state.tools.plugins || []).find(plugin => plugin.pluginId === state.tools.selectedId) || (state.tools.plugins || [])[0] || null;
     }
 
+    function selectedMcpServer() {
+      return (state.tools.mcpServers || []).find(server => server.name === state.tools.selectedMcpName) || (state.tools.mcpServers || [])[0] || null;
+    }
+
+    function renderToolsViewTabs() {
+      return '<div class="toolbarRow"><button class="miniButton ' + (state.tools.view === 'plugins' ? 'active' : '') + '" type="button" data-tools-view="plugins">插件 Marketplace</button><button class="miniButton ' + (state.tools.view === 'mcp' ? 'active' : '') + '" type="button" data-tools-view="mcp">MCP Servers</button></div>';
+    }
+
+    function wireToolsViewTabs(root) {
+      root.querySelectorAll('[data-tools-view]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.tools.view = button.dataset.toolsView === 'mcp' ? 'mcp' : 'plugins';
+          renderSecondary();
+          renderMainView();
+          if (state.tools.view === 'mcp' && state.tools.mcpServers.length === 0 && !state.tools.mcpLoading) {
+            refreshMcpServers();
+          }
+        });
+      });
+    }
+
+    function getMcpFormPayload() {
+      const form = state.tools.mcpForm;
+      const payload = {
+        name: form.name.trim(),
+        scope: form.scope || 'user',
+        transport: form.transport || 'stdio'
+      };
+      if (payload.transport === 'stdio') {
+        payload.command = form.command.trim();
+        payload.args = form.args.trim();
+        payload.env = form.env.trim();
+      } else {
+        payload.url = form.url.trim();
+        payload.headers = form.headers.trim();
+      }
+      return payload;
+    }
+
+    function syncMcpFormFromInputs() {
+      const form = state.tools.mcpForm;
+      const read = (id, fallback) => {
+        const element = document.getElementById(id);
+        return element && 'value' in element ? element.value : fallback;
+      };
+      form.name = read('toolsMcpName', form.name);
+      form.scope = read('toolsMcpScope', form.scope);
+      form.transport = read('toolsMcpTransport', form.transport);
+      form.command = read('toolsMcpCommand', form.command);
+      form.args = read('toolsMcpArgs', form.args);
+      form.env = read('toolsMcpEnv', form.env);
+      form.url = read('toolsMcpUrl', form.url);
+      form.headers = read('toolsMcpHeaders', form.headers);
+    }
+
+    async function refreshMcpServers() {
+      state.tools.mcpLoading = true;
+      state.tools.mcpError = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        const result = await api('/api/mcp/servers');
+        state.tools.mcpServers = result.servers || [];
+        state.tools.mcpErrors = result.errors || [];
+        if (state.tools.selectedMcpName && !state.tools.mcpServers.some(server => server.name === state.tools.selectedMcpName)) {
+          state.tools.selectedMcpName = '';
+        }
+        if (!state.tools.selectedMcpName && state.tools.mcpServers[0]) {
+          state.tools.selectedMcpName = state.tools.mcpServers[0].name;
+        }
+      } catch (error) {
+        state.tools.mcpError = getErrorMessage(error);
+      } finally {
+        state.tools.mcpLoading = false;
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    async function addMcpServer() {
+      syncMcpFormFromInputs();
+      const payload = getMcpFormPayload();
+      if (!payload.name) {
+        state.tools.mcpError = '请输入 MCP server 名称。';
+        renderToolsPanel();
+        return;
+      }
+      state.tools.mcpAdding = true;
+      state.tools.mcpError = '';
+      state.tools.mcpNotice = '';
+      renderToolsPanel();
+      try {
+        const result = await api('/api/mcp/servers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        state.tools.mcpNotice = '已添加 MCP Server：' + (result.server?.name || payload.name) + '，下次刷新会话后生效。';
+        if (state.running) state.tools.mcpNotice += ' 当前会话正在运行，可手动刷新会话。';
+        state.tools.selectedMcpName = result.server?.name || payload.name;
+        state.tools.mcpForm.name = '';
+        state.tools.mcpForm.command = '';
+        state.tools.mcpForm.args = '';
+        state.tools.mcpForm.env = '';
+        state.tools.mcpForm.url = '';
+        state.tools.mcpForm.headers = '';
+        await refreshMcpServers();
+        showToast('MCP Server 已添加', 'success');
+      } catch (error) {
+        state.tools.mcpError = getErrorMessage(error);
+        renderToolsPanel();
+        showToast('添加 MCP Server 失败', 'error');
+      } finally {
+        state.tools.mcpAdding = false;
+        renderToolsPanel();
+      }
+    }
+
+    async function removeMcpServer(name, scope) {
+      if (!name || !scope || state.tools.removingMcp) return;
+      state.tools.removingMcp = name + '@' + scope;
+      state.tools.mcpError = '';
+      state.tools.mcpNotice = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        await api('/api/mcp/servers/' + encodeURIComponent(name) + '?scope=' + encodeURIComponent(scope), {
+          method: 'DELETE'
+        });
+        state.tools.mcpNotice = '已移除 MCP Server：' + name + '，下次刷新会话后生效。';
+        if (state.running) state.tools.mcpNotice += ' 当前会话正在运行，可手动刷新会话。';
+        if (state.tools.selectedMcpName === name) state.tools.selectedMcpName = '';
+        await refreshMcpServers();
+        showToast('MCP Server 已移除', 'success');
+      } catch (error) {
+        state.tools.mcpError = getErrorMessage(error);
+        showToast('移除 MCP Server 失败', 'error');
+      } finally {
+        state.tools.removingMcp = '';
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    function fillMarkitdownMcpExample() {
+      state.tools.mcpForm.name = 'markitdown';
+      state.tools.mcpForm.scope = 'user';
+      state.tools.mcpForm.transport = 'stdio';
+      state.tools.mcpForm.command = 'uvx';
+      state.tools.mcpForm.args = 'markitdown-mcp';
+      state.tools.mcpForm.env = '';
+      state.tools.mcpForm.url = '';
+      state.tools.mcpForm.headers = '';
+      renderToolsPanel();
+    }
+
     function toolStatusTags(plugin) {
       const tags = [
         '<span class="tag">' + escapeHtml(plugin.marketplaceName || 'marketplace') + '</span>'
@@ -3916,10 +4094,65 @@ export function renderWebUiPage(): string {
       ].join('');
     }
 
+    function renderMcpToolsPanel() {
+      const form = state.tools.mcpForm;
+      const isStdio = form.transport === 'stdio';
+      const errors = (state.tools.mcpErrors || []).map(error => '<div class="readonlyNotice">' + escapeHtml(error.scope || 'mcp') + ': ' + escapeHtml(error.message || '加载失败') + '</div>').join('');
+      secondaryBody.innerHTML = [
+        renderToolsViewTabs(),
+        state.tools.mcpError ? '<div class="errorBox"><strong>MCP Server 操作失败</strong><div>' + escapeHtml(state.tools.mcpError) + '</div></div>' : '',
+        state.tools.mcpNotice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.mcpNotice) + (state.running ? '<div style="margin-top:8px"><button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button></div>' : '') + '</div>' : '',
+        '<div class="profileSummary"><strong class="summaryLine">' + escapeHtml(String(state.tools.mcpServers.length)) + ' 个 MCP Server</strong><span class="summaryLine">默认写入 user scope</span></div>',
+        '<div class="toolbarRow"><button class="miniButton ' + (state.tools.mcpLoading ? 'buttonLoading' : '') + '" type="button" data-tools-mcp-refresh>' + (state.tools.mcpLoading ? '刷新中' : '刷新') + '</button><button class="miniButton" type="button" data-tools-mcp-example>MarkItDown 示例</button></div>',
+        '<section class="formSection toolsMcpSection"><div class="sectionHeader"><h3>添加 MCP Server</h3></div>',
+        '<div class="field"><label for="toolsMcpName">Name</label><input id="toolsMcpName" value="' + escapeHtml(form.name) + '" autocomplete="off" placeholder="markitdown"></div>',
+        '<div class="splitFields">',
+        '<div class="field"><label for="toolsMcpScope">Scope</label><select id="toolsMcpScope"><option value="user" ' + (form.scope === 'user' ? 'selected' : '') + '>user</option><option value="project" ' + (form.scope === 'project' ? 'selected' : '') + '>project</option><option value="local" ' + (form.scope === 'local' ? 'selected' : '') + '>local</option></select></div>',
+        '<div class="field"><label for="toolsMcpTransport">Transport</label><select id="toolsMcpTransport"><option value="stdio" ' + (form.transport === 'stdio' ? 'selected' : '') + '>stdio</option><option value="http" ' + (form.transport === 'http' ? 'selected' : '') + '>http</option><option value="sse" ' + (form.transport === 'sse' ? 'selected' : '') + '>sse</option></select></div>',
+        '</div>',
+        isStdio ? [
+          '<div class="field"><label for="toolsMcpCommand">Command</label><input id="toolsMcpCommand" value="' + escapeHtml(form.command) + '" autocomplete="off" placeholder="uvx"></div>',
+          '<div class="field"><label for="toolsMcpArgs">Args</label><input id="toolsMcpArgs" value="' + escapeHtml(form.args) + '" autocomplete="off" placeholder="markitdown-mcp"></div>',
+          '<div class="field"><label for="toolsMcpEnv">Env</label><textarea id="toolsMcpEnv" rows="3" placeholder="KEY=value，每行一个">' + escapeHtml(form.env) + '</textarea></div>'
+        ].join('') : [
+          '<div class="field"><label for="toolsMcpUrl">URL</label><input id="toolsMcpUrl" value="' + escapeHtml(form.url) + '" autocomplete="off" placeholder="https://example.com/mcp"></div>',
+          '<div class="field"><label for="toolsMcpHeaders">Headers</label><textarea id="toolsMcpHeaders" rows="3" placeholder="Authorization: Bearer ...，每行一个">' + escapeHtml(form.headers) + '</textarea></div>'
+        ].join(''),
+        '<div class="readonlyNotice">https://glama.ai/mcp/servers 与 github.com/mcp/... 这类 MCP Registry 页面不能直接添加；请复制具体 server 的 command/args 或 HTTP/SSE endpoint。</div>',
+        '<button class="secondaryAction ' + (state.tools.mcpAdding ? 'buttonLoading' : '') + '" type="button" data-tools-mcp-add ' + (state.tools.mcpAdding ? 'disabled' : '') + '>' + (state.tools.mcpAdding ? '添加中' : '添加 MCP Server') + '</button>',
+        '</section>',
+        errors
+      ].join('');
+      wireToolsViewTabs(secondaryBody);
+      ['toolsMcpName', 'toolsMcpScope', 'toolsMcpCommand', 'toolsMcpArgs', 'toolsMcpEnv', 'toolsMcpUrl', 'toolsMcpHeaders'].forEach(id => {
+        const element = document.getElementById(id);
+        element?.addEventListener('input', syncMcpFormFromInputs);
+        element?.addEventListener('change', syncMcpFormFromInputs);
+      });
+      const transport = document.getElementById('toolsMcpTransport');
+      transport?.addEventListener('change', () => {
+        syncMcpFormFromInputs();
+        renderToolsPanel();
+      });
+      secondaryBody.querySelector('[data-tools-mcp-refresh]')?.addEventListener('click', () => refreshMcpServers());
+      secondaryBody.querySelector('[data-tools-mcp-example]')?.addEventListener('click', () => fillMarkitdownMcpExample());
+      secondaryBody.querySelector('[data-tools-mcp-add]')?.addEventListener('click', () => addMcpServer());
+      secondaryBody.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
+        sendWs({ type: 'refresh_session' });
+        state.tools.mcpNotice = '会话已刷新，MCP Server 会在下一次任务中加载。';
+        renderToolsPanel();
+      });
+    }
+
     function renderToolsPanel() {
+      if (state.tools.view === 'mcp') {
+        renderMcpToolsPanel();
+        return;
+      }
       const marketplaceOptions = ['<option value="">全部 marketplace</option>'].concat((state.tools.marketplaces || []).map(item => '<option value="' + escapeHtml(item.name) + '" ' + (state.tools.marketplace === item.name ? 'selected' : '') + '>' + escapeHtml(item.name) + '</option>')).join('');
       const failures = (state.tools.failures || []).map(failure => '<div class="readonlyNotice">' + escapeHtml(failure.name) + ': ' + escapeHtml(failure.error || '加载失败') + '</div>').join('');
       secondaryBody.innerHTML = [
+        renderToolsViewTabs(),
         state.tools.error ? '<div class="errorBox"><strong>插件操作失败</strong><div>' + escapeHtml(state.tools.error) + '</div></div>' : '',
         state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + (state.running ? '<div style="margin-top:8px"><button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button></div>' : '') + '</div>' : '',
         renderToolsRecommendation(),
@@ -3937,6 +4170,7 @@ export function renderWebUiPage(): string {
         '</section>',
         failures
       ].join('');
+      wireToolsViewTabs(secondaryBody);
       const search = document.getElementById('toolsSearch');
       const marketplace = document.getElementById('toolsMarketplace');
       const status = document.getElementById('toolsStatus');
@@ -3966,10 +4200,15 @@ export function renderWebUiPage(): string {
     }
 
     function renderToolsWorkspace() {
+      if (state.tools.view === 'mcp') {
+        renderMcpToolsWorkspace();
+        return;
+      }
       const plugins = state.tools.plugins || [];
       const selected = selectedToolPlugin();
       workspaceView.innerHTML = [
         '<div class="workspaceHeader"><div><h2>工具</h2><div class="workspaceMeta">从 marketplace 查找、检查并安装插件；默认安装到 user scope</div></div><div class="toolbarRow"><button class="miniButton" type="button" data-tools-refresh-main>刷新</button></div></div>',
+        renderToolsViewTabs(),
         state.tools.loading ? skeletonStack() : '',
         '<div class="toolsGrid">',
         '<div class="workspaceCard">',
@@ -4005,6 +4244,7 @@ export function renderWebUiPage(): string {
         ].join('') : '<div class="workspaceCard ghostState">选择一个插件查看详情。</div>',
         '</div>'
       ].join('');
+      wireToolsViewTabs(workspaceView);
       workspaceView.querySelector('[data-tools-refresh-main]')?.addEventListener('click', () => refreshTools());
       workspaceView.querySelectorAll('[data-tools-plugin]').forEach(button => {
         button.addEventListener('click', () => {
@@ -4021,6 +4261,81 @@ export function renderWebUiPage(): string {
         state.tools.notice = '会话已刷新，新安装插件会在下一次任务中加载。';
         renderSecondary();
         renderToolsWorkspace();
+      });
+    }
+
+    function mcpServerTags(server) {
+      const tags = [
+        '<span class="tag">' + escapeHtml(server.transport || 'stdio') + '</span>',
+        '<span class="tag">' + escapeHtml(server.scope || 'user') + '</span>'
+      ];
+      if (server.readonly) tags.push('<span class="tag warning">只读</span>');
+      if (server.envKeys?.length) tags.push('<span class="tag">env: ' + escapeHtml(String(server.envKeys.length)) + '</span>');
+      if (server.headerKeys?.length) tags.push('<span class="tag">headers: ' + escapeHtml(String(server.headerKeys.length)) + '</span>');
+      return tags.join('');
+    }
+
+    function renderMcpToolsWorkspace() {
+      const servers = state.tools.mcpServers || [];
+      const selected = selectedMcpServer();
+      workspaceView.innerHTML = [
+        '<div class="workspaceHeader"><div><h2>工具</h2><div class="workspaceMeta">管理插件 Marketplace 与 MCP Servers；MCP 默认写入 user scope</div></div><div class="toolbarRow"><button class="miniButton" type="button" data-tools-mcp-refresh-main>刷新</button></div></div>',
+        renderToolsViewTabs(),
+        state.tools.mcpLoading ? skeletonStack() : '',
+        '<div class="toolsGrid">',
+        '<div class="workspaceCard">',
+        '<div class="profileSummary"><strong class="summaryLine">MCP Servers</strong><span class="summaryLine">' + escapeHtml(String(servers.length)) + ' 个配置项</span></div>',
+        servers.length ? '<div class="itemList toolsListScroll">' + servers.map(server => {
+          const active = selected?.name === server.name;
+          const descriptor = server.command ? server.command + ' ' + (server.args || []).join(' ') : server.url || '';
+          return [
+            '<button class="listItem ' + (active ? 'active' : '') + '" data-tools-mcp-server="' + escapeHtml(server.name) + '">',
+            '<div class="listItemHeader"><strong>' + escapeHtml(server.name) + '</strong><span class="statusBadge">' + escapeHtml(server.transport || 'stdio') + '</span></div>',
+            '<span>' + escapeHtml(server.scope || 'user') + '</span>',
+            '<span>' + escapeHtml(descriptor || '未提供摘要') + '</span>',
+            '</button>'
+          ].join('');
+        }).join('') + '</div>' : '<div class="ghostState">尚未添加 MCP Server。可在左侧表单添加 MarkItDown、Glama 中的具体 server 或远程 HTTP/SSE endpoint。</div>',
+        '</div>',
+        selected ? [
+          '<div class="workspaceCard">',
+          '<div class="workspaceHeader"><div><h2>' + escapeHtml(selected.name) + '</h2><div class="workspaceMeta">' + escapeHtml(selected.configPath || '') + '</div></div></div>',
+          '<div class="tagRow">' + mcpServerTags(selected) + '</div>',
+          '<div class="metaGrid">',
+          '<div class="metaCard"><span>Transport</span><strong>' + escapeHtml(selected.transport || 'stdio') + '</strong></div>',
+          '<div class="metaCard"><span>Scope</span><strong>' + escapeHtml(selected.scope || 'user') + '</strong></div>',
+          '<div class="metaCard"><span>Env keys</span><strong>' + escapeHtml(String((selected.envKeys || []).length)) + '</strong></div>',
+          '<div class="metaCard"><span>Header keys</span><strong>' + escapeHtml(String((selected.headerKeys || []).length)) + '</strong></div>',
+          '</div>',
+          selected.command ? '<div class="field" style="margin-top:12px"><label>Command</label><div class="contentPanel">' + escapeHtml([selected.command].concat(selected.args || []).join(' ')) + '</div></div>' : '',
+          selected.url ? '<div class="field" style="margin-top:12px"><label>URL</label><div class="contentPanel">' + escapeHtml(selected.url) + '</div></div>' : '',
+          selected.envKeys?.length ? '<div class="tagRow">' + selected.envKeys.map(key => '<span class="tag">' + escapeHtml(key) + '</span>').join('') + '</div>' : '',
+          selected.headerKeys?.length ? '<div class="tagRow">' + selected.headerKeys.map(key => '<span class="tag">' + escapeHtml(key) + '</span>').join('') + '</div>' : '',
+          selected.readonly ? '<div class="readonlyNotice">此 MCP Server 来自只读配置，不能在 Web UI 中移除。</div>' : '',
+          '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton ' + (state.tools.removingMcp === selected.name + '@' + selected.scope ? 'buttonLoading' : '') + '" type="button" data-tools-mcp-remove="' + escapeHtml(selected.name) + '" data-tools-mcp-remove-scope="' + escapeHtml(selected.scope || 'user') + '" ' + (selected.readonly || state.tools.removingMcp ? 'disabled' : '') + '>' + (state.tools.removingMcp === selected.name + '@' + selected.scope ? '移除中' : '移除 MCP Server') + '</button>' + (state.running ? '<button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button>' : '') + '</div>',
+          state.tools.mcpNotice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.mcpNotice) + '</div>' : '',
+          state.tools.mcpError ? '<div class="errorBox">' + escapeHtml(state.tools.mcpError) + '</div>' : '',
+          '</div>'
+        ].join('') : '<div class="workspaceCard ghostState">选择一个 MCP Server 查看详情。</div>',
+        '</div>'
+      ].join('');
+      wireToolsViewTabs(workspaceView);
+      workspaceView.querySelector('[data-tools-mcp-refresh-main]')?.addEventListener('click', () => refreshMcpServers());
+      workspaceView.querySelectorAll('[data-tools-mcp-server]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.tools.selectedMcpName = button.dataset.toolsMcpServer || '';
+          renderMcpToolsWorkspace();
+        });
+      });
+      workspaceView.querySelector('[data-tools-mcp-remove]')?.addEventListener('click', event => {
+        const button = event.currentTarget;
+        removeMcpServer(button.dataset.toolsMcpRemove, button.dataset.toolsMcpRemoveScope);
+      });
+      workspaceView.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
+        sendWs({ type: 'refresh_session' });
+        state.tools.mcpNotice = '会话已刷新，MCP Server 会在下一次任务中加载。';
+        renderSecondary();
+        renderMcpToolsWorkspace();
       });
     }
 

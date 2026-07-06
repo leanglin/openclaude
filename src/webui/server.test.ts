@@ -13,12 +13,13 @@ import { createWebChatSession } from './sessionStore.js'
 import type { ServerEvent } from './types.js'
 import { getAutoMemPath } from '../memdir/paths.js'
 import { clearCommandsCache } from '../commands.js'
+import { getGlobalClaudeFile } from '../utils/env.js'
 import {
   getClaudeConfigHomeDir,
   getClaudeConfigHomeDirOverrideForTesting,
   setClaudeConfigHomeDirForTesting,
 } from '../utils/envUtils.js'
-import { saveGlobalConfig } from '../utils/config.js'
+import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
 import { clearInstalledPluginsCache } from '../utils/plugins/installedPluginsManager.js'
 import { clearMarketplacesCache } from '../utils/plugins/marketplaceManager.js'
@@ -75,6 +76,7 @@ function setupIsolatedApiState(): {
   setClaudeConfigHomeDirForTesting(configDir)
   getAutoMemPath.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
+  getGlobalClaudeFile.cache?.clear?.()
   getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
   clearInstalledPluginsCache()
@@ -109,6 +111,7 @@ afterEach(() => {
   setClaudeConfigHomeDirForTesting(previousConfigHome)
   getAutoMemPath.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
+  getGlobalClaudeFile.cache?.clear?.()
   getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
   clearInstalledPluginsCache()
@@ -499,6 +502,178 @@ describe('webui server', () => {
             }),
           ]),
         )
+      },
+      { cwd },
+    )
+  })
+
+  test('serves MCP server APIs through existing config scopes', async () => {
+    const { cwd } = setupIsolatedApiState()
+
+    await withServer(
+      async baseUrl => {
+        const headers = {
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }
+
+        const initial = await fetch(`${baseUrl}/api/mcp/servers`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(initial.servers).toEqual([])
+
+        const invalidName = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'bad name',
+            transport: 'stdio',
+            command: 'uvx',
+          }),
+        })
+        expect(invalidName.status).toBe(400)
+        expect((await invalidName.json()).error).toContain('Invalid name')
+
+        const invalidRegistryUrl = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'glama',
+            transport: 'http',
+            url: 'https://glama.ai/mcp/servers',
+          }),
+        })
+        expect(invalidRegistryUrl.status).toBe(400)
+        expect((await invalidRegistryUrl.json()).error).toContain('MCP Registry')
+
+        const invalidTransport = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'badtransport',
+            transport: 'ws',
+            command: 'uvx',
+          }),
+        })
+        expect(invalidTransport.status).toBe(400)
+        expect((await invalidTransport.json()).error).toContain('Invalid transport type')
+
+        const missingCommand = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'empty',
+            transport: 'stdio',
+            command: '',
+          }),
+        })
+        expect(missingCommand.status).toBe(400)
+        expect((await missingCommand.json()).error).toContain('Command is required')
+
+        const stdio = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'markitdown',
+            scope: 'user',
+            transport: 'stdio',
+            command: 'uvx',
+            args: 'markitdown-mcp',
+            env: 'MARKITDOWN_TEST=1',
+          }),
+        })
+        expect(stdio.status).toBe(200)
+        expect(await stdio.json()).toEqual(
+          expect.objectContaining({
+            ok: true,
+            server: expect.objectContaining({
+              name: 'markitdown',
+              scope: 'user',
+              transport: 'stdio',
+              command: 'uvx',
+              args: ['markitdown-mcp'],
+              envKeys: ['MARKITDOWN_TEST'],
+            }),
+          }),
+        )
+
+        const http = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'remote-http',
+            scope: 'user',
+            transport: 'http',
+            url: 'https://example.com/mcp',
+            headers: 'Authorization: Bearer test',
+          }),
+        })
+        expect(http.status).toBe(200)
+        expect((await http.json()).server).toEqual(
+          expect.objectContaining({
+            name: 'remote-http',
+            transport: 'http',
+            url: 'https://example.com/mcp',
+            headerKeys: ['Authorization'],
+          }),
+        )
+
+        const sse = await fetch(`${baseUrl}/api/mcp/servers`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: 'remote-sse',
+            scope: 'user',
+            transport: 'sse',
+            url: 'https://example.com/sse',
+          }),
+        })
+        expect(sse.status).toBe(200)
+        expect((await sse.json()).server).toEqual(
+          expect.objectContaining({
+            name: 'remote-sse',
+            transport: 'sse',
+            url: 'https://example.com/sse',
+          }),
+        )
+
+        const stored = getGlobalConfig()
+        expect(stored.mcpServers?.markitdown).toEqual({
+          type: 'stdio',
+          command: 'uvx',
+          args: ['markitdown-mcp'],
+          env: { MARKITDOWN_TEST: '1' },
+        })
+        expect(stored.mcpServers?.['remote-http']).toEqual({
+          type: 'http',
+          url: 'https://example.com/mcp',
+          headers: { Authorization: 'Bearer test' },
+        })
+        expect(stored.mcpServers?.['remote-sse']).toEqual({
+          type: 'sse',
+          url: 'https://example.com/sse',
+        })
+
+        const list = await fetch(`${baseUrl}/api/mcp/servers`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(list.servers).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ name: 'markitdown' }),
+            expect.objectContaining({ name: 'remote-http' }),
+            expect.objectContaining({ name: 'remote-sse' }),
+          ]),
+        )
+
+        const removed = await fetch(`${baseUrl}/api/mcp/servers/markitdown?scope=user`, {
+          method: 'DELETE',
+          headers: { Authorization: 'Bearer test-token' },
+        })
+        expect(removed.status).toBe(200)
+        const afterRemove = await fetch(`${baseUrl}/api/mcp/servers`, {
+          headers: { Authorization: 'Bearer test-token' },
+        }).then(response => response.json())
+        expect(afterRemove.servers.map((server: { name: string }) => server.name)).not.toContain('markitdown')
       },
       { cwd },
     )

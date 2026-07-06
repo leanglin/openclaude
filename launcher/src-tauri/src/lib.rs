@@ -15,7 +15,12 @@ use url::form_urlencoded;
 type SharedState = Arc<Mutex<LauncherState>>;
 const APP_VERSION: &str = "7.0.0";
 const UPDATE_PRODUCT_KEY: &str = "opencat";
+#[cfg(windows)]
 const UPDATE_PLATFORM: &str = "windows";
+#[cfg(target_os = "macos")]
+const UPDATE_PLATFORM: &str = "macos";
+#[cfg(all(not(windows), not(target_os = "macos")))]
+const UPDATE_PLATFORM: &str = "linux";
 const UPDATE_RELEASE_CHANNEL: &str = "stable";
 const DEFAULT_UPDATE_BASE_URL: &str = "http://172.21.39.142:8000";
 const UPDATE_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
@@ -183,25 +188,31 @@ fn non_empty_string(value: &str) -> Option<String> {
   }
 }
 
-fn resource_runtime_dir(_app: &AppHandle) -> Result<PathBuf, String> {
-  let exe_path = std::env::current_exe()
-    .map_err(|error| format!("Failed to resolve OpenCat launcher path: {error}"))?;
-  let install_dir = exe_path.parent().ok_or_else(|| {
-    format!(
-      "Failed to resolve OpenCat install directory from {}",
-      exe_path.display()
-    )
-  })?;
-  let runtime_dir = install_dir.join("resources").join("opencat-runtime");
+fn resource_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
+  let mut candidates = Vec::new();
 
-  if runtime_dir.exists() {
-    return Ok(runtime_dir);
+  if let Ok(resource_dir) = app.path().resource_dir() {
+    candidates.push(resource_dir.join("opencat-runtime"));
   }
 
-  Err(format!(
-    "OpenCat runtime resources are missing: {}",
-    runtime_dir.display()
-  ))
+  if let Ok(exe_path) = std::env::current_exe() {
+    if let Some(install_dir) = exe_path.parent() {
+      candidates.push(install_dir.join("resources").join("opencat-runtime"));
+    }
+  }
+
+  for runtime_dir in &candidates {
+    if runtime_dir.exists() {
+      return Ok(runtime_dir.clone());
+    }
+  }
+
+  let searched = candidates
+    .iter()
+    .map(|path| path.display().to_string())
+    .collect::<Vec<_>>()
+    .join(", ");
+  Err(format!("OpenCat runtime resources are missing. Searched: {searched}"))
 }
 
 fn bundled_node_path(runtime_dir: &Path) -> PathBuf {
@@ -535,7 +546,7 @@ where
   let file_name = {
     let value = json_object_string(&data, "file_name");
     if value.trim().is_empty() {
-      format!("OpenCat_Setup_{latest_version}.exe")
+      default_update_file_name(&latest_version)
     } else {
       value
     }
@@ -563,12 +574,7 @@ fn safe_download_name(file_name: &str, latest_version: &str) -> String {
     .unwrap_or_default()
     .trim();
   let name = if base_name.is_empty() {
-    let suffix = if latest_version.trim().is_empty() {
-      String::new()
-    } else {
-      format!("_{}", latest_version.trim())
-    };
-    format!("OpenCat_Setup{suffix}.exe")
+    default_update_file_name(latest_version)
   } else {
     base_name.to_string()
   };
@@ -583,6 +589,22 @@ fn safe_download_name(file_name: &str, latest_version: &str) -> String {
       }
     })
     .collect()
+}
+
+fn default_update_file_name(latest_version: &str) -> String {
+  let suffix = if latest_version.trim().is_empty() {
+    String::new()
+  } else {
+    format!("_{}", latest_version.trim())
+  };
+  let extension = if cfg!(target_os = "macos") {
+    "dmg"
+  } else if cfg!(windows) {
+    "exe"
+  } else {
+    "tar.gz"
+  };
+  format!("OpenCat_Setup{suffix}.{extension}")
 }
 
 fn bytes_to_lower_hex(bytes: &[u8]) -> String {
@@ -1434,7 +1456,9 @@ mod tests {
       |url| {
         assert_eq!(
           url,
-          "http://example.test/api/system/download_center/check_update/?product_key=opencat&current_version=5.4.12&platform=windows&channel=stable"
+          format!(
+            "http://example.test/api/system/download_center/check_update/?product_key=opencat&current_version=5.4.12&platform={UPDATE_PLATFORM}&channel=stable"
+          )
         );
         Ok(payload.to_string())
       },
@@ -1456,7 +1480,10 @@ mod tests {
       safe_download_name("..\\OpenCat:Setup?.exe", "5.4.13"),
       "OpenCat_Setup_.exe"
     );
-    assert_eq!(safe_download_name("", "5.4.13"), "OpenCat_Setup_5.4.13.exe");
+    assert_eq!(
+      safe_download_name("", "5.4.13"),
+      default_update_file_name("5.4.13")
+    );
   }
 
   #[test]

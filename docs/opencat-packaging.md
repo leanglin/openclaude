@@ -1,17 +1,19 @@
-# OpenCat Windows Packaging
+# OpenCat Desktop Packaging
 
-OpenCat 7.0.0 ships as a Windows-first Tauri launcher plus bundled runtime.
-The launcher starts the local Web server as a hidden child process and opens
-the Web UI inside a Tauri WebView.
+OpenCat 7.0.0 ships as a Tauri launcher plus bundled runtime. The launcher
+starts the local Web server as a hidden child process and opens the Web UI
+inside a Tauri WebView.
 
-## Prerequisites
+## Windows NSIS Packaging
+
+### Prerequisites
 
 - Bun 1.3.13
 - Rust stable MSVC toolchain and Cargo
 - Microsoft C++ Build Tools
 - Node.js 22 or newer available on `PATH` when preparing the runtime
 
-## Build
+### Build
 
 Run from the repository root:
 
@@ -54,6 +56,91 @@ bun run --cwd launcher tauri build
 
 The NSIS installer is emitted by Tauri under `launcher/src-tauri/target`.
 
+## macOS DMG Packaging
+
+macOS packaging must run on macOS. It produces unsigned DMG files by default and
+does not change the Windows NSIS package flow.
+
+### Prerequisites
+
+- Bun 1.3.13
+- Node.js 22 or newer with npm available on `PATH`
+- Rust stable with Cargo and rustup
+- Xcode command line tools
+- `hdiutil`, `shasum`, `file`, and `tar`
+- Rosetta 2 when building the `x64` DMG on Apple Silicon
+
+### Build
+
+Run from the repository root:
+
+```bash
+bash scripts/opencat/package-macos.sh
+```
+
+The default builds both Apple Silicon and Intel packages. To build one
+architecture:
+
+```bash
+bash scripts/opencat/package-macos.sh --arch arm64
+bash scripts/opencat/package-macos.sh --arch x64
+```
+
+To check prerequisites without building:
+
+```bash
+bash scripts/opencat/package-macos.sh --check-only
+```
+
+Useful flags:
+
+- `--arch arm64|x64|all` chooses the macOS architecture set. The default is `all`.
+- `--check-only` checks tools and Rust targets without running the package build.
+- `--clean-runtime-cache` rebuilds the cached production `node_modules` for the target architecture.
+- `--clean-playwright-cache` rebuilds the cached Playwright Chromium bundle for the target architecture.
+
+The package log is written to
+`launcher/src-tauri/target/opencat-package-macos.log`.
+
+The DMG files are emitted by Tauri under architecture-specific target
+directories such as:
+
+- `launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/`
+- `launcher/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/`
+
+The script prints each DMG path, size, and SHA256 hash.
+
+Manual fallback commands for a single architecture:
+
+```bash
+bun install
+npm --prefix packages/app-test-runner install
+npm --prefix packages/app-test-runner run build
+bun run build
+OPENCAT_RUNTIME_PLATFORM=darwin OPENCAT_RUNTIME_ARCH=arm64 bun run opencat:prepare-runtime
+bun run --cwd launcher tauri build --target aarch64-apple-darwin --bundles dmg --no-sign --config src-tauri/tauri.macos.conf.json
+```
+
+Use `OPENCAT_RUNTIME_ARCH=x64` and `--target x86_64-apple-darwin` for the Intel
+DMG.
+
+These DMGs are unsigned and not notarized. Users may need to open them through
+Finder's context menu or allow the app in macOS Privacy & Security settings
+after first launch.
+
+### DMG Verification
+
+Mount a DMG and check the bundled runtime:
+
+```bash
+hdiutil attach path/to/OpenCat.dmg
+test -d "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime"
+test -f "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime/dist/cli.mjs"
+file "/Volumes/OpenCat/OpenCat.app/Contents/Resources/opencat-runtime/node/bin/node"
+lipo -archs "/Volumes/OpenCat/OpenCat.app/Contents/MacOS/OpenCat"
+hdiutil detach "/Volumes/OpenCat"
+```
+
 ## Runtime Staging
 
 `bun run opencat:prepare-runtime` stages resources into
@@ -66,10 +153,11 @@ The NSIS installer is emitted by Tauri under `launcher/src-tauri/target`.
 - bundled Node executable
 - Playwright Chromium under `ms-playwright`
 
-Runtime dependency and browser caches are kept outside the repository under
-`%LOCALAPPDATA%\OpenCatBuildCache`. The default package flow reuses them across
-runs; use `-CleanRuntimeCache` or `-CleanPlaywrightCache` when dependency or
-browser cache corruption is suspected.
+Runtime dependency and browser caches are keyed by target platform and
+architecture. The Windows package flow keeps them under
+`%LOCALAPPDATA%\OpenCatBuildCache`; the macOS package flow defaults to
+`~/Library/Caches/OpenCatBuildCache`. Both flows reuse caches across runs; use
+the clean-cache flags when dependency or browser cache corruption is suspected.
 
 The launcher sets `PLAYWRIGHT_BROWSERS_PATH`, `OPENCAT_APP_TEST_RUNNER`, and
 `OPENCAT_APP_TEST_NODE` before starting the hidden Web server.
@@ -77,17 +165,19 @@ The launcher sets `PLAYWRIGHT_BROWSERS_PATH`, `OPENCAT_APP_TEST_RUNNER`, and
 ## Installed Data Layout
 
 The installed launcher keeps the bundled runtime read-only and creates user data
-under `%APPDATA%\OpenCat` before starting the hidden Web server:
+under the platform OpenCat config directory before starting the hidden Web
+server. On Windows this is `%APPDATA%\OpenCat`; on macOS this is
+`~/Library/Application Support/OpenCat`.
 
-- `%APPDATA%\OpenCat\workspace` - default Web chat working directory.
-- `%APPDATA%\OpenCat\skills` - user-level custom Skills shared across projects.
-- `%APPDATA%\OpenCat\workspace\.opencat\skills` - project-level custom Skills for the installed default workspace.
-- `%APPDATA%\OpenCat\projects` - transcript and project-scoped CLI state.
-- `%APPDATA%\OpenCat\webui\sessions.json` - Web chat session list.
+- `workspace` - default Web chat working directory.
+- `skills` - user-level custom Skills shared across projects.
+- `workspace/.opencat/skills` - project-level custom Skills for the installed default workspace.
+- `projects` - transcript and project-scoped CLI state.
+- `webui/sessions.json` - Web chat session list.
 
-The launcher starts `opencat web` with `--cwd %APPDATA%\OpenCat\workspace` and
-sets `OPENCAT_CONFIG_DIR=%APPDATA%\OpenCat`, so sessions and custom Skills
-survive restarts and runtime upgrades.
+The launcher starts `opencat web` with `--cwd <config-dir>/workspace` and sets
+`OPENCAT_CONFIG_DIR=<config-dir>`, so sessions and custom Skills survive
+restarts and runtime upgrades.
 
 ## ADB
 
@@ -108,11 +198,12 @@ URL in this order:
 4. the default OpenCat platform URL
 
 The check calls
-`/api/system/download_center/check_update/?product_key=opencat&current_version=<version>&platform=windows&channel=stable`.
+`/api/system/download_center/check_update/?product_key=opencat&current_version=<version>&platform=<platform>&channel=stable`,
+where `<platform>` is `windows` for Windows builds and `macos` for macOS builds.
 When a newer version is available, the launcher shows the installer name, size,
 and release notes, then downloads the installer only after user confirmation.
-Downloads are written to `%APPDATA%\OpenCat\downloads` through a `.part` file
-and are SHA256-verified when the update response includes a checksum.
+Downloads are written to `<config-dir>/downloads` through a `.part` file and are
+SHA256-verified when the update response includes a checksum.
 
 The launcher never replaces the running app automatically. After download, run
-the downloaded `OpenCat_Setup` installer manually to complete the update.
+the downloaded `OpenCat_Setup` installer or DMG manually to complete the update.

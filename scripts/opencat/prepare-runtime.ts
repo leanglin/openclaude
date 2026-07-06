@@ -2,8 +2,10 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import {
+  chmod,
   copyFile,
   cp,
+  mkdtemp,
   mkdir,
   readFile,
   readdir,
@@ -14,6 +16,7 @@ import {
 } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const require = createRequire(import.meta.url)
 const rootDir = resolve(import.meta.dirname, '..', '..')
@@ -23,14 +26,19 @@ const defaultBuildCacheDir = process.env.LOCALAPPDATA
   ? join(process.env.LOCALAPPDATA, 'OpenCatBuildCache')
   : join(rootDir, '.opencat-build-cache')
 const buildCacheDir = resolve(process.env.OPENCAT_BUILD_CACHE_DIR ?? defaultBuildCacheDir)
-const runtimeNodeModulesCacheDir = join(buildCacheDir, 'runtime-node_modules')
-const runtimeNodeModulesCacheMetaPath = join(buildCacheDir, 'runtime-node_modules.json')
-const runtimePackageLockCachePath = join(buildCacheDir, 'runtime-package-lock.json')
-const playwrightBuildCacheDir = join(buildCacheDir, 'ms-playwright')
+const targetPlatform = normalizeRuntimePlatform(process.env.OPENCAT_RUNTIME_PLATFORM ?? process.platform)
+const targetArch = normalizeRuntimeArch(process.env.OPENCAT_RUNTIME_ARCH ?? process.arch)
+const runtimeTargetId = `${targetPlatform}-${targetArch}`
+const targetCacheDir = join(buildCacheDir, runtimeTargetId)
+const runtimeNodeModulesCacheDir = join(targetCacheDir, 'runtime-node_modules')
+const runtimeNodeModulesCacheMetaPath = join(targetCacheDir, 'runtime-node_modules.json')
+const runtimePackageLockCachePath = join(targetCacheDir, 'runtime-package-lock.json')
+const playwrightBuildCacheDir = join(targetCacheDir, 'ms-playwright')
 const cleanRuntimeCache = process.env.OPENCAT_CLEAN_RUNTIME_CACHE === '1'
 const cleanPlaywrightCache = process.env.OPENCAT_CLEAN_PLAYWRIGHT_CACHE === '1'
-const runtimeNodeModulesCacheVersion = '2'
+const runtimeNodeModulesCacheVersion = '3'
 const visibleLeakPattern = /OpenClaude|Open Claude|openclaude/g
+const nodeDistBaseUrl = process.env.OPENCAT_NODE_DIST_BASE_URL ?? 'https://nodejs.org/dist'
 
 type CopyEntry = {
   from: string
@@ -41,6 +49,27 @@ type CopyEntry = {
 type RuntimeNodeModulesCacheMeta = {
   hash?: string
   version?: string
+}
+
+type RuntimeManifest = {
+  runtimePlatform?: string
+  runtimeArch?: string
+}
+
+function normalizeRuntimePlatform(value: string): NodeJS.Platform {
+  const platform = value.trim()
+  if (platform === 'win32' || platform === 'darwin' || platform === 'linux') {
+    return platform
+  }
+  throw new Error(`Unsupported OPENCAT_RUNTIME_PLATFORM: ${value}`)
+}
+
+function normalizeRuntimeArch(value: string): NodeJS.Architecture {
+  const arch = value.trim()
+  if (arch === 'x64' || arch === 'arm64') {
+    return arch
+  }
+  throw new Error(`Unsupported OPENCAT_RUNTIME_ARCH: ${value}`)
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -95,13 +124,112 @@ function detectNodeExecutable(): string {
   throw new Error('Node runtime was not found on PATH.')
 }
 
-async function copyNodeRuntime(): Promise<void> {
-  const nodeSource = detectNodeExecutable()
-  const nodeTarget = process.platform === 'win32'
+function currentNodeVersion(): string {
+  const result = spawnSync(detectNodeExecutable(), ['--version'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  })
+  const version = result.stdout.trim()
+  if (result.status !== 0 || !/^v\d+\.\d+\.\d+/.test(version)) {
+    throw new Error('Failed to resolve the local Node.js version.')
+  }
+  return version
+}
+
+function bundledNodeRuntimePath(): string {
+  return targetPlatform === 'win32'
     ? join(runtimeDir, 'node', 'node.exe')
-    : join(runtimeDir, 'node', 'bin', basename(nodeSource))
+    : join(runtimeDir, 'node', 'bin', 'node')
+}
+
+async function downloadText(url: string): Promise<string> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}`)
+  }
+  return response.text()
+}
+
+async function downloadBuffer(url: string): Promise<Buffer> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}`)
+  }
+  return Buffer.from(await response.arrayBuffer())
+}
+
+function sha256Hex(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
+function expectedNodeArchiveSha256(shasums: string, archiveName: string): string {
+  for (const line of shasums.split(/\r?\n/)) {
+    const [hash, name] = line.trim().split(/\s+/)
+    if (name === archiveName && /^[a-f0-9]{64}$/i.test(hash)) {
+      return hash.toLowerCase()
+    }
+  }
+  throw new Error(`Node.js SHASUMS256.txt did not include ${archiveName}.`)
+}
+
+async function downloadedDarwinNodeExecutable(): Promise<string> {
+  if (targetPlatform !== 'darwin') {
+    throw new Error(`Cross-platform Node runtime download is only supported for darwin, got ${targetPlatform}.`)
+  }
+
+  const nodeVersion = currentNodeVersion()
+  const distName = `node-${nodeVersion}-darwin-${targetArch}`
+  const archiveName = `${distName}.tar.gz`
+  const nodeCacheDir = join(targetCacheDir, 'node', nodeVersion)
+  const extractedDir = join(nodeCacheDir, distName)
+  const cachedNode = join(extractedDir, 'bin', 'node')
+  if (await exists(cachedNode)) {
+    return cachedNode
+  }
+
+  const versionBaseUrl = `${nodeDistBaseUrl.replace(/\/$/, '')}/${nodeVersion}`
+  console.log(`Downloading Node.js ${nodeVersion} for darwin-${targetArch}`)
+  const [shasums, archive] = await Promise.all([
+    downloadText(`${versionBaseUrl}/SHASUMS256.txt`),
+    downloadBuffer(`${versionBaseUrl}/${archiveName}`),
+  ])
+  const expectedSha = expectedNodeArchiveSha256(shasums, archiveName)
+  const actualSha = sha256Hex(archive)
+  if (actualSha !== expectedSha) {
+    throw new Error(`SHA256 mismatch for ${archiveName}. Expected ${expectedSha}, got ${actualSha}.`)
+  }
+
+  const tempDir = await mkdtemp(join(tmpdir(), 'opencat-node-'))
+  const archivePath = join(tempDir, archiveName)
+  try {
+    await mkdir(nodeCacheDir, { recursive: true })
+    await rm(extractedDir, { recursive: true, force: true })
+    await writeFile(archivePath, archive)
+    const result = spawnSync('tar', ['-xzf', archivePath, '-C', nodeCacheDir], {
+      stdio: 'inherit',
+      windowsHide: true,
+    })
+    if (result.status !== 0) {
+      throw new Error(`Failed to extract ${archiveName}.`)
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+
+  if (!(await exists(cachedNode))) {
+    throw new Error(`Downloaded Node.js runtime did not contain ${cachedNode}.`)
+  }
+  return cachedNode
+}
+
+async function copyNodeRuntime(): Promise<void> {
+  const nodeSource = process.platform === targetPlatform && process.arch === targetArch
+    ? detectNodeExecutable()
+    : await downloadedDarwinNodeExecutable()
+  const nodeTarget = bundledNodeRuntimePath()
   await mkdir(dirname(nodeTarget), { recursive: true })
   await copyFile(nodeSource, nodeTarget)
+  await chmod(nodeTarget, 0o755)
 }
 
 function playwrightCliPath(): string {
@@ -110,6 +238,10 @@ function playwrightCliPath(): string {
 }
 
 function playwrightCacheCandidates(): string[] {
+  if (process.platform !== targetPlatform || process.arch !== targetArch) {
+    return []
+  }
+
   const candidates = [
     process.env.PLAYWRIGHT_BROWSERS_PATH,
     process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'ms-playwright') : undefined,
@@ -133,13 +265,14 @@ async function hydratePlaywrightCacheFromExistingRuntime(): Promise<void> {
   if (
     cleanPlaywrightCache ||
     await hasPlaywrightChromiumCache(playwrightBuildCacheDir) ||
-    !(await hasPlaywrightChromiumCache(existingRuntimeCache))
+    !(await hasPlaywrightChromiumCache(existingRuntimeCache)) ||
+    !(await existingRuntimeMatchesTarget())
   ) {
     return
   }
 
   console.log(`Saving existing staged Playwright Chromium cache to ${playwrightBuildCacheDir}`)
-  await mkdir(buildCacheDir, { recursive: true })
+  await mkdir(targetCacheDir, { recursive: true })
   await rm(playwrightBuildCacheDir, { recursive: true, force: true })
   await cp(existingRuntimeCache, playwrightBuildCacheDir, {
     recursive: true,
@@ -158,7 +291,7 @@ async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
     }
 
     console.log(`Caching existing Playwright Chromium from ${candidate}`)
-    await mkdir(buildCacheDir, { recursive: true })
+    await mkdir(targetCacheDir, { recursive: true })
     await rm(playwrightBuildCacheDir, { recursive: true, force: true })
     await cp(candidate, playwrightBuildCacheDir, {
       recursive: true,
@@ -172,20 +305,25 @@ async function seedPlaywrightCacheFromCandidates(): Promise<boolean> {
 
 async function installPlaywrightChromiumToCache(): Promise<void> {
   console.log(`Installing Playwright Chromium into ${playwrightBuildCacheDir}`)
-  await mkdir(buildCacheDir, { recursive: true })
+  await mkdir(targetCacheDir, { recursive: true })
   await rm(playwrightBuildCacheDir, { recursive: true, force: true })
   await mkdir(playwrightBuildCacheDir, { recursive: true })
-  const result = spawnSync(detectNodeExecutable(), [playwrightCliPath(), 'install', 'chromium'], {
+  const installerNode = targetPlatform === process.platform
+    ? bundledNodeRuntimePath()
+    : detectNodeExecutable()
+  const result = spawnSync(installerNode, [playwrightCliPath(), 'install', 'chromium'], {
     cwd: rootDir,
     stdio: 'inherit',
     env: {
       ...process.env,
       PLAYWRIGHT_BROWSERS_PATH: playwrightBuildCacheDir,
+      npm_config_os: targetPlatform,
+      npm_config_cpu: targetArch,
     },
     windowsHide: true,
   })
   if (result.status !== 0) {
-    throw new Error('Failed to install bundled Playwright Chromium.')
+    throw new Error(`Failed to install bundled Playwright Chromium for ${runtimeTargetId}.`)
   }
   if (!(await hasPlaywrightChromiumCache(playwrightBuildCacheDir))) {
     throw new Error(`Playwright Chromium cache was not created at ${playwrightBuildCacheDir}.`)
@@ -233,9 +371,21 @@ async function installRuntimeNodeModules(): Promise<void> {
   }
 
   console.log('Installing OpenCat runtime production dependencies')
-  const result = spawnSync(npmCommand(), ['install', '--omit=dev'], {
+  const result = spawnSync(npmCommand(), [
+    'install',
+    '--omit=dev',
+    '--os',
+    targetPlatform,
+    '--cpu',
+    targetArch,
+  ], {
     cwd: runtimeDir,
     stdio: 'inherit',
+    env: {
+      ...process.env,
+      npm_config_os: targetPlatform,
+      npm_config_cpu: targetArch,
+    },
     windowsHide: true,
   })
   if (result.status !== 0) {
@@ -257,6 +407,7 @@ async function runtimeDependencyHash(): Promise<string> {
   ]
 
   hash.update(`opencat-runtime-node-modules-cache:${runtimeNodeModulesCacheVersion}\n`)
+  hash.update(`target:${runtimeTargetId}\n`)
   for (const path of hashInputs) {
     if (!(await exists(path))) {
       continue
@@ -307,7 +458,7 @@ async function saveRuntimeNodeModulesCache(hash: string): Promise<void> {
   }
 
   console.log(`Saving OpenCat runtime production dependencies to ${runtimeNodeModulesCacheDir}`)
-  await mkdir(buildCacheDir, { recursive: true })
+  await mkdir(targetCacheDir, { recursive: true })
   await rm(runtimeNodeModulesCacheDir, { recursive: true, force: true })
   await cp(nodeModules, runtimeNodeModulesCacheDir, {
     recursive: true,
@@ -434,7 +585,7 @@ async function pruneRuntimeNodeModules(): Promise<void> {
 
 async function writeRuntimeManifest(): Promise<void> {
   const pkg = JSON.parse(await readFile(packageJsonPath, 'utf8'))
-  const nodeVersion = spawnSync(detectNodeExecutable(), ['--version'], {
+  const nodeVersion = spawnSync(bundledNodeRuntimePath(), ['--version'], {
     encoding: 'utf8',
     windowsHide: true,
   }).stdout.trim()
@@ -444,10 +595,23 @@ async function writeRuntimeManifest(): Promise<void> {
       productName: 'OpenCat',
       version: pkg.version,
       node: nodeVersion,
+      runtimePlatform: targetPlatform,
+      runtimeArch: targetArch,
       preparedAt: new Date().toISOString(),
     }, null, 2)}\n`,
     'utf8',
   )
+}
+
+async function existingRuntimeMatchesTarget(): Promise<boolean> {
+  try {
+    const manifest = JSON.parse(
+      await readFile(join(runtimeDir, 'opencat-runtime.json'), 'utf8'),
+    ) as RuntimeManifest
+    return manifest.runtimePlatform === targetPlatform && manifest.runtimeArch === targetArch
+  } catch {
+    return process.platform === targetPlatform && process.arch === targetArch
+  }
 }
 
 async function scanVisibleLeaks(): Promise<void> {
@@ -516,6 +680,7 @@ async function main(): Promise<void> {
   await scanVisibleLeaks()
 
   console.log(`OpenCat runtime staged at ${runtimeDir}`)
+  console.log(`OpenCat runtime target: ${runtimeTargetId}`)
 }
 
 void main().catch(error => {

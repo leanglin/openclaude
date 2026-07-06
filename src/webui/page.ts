@@ -2097,9 +2097,9 @@ export function renderWebUiPage(): string {
 
       <footer id="composer" class="composer">
         <form id="composerForm" class="composerBox">
-          <button id="attachButton" class="iconButton attachButton" type="button" title="添加附件" aria-label="添加附件"></button>
           <input id="attachmentInput" type="file" multiple hidden>
           <div id="attachmentTray" class="attachmentTray" hidden></div>
+          <button id="attachButton" class="iconButton attachButton" type="button" title="添加附件" aria-label="添加附件"></button>
           <label class="srOnly" for="composerInput">向 OpenCat 提问</label>
           <textarea id="composerInput" placeholder="向 OpenCat 提问..." rows="1"></textarea>
           <button id="sendButton" class="sendButton" title="发送" aria-label="发送"></button>

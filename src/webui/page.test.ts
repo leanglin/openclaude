@@ -124,8 +124,17 @@ describe('webui page', () => {
 
   test('renders attachment chips and structured tool activity affordances', () => {
     const html = renderWebUiPage()
+    const composerFormIndex = html.indexOf('id="composerForm"')
+    const attachmentTrayIndex = html.indexOf('id="attachmentTray"', composerFormIndex)
+    const attachButtonIndex = html.indexOf('id="attachButton"', composerFormIndex)
+    const composerInputIndex = html.indexOf('id="composerInput"', composerFormIndex)
+    const sendButtonIndex = html.indexOf('id="sendButton"', composerFormIndex)
 
     expect(html).toContain('id="attachButton"')
+    expect(attachmentTrayIndex).toBeGreaterThan(composerFormIndex)
+    expect(attachmentTrayIndex).toBeLessThan(attachButtonIndex)
+    expect(attachmentTrayIndex).toBeLessThan(composerInputIndex)
+    expect(attachmentTrayIndex).toBeLessThan(sendButtonIndex)
     expect(html).toContain('grid-template-columns: 40px minmax(0, 1fr) 40px;')
     expect(html).toContain('align-items: center;')
     expect(html).toContain('background: #2563eb;')

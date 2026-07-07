@@ -54,6 +54,7 @@ export type CliChatSessionOptions = {
   spawnFactory?: SpawnFactory
   cliCommand?: string
   env?: NodeJS.ProcessEnv
+  replaceEnv?: boolean
   secrets?: readonly string[]
   sessionId?: string
   resumeSession?: boolean
@@ -273,8 +274,11 @@ export class CliChatSession {
   private shownPluginRecommendations = new Set<string>()
 
   constructor(private readonly options: CliChatSessionOptions) {
+    const effectiveEnv = options.replaceEnv
+      ? options.env ?? {}
+      : { ...process.env, ...(options.env ?? {}) }
     this.secrets = [
-      ...collectKnownSecrets(options.env ?? process.env),
+      ...collectKnownSecrets(effectiveEnv),
       ...(options.secrets ?? []),
     ]
   }
@@ -308,9 +312,12 @@ export class CliChatSession {
       cliCommand: this.options.cliCommand,
     })
     const spawnFactory = this.options.spawnFactory ?? (spawn as unknown as SpawnFactory)
+    const childEnv = this.options.replaceEnv
+      ? { ...(this.options.env ?? {}) }
+      : { ...process.env, ...(this.options.env ?? {}) }
     const spawnOptions: SpawnOptions = {
       cwd: this.options.cwd,
-      env: { ...process.env, ...(this.options.env ?? {}) },
+      env: childEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: launch.shell,
       windowsHide: true,

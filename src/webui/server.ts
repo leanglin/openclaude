@@ -14,7 +14,7 @@ import type { ProfileFileLocation } from '../utils/providerProfile.js'
 import { CliChatSession, type SpawnFactory } from './chatSession.js'
 import {
   buildBootstrapState,
-  buildMidsceneSessionEnv,
+  buildWebSessionEnv,
   saveProviderProfileFromPayload,
 } from './providerProfile.js'
 import {
@@ -1145,14 +1145,16 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
       return sessionId
     }
 
-    function ensureSession(): CliChatSession {
+    async function ensureSession(): Promise<CliChatSession> {
       const sessionId = ensureActiveSessionId()
       if (!session) {
+        const sessionEnv = await buildWebSessionEnv(options.profileLocation)
         session = new CliChatSession({
           cwd: options.cwd,
           permissionMode: options.permissionMode,
           send,
-          env: buildMidsceneSessionEnv(options.profileLocation),
+          env: sessionEnv.env,
+          replaceEnv: sessionEnv.replaceEnv,
           spawnFactory: options.spawnFactory,
           sessionId,
           resumeSession: hasWebChatTranscriptMessages(options.cwd, sessionId),
@@ -1213,7 +1215,8 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
             })
             const titleText = attachmentTitleFallback(message.text, message.attachments)
             ensureActiveSessionForMessage(titleText)
-            ensureSession().handleClientMessage({
+            const activeSession = await ensureSession()
+            activeSession.handleClientMessage({
               ...message,
               text: prependAttachmentReferences(message.text, staged),
               attachments: undefined,
@@ -1236,7 +1239,8 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
             session.handleClientMessage(message)
             return
           }
-          ensureSession().handleClientMessage(message)
+          const activeSession = await ensureSession()
+          activeSession.handleClientMessage(message)
         } catch (error) {
           send({
             type: 'error',

@@ -6,6 +6,7 @@ import {
   PRIMARY_MENUS,
   buildBootstrapState,
   buildProfileFromPayload,
+  buildWebSessionEnv,
   saveProviderProfileFromPayload,
 } from './providerProfile.js'
 import { redactServerEvent } from './redaction.js'
@@ -84,6 +85,87 @@ describe('webui provider profiles', () => {
       expect(persisted.env.OPENAI_API_KEY).toBe(key)
       expect(persisted.env.OPENAI_BASE_URL).toBe('https://api-2.example.test/v1')
       expect(persisted.env.OPENAI_MODEL).toBe('example-model-2')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('saves OpenAI-compatible profile without stale ambient OpenAI auth fields', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-openai-clean-save-'))
+    const previousAuthHeaderValue = process.env.OPENAI_AUTH_HEADER_VALUE
+    const previousAuthHeader = process.env.OPENAI_AUTH_HEADER
+    try {
+      process.env.OPENAI_AUTH_HEADER_VALUE = 'stale-header-token'
+      process.env.OPENAI_AUTH_HEADER = 'X-Stale-Auth'
+      const filePath = join(dir, 'profile.json')
+      saveProviderProfileFromPayload(
+        {
+          provider: 'openai-compatible',
+          baseUrl: 'https://api.example.test/v1',
+          model: 'example-model',
+          apiKey: 'sk-saved-openai-key',
+        },
+        { filePath },
+      )
+      const persisted = JSON.parse(readFileSync(filePath, 'utf8'))
+
+      expect(persisted.env.OPENAI_API_KEY).toBe('sk-saved-openai-key')
+      expect(persisted.env.OPENAI_AUTH_HEADER_VALUE).toBeUndefined()
+      expect(persisted.env.OPENAI_AUTH_HEADER).toBeUndefined()
+    } finally {
+      if (previousAuthHeaderValue === undefined) {
+        delete process.env.OPENAI_AUTH_HEADER_VALUE
+      } else {
+        process.env.OPENAI_AUTH_HEADER_VALUE = previousAuthHeaderValue
+      }
+      if (previousAuthHeader === undefined) {
+        delete process.env.OPENAI_AUTH_HEADER
+      } else {
+        process.env.OPENAI_AUTH_HEADER = previousAuthHeader
+      }
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('builds Web session env from saved profile over stale parent provider env', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-session-env-'))
+    try {
+      const filePath = join(dir, 'profile.json')
+      saveProviderProfileFromPayload(
+        {
+          provider: 'openai-compatible',
+          baseUrl: 'https://saved.example.test/v1',
+          model: 'saved-model',
+          apiKey: 'sk-saved-openai-key',
+        },
+        { filePath },
+      )
+
+      const sessionEnv = await buildWebSessionEnv(
+        { filePath },
+        {
+          CLAUDE_CODE_USE_GEMINI: '1',
+          GEMINI_API_KEY: 'stale-gemini-key',
+          GEMINI_MODEL: 'stale-gemini-model',
+          OPENAI_API_KEY: 'stale-openai-key',
+          OPENAI_BASE_URL: 'https://stale.example.test/v1',
+          OPENAI_MODEL: 'stale-model',
+          OPENAI_AUTH_HEADER_VALUE: 'stale-header-token',
+          OPENCAT_CONFIG_DIR: 'E:\\OpenCat\\Config',
+        },
+      )
+
+      expect(sessionEnv.replaceEnv).toBe(true)
+      expect(sessionEnv.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+      expect(sessionEnv.env.OPENAI_BASE_URL).toBe('https://saved.example.test/v1')
+      expect(sessionEnv.env.OPENAI_MODEL).toBe('saved-model')
+      expect(sessionEnv.env.OPENAI_API_KEY).toBe('sk-saved-openai-key')
+      expect(sessionEnv.env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe('1')
+      expect(sessionEnv.env.OPENCAT_CONFIG_DIR).toBe('E:\\OpenCat\\Config')
+      expect(sessionEnv.env.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
+      expect(sessionEnv.env.GEMINI_API_KEY).toBeUndefined()
+      expect(sessionEnv.env.GEMINI_MODEL).toBeUndefined()
+      expect(sessionEnv.env.OPENAI_AUTH_HEADER_VALUE).toBeUndefined()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

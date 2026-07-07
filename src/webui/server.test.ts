@@ -1184,6 +1184,127 @@ describe('webui server', () => {
     }
   })
 
+  test('refresh_session makes next CLI child use saved OpenAI-compatible provider env', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-server-provider-refresh-'))
+    const previousProviderEnv = {
+      CLAUDE_CODE_USE_GEMINI: process.env.CLAUDE_CODE_USE_GEMINI,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GEMINI_MODEL: process.env.GEMINI_MODEL,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+      OPENAI_MODEL: process.env.OPENAI_MODEL,
+      OPENAI_AUTH_HEADER_VALUE: process.env.OPENAI_AUTH_HEADER_VALUE,
+    }
+    try {
+      process.env.CLAUDE_CODE_USE_GEMINI = '1'
+      process.env.GEMINI_API_KEY = 'stale-parent-gemini-key'
+      process.env.GEMINI_MODEL = 'stale-parent-gemini-model'
+      process.env.OPENAI_API_KEY = 'stale-parent-openai-key'
+      process.env.OPENAI_BASE_URL = 'https://stale-parent.example.test/v1'
+      process.env.OPENAI_MODEL = 'stale-parent-model'
+      process.env.OPENAI_AUTH_HEADER_VALUE = 'stale-parent-auth-header'
+
+      const cwd = join(dir, 'project')
+      mkdirSync(cwd, { recursive: true })
+      const filePath = join(dir, 'profile.json')
+      const sessionStoreLocation = { filePath: join(dir, 'sessions.json') }
+      let capturedEnv: NodeJS.ProcessEnv | undefined
+      let resolveSpawned: (() => void) | undefined
+      const spawned = new Promise<void>(resolve => {
+        resolveSpawned = resolve
+      })
+
+      await withServer(
+        async baseUrl => {
+          const savedKey = 'sk-webui-saved-openai-key'
+          const { ws, reader } = await connectWebSocket(baseUrl)
+          try {
+            await reader.waitFor(event => event.type === 'ready')
+
+            const geminiSave = await fetch(`${baseUrl}/api/provider-profile`, {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer test-token',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider: 'gemini',
+                baseUrl: 'https://gemini.example.test/v1beta/openai',
+                model: 'gemini-example',
+                apiKey: 'gemini-saved-key',
+              }),
+            })
+            expect(geminiSave.status).toBe(200)
+
+            const openAiSave = await fetch(`${baseUrl}/api/provider-profile`, {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer test-token',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider: 'openai-compatible',
+                baseUrl: 'https://saved.example.test/v1',
+                model: 'saved-model',
+                apiKey: savedKey,
+              }),
+            })
+            const openAiBody = await openAiSave.json()
+            expect(openAiSave.status).toBe(200)
+            expect(JSON.stringify(openAiBody)).not.toContain(savedKey)
+
+            ws.send(JSON.stringify({ type: 'refresh_session' }))
+            const refreshed = await reader.waitFor(event =>
+              event.type === 'ready' &&
+              event.bootstrap.profile?.baseUrl === 'https://saved.example.test/v1',
+            )
+            expect(JSON.stringify(refreshed)).not.toContain(savedKey)
+
+            ws.send(JSON.stringify({ type: 'send_message', text: 'hello' }))
+            await Promise.race([
+              spawned,
+              new Promise((_resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timed out waiting for CLI child spawn.')), 2000)
+                timeout.unref?.()
+              }),
+            ])
+
+            expect(capturedEnv?.CLAUDE_CODE_USE_OPENAI).toBe('1')
+            expect(capturedEnv?.OPENAI_BASE_URL).toBe('https://saved.example.test/v1')
+            expect(capturedEnv?.OPENAI_MODEL).toBe('saved-model')
+            expect(capturedEnv?.OPENAI_API_KEY).toBe(savedKey)
+            expect(capturedEnv?.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe('1')
+            expect(capturedEnv?.CLAUDE_CODE_USE_GEMINI).toBeUndefined()
+            expect(capturedEnv?.GEMINI_API_KEY).toBeUndefined()
+            expect(capturedEnv?.GEMINI_MODEL).toBeUndefined()
+            expect(capturedEnv?.OPENAI_AUTH_HEADER_VALUE).toBeUndefined()
+          } finally {
+            await terminateWebSocket(ws)
+          }
+        },
+        {
+          cwd,
+          profileLocation: { filePath },
+          sessionStoreLocation,
+          spawnFactory: (_command, _args, options) => {
+            capturedEnv = options.env
+            resolveSpawned?.()
+            return createMockChild()
+          },
+        },
+      )
+    } finally {
+      for (const [key, value] of Object.entries(previousProviderEnv)) {
+        if (value === undefined) {
+          delete process.env[key]
+        } else {
+          process.env[key] = value
+        }
+      }
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('bootstrap includes Web chat sessions for the active cwd only', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-server-session-'))
     try {

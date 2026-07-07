@@ -91,6 +91,48 @@ describe('webui CLI chat session', () => {
     expect(events.some(event => event.type === 'status' && event.status === 'Running')).toBe(true)
   })
 
+  test('replaceEnv starts the child with only the provided environment', () => {
+    const previousParentKey = process.env.OPENAI_API_KEY
+    const previousParentOnly = process.env.OPENCAT_PARENT_ONLY_TEST_VAR
+    try {
+      process.env.OPENAI_API_KEY = 'stale-parent-key'
+      process.env.OPENCAT_PARENT_ONLY_TEST_VAR = 'parent-only'
+      const mock = createMockChild()
+      let capturedEnv: NodeJS.ProcessEnv | undefined
+      const session = new CliChatSession({
+        cwd: process.cwd(),
+        permissionMode: 'acceptEdits',
+        send: () => {},
+        env: {
+          OPENAI_API_KEY: 'saved-child-key',
+          OPENAI_BASE_URL: 'https://saved.example.test/v1',
+        },
+        replaceEnv: true,
+        spawnFactory: (_command, _args, options) => {
+          capturedEnv = options.env
+          return mock.child
+        },
+      })
+
+      session.sendUserMessage('hello')
+
+      expect(capturedEnv?.OPENAI_API_KEY).toBe('saved-child-key')
+      expect(capturedEnv?.OPENAI_BASE_URL).toBe('https://saved.example.test/v1')
+      expect(capturedEnv?.OPENCAT_PARENT_ONLY_TEST_VAR).toBeUndefined()
+    } finally {
+      if (previousParentKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = previousParentKey
+      }
+      if (previousParentOnly === undefined) {
+        delete process.env.OPENCAT_PARENT_ONLY_TEST_VAR
+      } else {
+        process.env.OPENCAT_PARENT_ONLY_TEST_VAR = previousParentOnly
+      }
+    }
+  })
+
   test('new Web chat sessions launch with a fixed session id', () => {
     const mock = createMockChild()
     let capturedArgs: string[] = []

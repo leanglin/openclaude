@@ -3,10 +3,12 @@ import {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_MISTRAL_BASE_URL,
   DEFAULT_MISTRAL_MODEL,
+  buildLaunchEnv,
   buildGeminiProfileEnv,
   buildMistralProfileEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
+  clearManagedProfileEnv,
   createProfileFile,
   getDefaultProfileFilePath,
   loadProfileFile,
@@ -60,6 +62,7 @@ const MIDSCENE_ENV_KEYS = [
 ] as const
 const MIDSCENE_CONFIG_SOURCE_ENV = 'OPENCAT_APP_TEST_MIDSCENE_CONFIG_SOURCE'
 const MIDSCENE_CONFIG_PRESENT_KEYS_ENV = 'OPENCAT_APP_TEST_MIDSCENE_PRESENT_KEYS'
+const HOST_MANAGED_PROVIDER_ENV = 'CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST'
 
 export const PRIMARY_MENUS: PrimaryMenuOption[] = [
   { id: 'chat', label: 'Chat', icon: 'message-square' },
@@ -175,6 +178,42 @@ export function buildMidsceneSessionEnv(
     ...env,
     [MIDSCENE_CONFIG_SOURCE_ENV]: 'saved-profile',
     [MIDSCENE_CONFIG_PRESENT_KEYS_ENV]: presentKeys.join(','),
+  }
+}
+
+export type WebSessionEnv = {
+  env: NodeJS.ProcessEnv
+  replaceEnv: boolean
+}
+
+export async function buildWebSessionEnv(
+  location?: ProfileFileLocation,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): Promise<WebSessionEnv> {
+  const persisted = loadProfileFile(location)
+  const midsceneEnv = buildMidsceneSessionEnv(location)
+
+  if (!persisted) {
+    return { env: midsceneEnv, replaceEnv: false }
+  }
+
+  const baseEnv = { ...processEnv }
+  clearManagedProfileEnv(baseEnv)
+  const providerEnv = await buildLaunchEnv({
+    profile: persisted.profile,
+    persisted,
+    goal: normalizeRecommendationGoal(processEnv.OPENCLAUDE_PROFILE_GOAL),
+    processEnv: baseEnv,
+    getOllamaChatBaseUrl,
+  })
+
+  return {
+    env: {
+      ...providerEnv,
+      ...midsceneEnv,
+      [HOST_MANAGED_PROVIDER_ENV]: '1',
+    },
+    replaceEnv: true,
   }
 }
 
@@ -380,9 +419,11 @@ export function saveProviderProfileFromPayload(
   location?: ProfileFileLocation,
 ): ProviderProfileSummary {
   const existing = loadProfileFile(location)
+  const processEnv = { ...process.env }
+  clearManagedProfileEnv(processEnv)
   const profileFile = buildProfileFromPayload(
     payload,
-    process.env,
+    processEnv,
     existing?.env,
   )
   const filePath = saveProfileFile(profileFile, location)

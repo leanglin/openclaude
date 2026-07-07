@@ -9,7 +9,7 @@ import { WebSocket, WebSocketServer, type RawData } from 'ws'
 import { getCommands, isBridgeSafeCommand } from '../commands.js'
 import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../constants/product.js'
 import { openBrowser as openSystemBrowser } from '../utils/browser.js'
-import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
+import { getClaudeConfigHomeDir, parseEnvVars } from '../utils/envUtils.js'
 import { PERMISSION_MODES } from '../utils/permissions/PermissionMode.js'
 import type { ProfileFileLocation } from '../utils/providerProfile.js'
 import { generateCommandSuggestions } from '../utils/suggestions/commandSuggestions.js'
@@ -69,6 +69,21 @@ import {
   uploadAssetToHub,
   voteAssetHubAsset,
 } from '../services/platformAssetHub/index.js'
+import {
+  addMcpConfig,
+  getMcpConfigsByScope,
+  removeMcpConfig,
+} from '../services/mcp/config.js'
+import type {
+  McpServerConfig,
+  ScopedMcpServerConfig,
+} from '../services/mcp/types.js'
+import {
+  describeMcpConfigFilePath,
+  ensureTransport,
+  parseHeaders,
+} from '../services/mcp/utils.js'
+import { runWithCwdOverride } from '../utils/cwd.js'
 import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
 import { getInstallCounts } from '../utils/plugins/installCounts.js'
 import { isPluginInstalled } from '../utils/plugins/installedPluginsManager.js'
@@ -113,6 +128,9 @@ import type {
   ClientMessage,
   ProviderProfilePayload,
   ServerEvent,
+  WebMcpServerAddResult,
+  WebMcpServerScope,
+  WebMcpServerSummary,
   WebPluginInstallResult,
   WebPluginMarketplaceSummary,
   WebPluginScope,
@@ -380,6 +398,219 @@ async function listWebPlugins(params: {
   })
 
   return { plugins: summaries, marketplaces: marketplaceSummaries, failures }
+}
+
+function normalizeWebMcpScope(value: unknown): WebMcpServerScope {
+  if (value === 'project' || value === 'local') return value
+  return 'user'
+}
+
+function ensureWritableMcpScope(value: unknown): WebMcpServerScope {
+  const scope = normalizeWebMcpScope(value)
+  if (value !== undefined && value !== null && value !== scope) {
+    throw new Error('Invalid MCP scope. Use user, project, or local.')
+  }
+  return scope
+}
+
+function stringFromPayload(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function splitCommandArgs(input: string): string[] {
+  const args: string[] = []
+  let current = ''
+  let quote: '"' | "'" | '' = ''
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    if (char === '\\' && quote !== "'") {
+      index += 1
+      if (index < input.length) current += input[index]
+      else current += char
+      continue
+    }
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? '' : char
+      continue
+    }
+    if (!quote && /\s/.test(char)) {
+      if (current) {
+        args.push(current)
+        current = ''
+      }
+      continue
+    }
+    current += char
+  }
+  if (quote) throw new Error('Arguments contain an unterminated quote.')
+  if (current) args.push(current)
+  return args
+}
+
+function parseStringArrayPayload(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => String(item).trim())
+      .filter(Boolean)
+  }
+  if (typeof value === 'string') return splitCommandArgs(value.trim())
+  return []
+}
+
+function parseStringRecordPayload(
+  value: unknown,
+  fieldName: string,
+): Record<string, string> | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string') {
+    const lines = value
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+    if (lines.length === 0) return undefined
+    if (fieldName === 'headers') return parseHeaders(lines)
+    return parseEnvVars(lines)
+  }
+  if (Array.isArray(value)) {
+    const lines = value
+      .map(item => String(item).trim())
+      .filter(Boolean)
+    if (lines.length === 0) return undefined
+    if (fieldName === 'headers') return parseHeaders(lines)
+    return parseEnvVars(lines)
+  }
+  if (typeof value === 'object') {
+    const record: Record<string, string> = {}
+    for (const [key, raw] of Object.entries(value)) {
+      const normalizedKey = key.trim()
+      if (!normalizedKey) {
+        throw new Error(`Invalid ${fieldName}: key cannot be empty.`)
+      }
+      if (raw === undefined || raw === null) continue
+      record[normalizedKey] = String(raw)
+    }
+    return Object.keys(record).length > 0 ? record : undefined
+  }
+  throw new Error(`Invalid ${fieldName} format.`)
+}
+
+function getMcpRegistryInputHint(value: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
+  const path = parsed.pathname.replace(/\/+$/, '')
+  if (host === 'glama.ai' && path === '/mcp/servers') {
+    return 'https://glama.ai/mcp/servers 是 MCP Registry 列表页，不能直接添加。请打开具体 server 详情，填写其中的 stdio command/args 或 HTTP/SSE endpoint。'
+  }
+  if (host === 'glama.ai' && path.startsWith('/mcp/servers/')) {
+    return '这是 Glama 的 MCP Registry 详情页，不是 MCP endpoint。请复制详情页提供的 command/args 或 HTTP/SSE URL 后再添加。'
+  }
+  if (host === 'github.com' && path.startsWith('/mcp/')) {
+    return '这是 GitHub MCP Registry 条目页，不是 marketplace 或 MCP endpoint。请复制条目里的 stdio command/args 或 HTTP/SSE URL 后再添加。'
+  }
+  return null
+}
+
+function assertNotMcpRegistryInput(value: string): void {
+  const hint = getMcpRegistryInputHint(value.trim())
+  if (hint) throw new Error(hint)
+}
+
+function buildWebMcpConfig(payload: {
+  transport?: unknown
+  command?: unknown
+  args?: unknown
+  env?: unknown
+  url?: unknown
+  headers?: unknown
+}): McpServerConfig {
+  const transport = ensureTransport(stringFromPayload(payload.transport))
+  if (transport === 'stdio') {
+    const command = stringFromPayload(payload.command)
+    if (!command) throw new Error('Command is required for stdio MCP servers.')
+    assertNotMcpRegistryInput(command)
+    const env = parseStringRecordPayload(payload.env, 'env')
+    return {
+      type: 'stdio',
+      command,
+      args: parseStringArrayPayload(payload.args),
+      ...(env ? { env } : {}),
+    }
+  }
+
+  const url = stringFromPayload(payload.url)
+  if (!url) throw new Error('URL is required for HTTP/SSE MCP servers.')
+  assertNotMcpRegistryInput(url)
+  const headers = parseStringRecordPayload(payload.headers, 'headers')
+  return {
+    type: transport,
+    url,
+    ...(headers ? { headers } : {}),
+  }
+}
+
+function summarizeWebMcpServer(
+  name: string,
+  config: ScopedMcpServerConfig,
+): WebMcpServerSummary {
+  const transport = config.type ?? 'stdio'
+  const isWritable =
+    config.scope === 'user' ||
+    config.scope === 'project' ||
+    config.scope === 'local'
+  const summary: WebMcpServerSummary = {
+    name,
+    scope: config.scope === 'enterprise' ? 'enterprise' : normalizeWebMcpScope(config.scope),
+    transport,
+    envKeys: [],
+    headerKeys: [],
+    configPath: describeMcpConfigFilePath(config.scope),
+    readonly: !isWritable,
+  }
+  if (transport === 'stdio') {
+    const stdio = config as ScopedMcpServerConfig & {
+      command: string
+      args?: string[]
+      env?: Record<string, string>
+    }
+    summary.command = stdio.command
+    summary.args = stdio.args ?? []
+    summary.envKeys = Object.keys(stdio.env ?? {})
+  } else if ('url' in config) {
+    summary.url = config.url
+    if ('headers' in config) {
+      summary.headerKeys = Object.keys(config.headers ?? {})
+    }
+  }
+  return summary
+}
+
+function listWebMcpServers(): {
+  servers: WebMcpServerSummary[]
+  errors: Array<{ scope: string; message: string }>
+} {
+  const servers: WebMcpServerSummary[] = []
+  const errors: Array<{ scope: string; message: string }> = []
+  for (const scope of ['user', 'project', 'local', 'enterprise'] as const) {
+    const result = getMcpConfigsByScope(scope)
+    for (const [name, config] of Object.entries(result.servers)) {
+      servers.push(summarizeWebMcpServer(name, config))
+    }
+    for (const error of result.errors) {
+      errors.push({ scope, message: error.message })
+    }
+  }
+  servers.sort((a, b) => {
+    const scopeOrder = ['user', 'project', 'local', 'enterprise']
+    const scopeDelta = scopeOrder.indexOf(a.scope) - scopeOrder.indexOf(b.scope)
+    if (scopeDelta !== 0) return scopeDelta
+    return a.name.localeCompare(b.name)
+  })
+  return { servers, errors }
 }
 
 function resolveIconPath(): string | null {
@@ -805,6 +1036,7 @@ async function handlePluginsApi(
     const payload = await readJsonBody<{ source?: unknown }>(request)
     const source = typeof payload.source === 'string' ? payload.source.trim() : ''
     if (!source) throw new Error('Marketplace source is required.')
+    assertNotMcpRegistryInput(source)
 
     const parsed = await parseMarketplaceInput(source)
     if (!parsed) {
@@ -888,6 +1120,62 @@ async function handlePluginsApi(
 
   sendJson(response, 404, { error: 'Plugins API route was not found.' })
   return true
+}
+
+async function handleMcpApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+  options: WebUiAppOptions,
+): Promise<boolean> {
+  if (!url.pathname.startsWith('/api/mcp')) return false
+
+  return runWithCwdOverride(options.cwd, async () => {
+    if (request.method === 'GET' && url.pathname === '/api/mcp/servers') {
+      sendJson(response, 200, listWebMcpServers())
+      return true
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/mcp/servers') {
+      const payload = await readJsonBody<{
+        name?: unknown
+        scope?: unknown
+        transport?: unknown
+        command?: unknown
+        args?: unknown
+        env?: unknown
+        url?: unknown
+        headers?: unknown
+      }>(request)
+      const name = stringFromPayload(payload.name)
+      if (!name) throw new Error('MCP server name is required.')
+      const scope = ensureWritableMcpScope(payload.scope)
+      const config = buildWebMcpConfig(payload)
+      await addMcpConfig(name, config, scope)
+      const saved = getMcpConfigsByScope(scope).servers[name]
+      sendJson(response, 200, {
+        ok: true,
+        server: saved
+          ? summarizeWebMcpServer(name, saved)
+          : summarizeWebMcpServer(name, { ...config, scope }),
+        message: 'MCP server added. Refresh the session to load it.',
+      } satisfies WebMcpServerAddResult)
+      return true
+    }
+
+    const deletePrefix = '/api/mcp/servers/'
+    if (request.method === 'DELETE' && url.pathname.startsWith(deletePrefix)) {
+      const name = decodeURIComponent(url.pathname.slice(deletePrefix.length)).trim()
+      if (!name) throw new Error('MCP server name is required.')
+      const scope = ensureWritableMcpScope(url.searchParams.get('scope') || 'user')
+      await removeMcpConfig(name, scope)
+      sendJson(response, 200, { ok: true, name, scope })
+      return true
+    }
+
+    sendJson(response, 404, { error: 'MCP API route was not found.' })
+    return true
+  })
 }
 
 async function handlePlatformAuthApi(
@@ -1093,6 +1381,10 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
         }
 
         if (await handlePluginsApi(request, response, url)) {
+          return
+        }
+
+        if (await handleMcpApi(request, response, url, options)) {
           return
         }
 

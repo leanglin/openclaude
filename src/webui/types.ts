@@ -149,6 +149,29 @@ export type WebPluginInstallResult = {
   needsConfiguration?: boolean
 }
 
+export type WebMcpServerScope = 'user' | 'project' | 'local'
+
+export type WebMcpServerTransport = 'stdio' | 'http' | 'sse'
+
+export type WebMcpServerSummary = {
+  name: string
+  scope: WebMcpServerScope | 'enterprise'
+  transport: WebMcpServerTransport | string
+  command?: string
+  args?: string[]
+  url?: string
+  envKeys: string[]
+  headerKeys: string[]
+  configPath: string
+  readonly: boolean
+}
+
+export type WebMcpServerAddResult = {
+  ok: boolean
+  server?: WebMcpServerSummary
+  message?: string
+}
+
 export type PluginRecommendationEvent = {
   pluginId: string
   pluginName: string

@@ -203,6 +203,17 @@ describe('webui page', () => {
     expect(html).toContain('id="activityPanel"')
   })
 
+  test('keeps Knowledge Graph summary timestamps in a compact column', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('.graphTable .graphTimeCell')
+    expect(html).toContain('width: 96px;')
+    expect(html).toContain('white-space: nowrap;')
+    expect(html).toContain('<td class="graphTimeCell">')
+    expect(html).toContain('<th class="graphTimeCell">')
+    expect(html).toContain('工作区记忆：')
+  })
+
   test('renders Tools plugin marketplace controls instead of a placeholder', () => {
     const html = renderWebUiPage()
 

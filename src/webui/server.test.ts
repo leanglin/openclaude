@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo, Socket } from 'node:net'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, test } from 'bun:test'
@@ -11,7 +11,7 @@ import { createWebUiApp, ensureWebUiBootstrapDirs } from './server.js'
 import { buildMidsceneSessionEnv } from './providerProfile.js'
 import { createWebChatSession } from './sessionStore.js'
 import type { ServerEvent } from './types.js'
-import { getAutoMemPath } from '../memdir/paths.js'
+import { getAutoMemPath, getAutoMemPathForProject } from '../memdir/paths.js'
 import { clearCommandsCache } from '../commands.js'
 import {
   getClaudeConfigHomeDir,
@@ -74,6 +74,7 @@ function setupIsolatedApiState(): {
   process.env.CLAUDE_CODE_MANAGED_SETTINGS_PATH = managedDir
   setClaudeConfigHomeDirForTesting(configDir)
   getAutoMemPath.cache?.clear?.()
+  getAutoMemPathForProject.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
   getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
@@ -108,6 +109,7 @@ afterEach(() => {
   }
   setClaudeConfigHomeDirForTesting(previousConfigHome)
   getAutoMemPath.cache?.clear?.()
+  getAutoMemPathForProject.cache?.clear?.()
   getClaudeConfigHomeDir.cache?.clear?.()
   getManagedFilePath.cache?.clear?.()
   clearCommandsCache()
@@ -1113,6 +1115,58 @@ describe('webui server', () => {
       )
     } finally {
       rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('serves memory APIs from the Web cwd when process cwd is a packaged runtime', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const runtimeCwd = resolve(cwd, '..', 'opencat-runtime')
+    const previousProcessCwd = process.cwd()
+    mkdirSync(runtimeCwd, { recursive: true })
+    delete process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
+    getAutoMemPath.cache?.clear?.()
+    getAutoMemPathForProject.cache?.clear?.()
+
+    try {
+      process.chdir(runtimeCwd)
+      await withServer(
+        async baseUrl => {
+          const headers = {
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          }
+          const expectedMemoryDir = resolve(getAutoMemPathForProject(cwd))
+          const runtimeMemoryDir = resolve(getAutoMemPathForProject(runtimeCwd))
+
+          const status = await fetch(`${baseUrl}/api/memory/status`, {
+            headers,
+          }).then(response => response.json())
+          expect(status.memoryDir).toBe(expectedMemoryDir)
+          expect(status.memoryDir).not.toBe(runtimeMemoryDir)
+          expect(status.memoryFileCount).toBe(0)
+
+          const createdResponse = await fetch(`${baseUrl}/api/memory/files`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              filename: 'workspace-topic.md',
+              title: 'Workspace Topic',
+              content: 'Remember the Web cwd.',
+              addToIndex: true,
+            }),
+          })
+          expect(createdResponse.status).toBe(200)
+          expect(existsSync(join(expectedMemoryDir, 'workspace-topic.md'))).toBe(true)
+          expect(existsSync(join(runtimeMemoryDir, 'workspace-topic.md'))).toBe(false)
+        },
+        {
+          cwd,
+          profileLocation: { filePath: join(cwd, 'profile.json') },
+          sessionStoreLocation: { filePath: join(cwd, 'sessions.json') },
+        },
+      )
+    } finally {
+      process.chdir(previousProcessCwd)
     }
   })
 

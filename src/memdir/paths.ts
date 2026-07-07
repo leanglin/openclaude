@@ -1,6 +1,6 @@
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
-import { isAbsolute, join, normalize, sep } from 'path'
+import { isAbsolute, join, normalize, resolve, sep } from 'path'
 import {
   getIsNonInteractiveSession,
   getProjectRoot,
@@ -216,7 +216,17 @@ export function hasAutoMemPathOverride(): boolean {
  * same repo share one auto-memory directory (anthropics/claude-code#24382).
  */
 function getAutoMemBase(): string {
-  return findCanonicalGitRoot(getProjectRoot()) ?? getProjectRoot()
+  return getAutoMemBaseForProject(getProjectRoot())
+}
+
+/**
+ * Returns the canonical memory key base for an explicit project root.
+ * Web UI callers use this to resolve memory for the chat workspace rather than
+ * the packaged runtime process directory.
+ */
+export function getAutoMemBaseForProject(projectRoot: string): string {
+  const normalizedProjectRoot = resolve(projectRoot)
+  return findCanonicalGitRoot(normalizedProjectRoot) ?? normalizedProjectRoot
 }
 
 /**
@@ -237,16 +247,35 @@ function getAutoMemBase(): string {
  */
 export const getAutoMemPath = memoize(
   (): string => {
-    const override = getAutoMemPathOverride() ?? getAutoMemPathSetting()
-    if (override) {
-      return override
-    }
-    const projectsDir = join(getMemoryBaseDir(), 'projects')
-    return (
-      join(projectsDir, sanitizePath(getAutoMemBase()), AUTO_MEM_DIRNAME) + sep
-    ).normalize('NFC')
+    return computeAutoMemPathForProject(getProjectRoot())
   },
   () => getProjectRoot(),
+)
+
+function computeAutoMemPathForProject(projectRoot: string): string {
+  const override = getAutoMemPathOverride() ?? getAutoMemPathSetting()
+  if (override) {
+    return override
+  }
+  const projectsDir = join(getMemoryBaseDir(), 'projects')
+  return (
+    join(
+      projectsDir,
+      sanitizePath(getAutoMemBaseForProject(projectRoot)),
+      AUTO_MEM_DIRNAME,
+    ) + sep
+  ).normalize('NFC')
+}
+
+/**
+ * Returns the auto-memory directory path for an explicit project root.
+ * Follows the same resolution order as getAutoMemPath().
+ */
+export const getAutoMemPathForProject = memoize(
+  (projectRoot: string): string => {
+    return computeAutoMemPathForProject(projectRoot)
+  },
+  (projectRoot: string) => resolve(projectRoot),
 )
 
 /**
@@ -271,6 +300,13 @@ export function getAutoMemDailyLogPath(date: Date = new Date()): string {
  */
 export function getAutoMemEntrypoint(): string {
   return join(getAutoMemPath(), AUTO_MEM_ENTRYPOINT_NAME)
+}
+
+/**
+ * Returns the auto-memory entrypoint for an explicit project root.
+ */
+export function getAutoMemEntrypointForProject(projectRoot: string): string {
+  return join(getAutoMemPathForProject(projectRoot), AUTO_MEM_ENTRYPOINT_NAME)
 }
 
 /**

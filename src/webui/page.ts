@@ -1542,6 +1542,22 @@ export function renderWebUiPage(): string {
       overflow-wrap: anywhere;
     }
 
+    .graphTable .graphTimeCell {
+      width: 96px;
+      min-width: 96px;
+      white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: keep-all;
+    }
+
+    .graphTable .graphContentCell {
+      width: 48%;
+    }
+
+    .graphTable .graphKeywordsCell {
+      width: 40%;
+    }
+
     .graphTable tr {
       transition: background-color var(--oc-duration-fast) var(--oc-ease-standard);
     }
@@ -2870,7 +2886,7 @@ export function renderWebUiPage(): string {
           '<strong class="summaryLine">' + escapeHtml(status.autoMemoryEnabled ? '自动记忆已启用' : '自动记忆已禁用') + ' <span class="statusBadge ' + (status.autoMemoryEnabled ? 'success' : '') + '">' + (status.autoMemoryEnabled ? 'Enabled' : 'Disabled') + '</span></strong>',
           '<span class="summaryLine">Auto write <span class="statusBadge ' + (extractionEnabled ? 'success' : '') + '">' + (extractionEnabled ? 'Enabled' : 'Disabled') + '</span></span>',
           '<span class="summaryLine">Graph capture <span class="statusBadge ' + (graphCollectionEnabled ? 'success' : '') + '">' + (graphCollectionEnabled ? 'Enabled' : 'Disabled') + '</span></span>',
-          '<span class="summaryLine">' + escapeHtml(status.memoryDir || '') + '</span>',
+          '<span class="summaryLine">工作区记忆：' + escapeHtml(status.memoryDir || '') + '</span>',
           '<span class="summaryLine">' + escapeHtml((status.memoryFileCount || 0) + ' 个文件 / ' + formatBytes(status.totalBytes || 0)) + '</span>'
         ].join('') : skeletonStack(),
         '</div>',
@@ -3068,13 +3084,13 @@ export function renderWebUiPage(): string {
       const rows = {
         entities: graph.entities.map(entity => '<tr><td>' + escapeHtml(entity.type) + '</td><td>' + escapeHtml(entity.name) + '</td><td>' + escapeHtml(JSON.stringify(entity.attributes || {})) + '</td></tr>').join(''),
         relations: graph.relations.map(rel => '<tr><td>' + escapeHtml(rel.sourceId) + '</td><td>' + escapeHtml(rel.type) + '</td><td>' + escapeHtml(rel.targetId) + '</td></tr>').join(''),
-        summaries: graph.summaries.map(summary => '<tr><td>' + escapeHtml(shortTime(summary.timestamp)) + '</td><td>' + escapeHtml(summary.content) + '</td><td>' + escapeHtml((summary.keywords || []).join(', ')) + '</td></tr>').join(''),
+        summaries: graph.summaries.map(summary => '<tr><td class="graphTimeCell">' + escapeHtml(shortTime(summary.timestamp)) + '</td><td class="graphContentCell">' + escapeHtml(summary.content) + '</td><td class="graphKeywordsCell">' + escapeHtml((summary.keywords || []).join(', ')) + '</td></tr>').join(''),
         rules: graph.rules.map(rule => '<tr><td>' + escapeHtml(rule) + '</td></tr>').join('')
       };
       const headers = {
         entities: '<tr><th>类型</th><th>名称</th><th>属性</th></tr>',
         relations: '<tr><th>来源</th><th>类型</th><th>目标</th></tr>',
-        summaries: '<tr><th>时间</th><th>内容</th><th>关键词</th></tr>',
+        summaries: '<tr><th class="graphTimeCell">时间</th><th class="graphContentCell">内容</th><th class="graphKeywordsCell">关键词</th></tr>',
         rules: '<tr><th>规则</th></tr>'
       };
       workspaceView.innerHTML = [

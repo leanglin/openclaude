@@ -19,7 +19,9 @@ import {
 } from 'path'
 import {
   getAutoMemEntrypoint,
+  getAutoMemEntrypointForProject,
   getAutoMemPath,
+  getAutoMemPathForProject,
   isAutoMemoryEnabled,
   isExtractModeActive,
 } from '../../memdir/paths.js'
@@ -60,12 +62,14 @@ export function decodeMemoryFileId(fileId: string): string {
   return normalizeRelativeMemoryPath(decoded)
 }
 
-function getMemoryDir(): string {
-  return resolve(getAutoMemPath())
+function getMemoryDir(cwd?: string): string {
+  return resolve(cwd ? getAutoMemPathForProject(cwd) : getAutoMemPath())
 }
 
-function getMemoryEntrypoint(): string {
-  return resolve(getAutoMemEntrypoint())
+function getMemoryEntrypoint(cwd?: string): string {
+  return resolve(
+    cwd ? getAutoMemEntrypointForProject(cwd) : getAutoMemEntrypoint(),
+  )
 }
 
 function normalizeRelativeMemoryPath(input: string): string {
@@ -110,18 +114,20 @@ function realpathDeepestExisting(path: string): string {
   }
 }
 
-function ensureMemoryDir(): string {
-  const memoryDir = getMemoryDir()
+function ensureMemoryDir(cwd?: string): string {
+  const memoryDir = getMemoryDir(cwd)
   mkdirSync(memoryDir, { recursive: true })
   return memoryDir
 }
 
 function resolveMemoryPath(
   relativePath: string,
-  options: { mustExist?: boolean; createRoot?: boolean } = {},
+  options: { mustExist?: boolean; createRoot?: boolean; cwd?: string } = {},
 ): string {
   const safeRelativePath = normalizeRelativeMemoryPath(relativePath)
-  const memoryDir = options.createRoot ? ensureMemoryDir() : getMemoryDir()
+  const memoryDir = options.createRoot
+    ? ensureMemoryDir(options.cwd)
+    : getMemoryDir(options.cwd)
   const absolutePath = resolve(memoryDir, safeRelativePath)
 
   if (!isWithin(resolve(memoryDir), absolutePath)) {
@@ -165,9 +171,14 @@ function previewContent(markdown: string): string | undefined {
   return stripped ? stripped.slice(0, 180) : undefined
 }
 
-function buildMemoryFile(relativePath: string, includePreview = false): MemoryFile {
+function buildMemoryFile(
+  relativePath: string,
+  includePreview = false,
+  cwd?: string,
+): MemoryFile {
   const absolutePath = resolveMemoryPath(relativePath, {
     mustExist: relativePath !== MEMORY_INDEX,
+    cwd,
   })
   const exists = existsSync(absolutePath)
   const stats = exists ? statSync(absolutePath) : undefined
@@ -208,7 +219,7 @@ function buildMemoryFile(relativePath: string, includePreview = false): MemoryFi
   }
 }
 
-function walkMemoryFiles(memoryDir: string): string[] {
+function walkMemoryFiles(memoryDir: string, cwd?: string): string[] {
   if (!existsSync(memoryDir)) return []
   const files: string[] = []
   const pending = ['']
@@ -240,7 +251,7 @@ function walkMemoryFiles(memoryDir: string): string[] {
       if (!entry.isFile() && !entry.isSymbolicLink()) continue
       if (extname(entry.name).toLowerCase() !== '.md') continue
       try {
-        resolveMemoryPath(relativePath, { mustExist: true })
+        resolveMemoryPath(relativePath, { mustExist: true, cwd })
         files.push(relativePath)
       } catch {
         // Skip symlink escapes or otherwise invalid memory candidates.
@@ -255,28 +266,34 @@ function walkMemoryFiles(memoryDir: string): string[] {
   })
 }
 
-export function listMemoryFiles(): MemoryFile[] {
-  const memoryDir = getMemoryDir()
-  const relativePaths = walkMemoryFiles(memoryDir)
+export function listMemoryFiles(cwd?: string): MemoryFile[] {
+  const memoryDir = getMemoryDir(cwd)
+  const relativePaths = walkMemoryFiles(memoryDir, cwd)
   if (!relativePaths.includes(MEMORY_INDEX)) {
     relativePaths.unshift(MEMORY_INDEX)
   }
-  return relativePaths.map(relativePath => buildMemoryFile(relativePath, true))
+  return relativePaths.map(relativePath =>
+    buildMemoryFile(relativePath, true, cwd),
+  )
 }
 
 export async function getMemoryStatus(cwd: string): Promise<MemoryStatus> {
-  const files = listMemoryFiles()
+  const files = listMemoryFiles(cwd)
   const graph = await getKnowledgeGraphSnapshot(cwd)
   const autoMemoryEnabled = isAutoMemoryEnabled()
   const knowledgeGraphEnabled = getGlobalConfig().knowledgeGraphEnabled !== false
+  const hasMemoryIndex = existsSync(getMemoryEntrypoint(cwd))
+  const countedFiles = files.filter(
+    file => file.relativePath !== MEMORY_INDEX || hasMemoryIndex,
+  )
   return {
     autoMemoryEnabled,
     autoMemoryExtractionEnabled: autoMemoryEnabled && isExtractModeActive(),
-    memoryDir: getMemoryDir(),
-    memoryEntrypointPath: getMemoryEntrypoint(),
-    hasMemoryIndex: existsSync(getMemoryEntrypoint()),
-    memoryFileCount: files.length,
-    totalBytes: files.reduce((sum, file) => sum + file.sizeBytes, 0),
+    memoryDir: getMemoryDir(cwd),
+    memoryEntrypointPath: getMemoryEntrypoint(cwd),
+    hasMemoryIndex,
+    memoryFileCount: countedFiles.length,
+    totalBytes: countedFiles.reduce((sum, file) => sum + file.sizeBytes, 0),
     knowledgeGraphEnabled,
     knowledgeGraphCollectionEnabled: knowledgeGraphEnabled,
     knowledgeGraphStats: {
@@ -289,12 +306,13 @@ export async function getMemoryStatus(cwd: string): Promise<MemoryStatus> {
   }
 }
 
-export function getMemoryFile(fileId: string): MemoryFileDetail {
+export function getMemoryFile(fileId: string, cwd?: string): MemoryFileDetail {
   const relativePath = decodeMemoryFileId(fileId)
   const absolutePath = resolveMemoryPath(relativePath, {
     mustExist: relativePath !== MEMORY_INDEX,
+    cwd,
   })
-  const file = buildMemoryFile(relativePath)
+  const file = buildMemoryFile(relativePath, false, cwd)
   const warnings: string[] = []
 
   if (!existsSync(absolutePath)) {
@@ -315,7 +333,11 @@ function writeAtomic(filePath: string, content: string): void {
   writeFileSyncAndFlush_DEPRECATED(filePath, content, { encoding: 'utf-8' })
 }
 
-export function saveMemoryFile(fileId: string, content: unknown): MemoryFileDetail {
+export function saveMemoryFile(
+  fileId: string,
+  content: unknown,
+  cwd?: string,
+): MemoryFileDetail {
   if (typeof content !== 'string') {
     throw new Error('Memory content must be a string.')
   }
@@ -327,13 +349,13 @@ export function saveMemoryFile(fileId: string, content: unknown): MemoryFileDeta
   if (kind === 'daily-log') {
     throw new Error('Daily log memory files are read-only in this view.')
   }
-  const absolutePath = resolveMemoryPath(relativePath, { createRoot: true })
+  const absolutePath = resolveMemoryPath(relativePath, { createRoot: true, cwd })
   if (existsSync(absolutePath) && statSync(absolutePath).size > MAX_MEMORY_FILE_BYTES) {
     throw new Error('This memory file is too large to edit.')
   }
 
   writeAtomic(absolutePath, content)
-  return getMemoryFile(encodeMemoryFileId(relativePath))
+  return getMemoryFile(encodeMemoryFileId(relativePath), cwd)
 }
 
 function safeMemoryFilename(filename: string | undefined): string {
@@ -372,8 +394,12 @@ function buildNewMemoryContent(input: CreateMemoryFileInput): string {
   return lines.join('\n')
 }
 
-function addMemoryToIndex(relativePath: string, input: CreateMemoryFileInput): void {
-  const indexPath = resolveMemoryPath(MEMORY_INDEX, { createRoot: true })
+function addMemoryToIndex(
+  relativePath: string,
+  input: CreateMemoryFileInput,
+  cwd?: string,
+): void {
+  const indexPath = resolveMemoryPath(MEMORY_INDEX, { createRoot: true, cwd })
   const existing = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '# Memory\n'
   if (existing.includes(`](${relativePath})`) || existing.includes(relativePath)) {
     return
@@ -387,9 +413,12 @@ function addMemoryToIndex(relativePath: string, input: CreateMemoryFileInput): v
   writeAtomic(indexPath, next)
 }
 
-export function createMemoryFile(input: CreateMemoryFileInput): MemoryFileDetail {
+export function createMemoryFile(
+  input: CreateMemoryFileInput,
+  cwd?: string,
+): MemoryFileDetail {
   const relativePath = safeMemoryFilename(input.filename)
-  const absolutePath = resolveMemoryPath(relativePath, { createRoot: true })
+  const absolutePath = resolveMemoryPath(relativePath, { createRoot: true, cwd })
   if (existsSync(absolutePath)) {
     throw new Error('Memory file already exists.')
   }
@@ -400,13 +429,13 @@ export function createMemoryFile(input: CreateMemoryFileInput): MemoryFileDetail
 
   writeAtomic(absolutePath, content)
   if (input.addToIndex) {
-    addMemoryToIndex(relativePath, input)
+    addMemoryToIndex(relativePath, input, cwd)
   }
-  return getMemoryFile(encodeMemoryFileId(relativePath))
+  return getMemoryFile(encodeMemoryFileId(relativePath), cwd)
 }
 
-function removeMemoryFromIndex(relativePath: string): void {
-  const indexPath = resolveMemoryPath(MEMORY_INDEX, { createRoot: true })
+function removeMemoryFromIndex(relativePath: string, cwd?: string): void {
+  const indexPath = resolveMemoryPath(MEMORY_INDEX, { createRoot: true, cwd })
   if (!existsSync(indexPath)) return
   const existing = readFileSync(indexPath, 'utf8')
   const next = existing
@@ -418,7 +447,11 @@ function removeMemoryFromIndex(relativePath: string): void {
   }
 }
 
-export function deleteMemoryFile(fileId: string, confirm: unknown): void {
+export function deleteMemoryFile(
+  fileId: string,
+  confirm: unknown,
+  cwd?: string,
+): void {
   if (confirm !== true) {
     throw new Error('Deleting a memory file requires confirm=true.')
   }
@@ -430,19 +463,22 @@ export function deleteMemoryFile(fileId: string, confirm: unknown): void {
   if (kind === 'daily-log') {
     throw new Error('Daily log memory files are read-only in this view.')
   }
-  const absolutePath = resolveMemoryPath(relativePath, { mustExist: true })
+  const absolutePath = resolveMemoryPath(relativePath, { mustExist: true, cwd })
   unlinkSync(absolutePath)
-  removeMemoryFromIndex(relativePath)
+  removeMemoryFromIndex(relativePath, cwd)
 }
 
-export function searchMemoryFiles(query: string): MemorySearchResult[] {
+export function searchMemoryFiles(
+  query: string,
+  cwd?: string,
+): MemorySearchResult[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
 
   const results: MemorySearchResult[] = []
-  for (const file of listMemoryFiles()) {
+  for (const file of listMemoryFiles(cwd)) {
     if (file.sizeBytes > MAX_MEMORY_FILE_BYTES) continue
-    const detail = getMemoryFile(file.id)
+    const detail = getMemoryFile(file.id, cwd)
     const haystack = `${file.relativePath}\n${detail.content}`.toLowerCase()
     const index = haystack.indexOf(needle)
     if (index < 0) continue

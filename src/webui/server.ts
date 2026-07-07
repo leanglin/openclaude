@@ -413,19 +413,19 @@ async function handleMemoryApi(
   }
 
   if (request.method === 'GET' && url.pathname === '/api/memory/files') {
-    sendJson(response, 200, { files: listMemoryFiles() })
+    sendJson(response, 200, { files: listMemoryFiles(options.cwd) })
     return true
   }
 
   if (request.method === 'POST' && url.pathname === '/api/memory/files') {
     const payload = await readJsonBody<Parameters<typeof createMemoryFile>[0]>(request)
-    sendJson(response, 200, { file: createMemoryFile(payload) })
+    sendJson(response, 200, { file: createMemoryFile(payload, options.cwd) })
     return true
   }
 
   if (request.method === 'GET' && url.pathname === '/api/memory/search') {
     sendJson(response, 200, {
-      results: searchMemoryFiles(url.searchParams.get('q') ?? ''),
+      results: searchMemoryFiles(url.searchParams.get('q') ?? '', options.cwd),
     })
     return true
   }
@@ -452,19 +452,19 @@ async function handleMemoryApi(
   if (parts[0] === 'api' && parts[1] === 'memory' && parts[2] === 'files' && parts[3]) {
     const fileId = decodeURIComponent(parts[3])
     if (request.method === 'GET') {
-      const file = getMemoryFile(fileId)
+      const file = getMemoryFile(fileId, options.cwd)
       sendJson(response, 200, { file, content: file.content })
       return true
     }
     if (request.method === 'PUT') {
       const payload = await readJsonBody<{ content?: unknown }>(request)
-      const file = saveMemoryFile(fileId, payload.content)
+      const file = saveMemoryFile(fileId, payload.content, options.cwd)
       sendJson(response, 200, { file, content: file.content })
       return true
     }
     if (request.method === 'DELETE') {
       const payload = await readJsonBody<{ confirm?: unknown }>(request)
-      deleteMemoryFile(fileId, payload.confirm)
+      deleteMemoryFile(fileId, payload.confirm, options.cwd)
       sendJson(response, 200, { ok: true })
       return true
     }

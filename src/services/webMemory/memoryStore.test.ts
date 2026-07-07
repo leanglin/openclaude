@@ -7,11 +7,12 @@ import {
   deleteMemoryFile,
   encodeMemoryFileId,
   getMemoryFile,
+  getMemoryStatus,
   listMemoryFiles,
   saveMemoryFile,
   searchMemoryFiles,
 } from './memoryStore.js'
-import { getAutoMemPath } from '../../memdir/paths.js'
+import { getAutoMemPath, getAutoMemPathForProject } from '../../memdir/paths.js'
 
 let tempDir: string | undefined
 let previousOverride: string | undefined
@@ -21,6 +22,7 @@ function useTempMemoryDir(): string {
   tempDir = mkdtempSync(join(tmpdir(), 'openclaude-web-memory-'))
   process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = tempDir
   getAutoMemPath.cache?.clear?.()
+  getAutoMemPathForProject.cache?.clear?.()
   return tempDir
 }
 
@@ -31,6 +33,7 @@ afterEach(() => {
     process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = previousOverride
   }
   getAutoMemPath.cache?.clear?.()
+  getAutoMemPathForProject.cache?.clear?.()
   if (tempDir) {
     rmSync(tempDir, { recursive: true, force: true })
     tempDir = undefined
@@ -61,6 +64,18 @@ test('creates, lists, searches, edits, and deletes topic memory files', () => {
   deleteMemoryFile(created.id, true)
   expect(listMemoryFiles().map(file => file.relativePath)).not.toContain('robot_testing.md')
   expect(readFileSync(join(dir, 'MEMORY.md'), 'utf8')).not.toContain('robot_testing.md')
+})
+
+test('status does not count the synthetic MEMORY.md placeholder as content', async () => {
+  const dir = useTempMemoryDir()
+
+  const files = listMemoryFiles()
+  const status = await getMemoryStatus(join(dir, 'project'))
+
+  expect(files.map(file => file.relativePath)).toEqual(['MEMORY.md'])
+  expect(status.hasMemoryIndex).toBe(false)
+  expect(status.memoryFileCount).toBe(0)
+  expect(status.totalBytes).toBe(0)
 })
 
 test('rejects traversal file ids and refuses to delete MEMORY.md', () => {

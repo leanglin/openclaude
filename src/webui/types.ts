@@ -180,9 +180,17 @@ export type PermissionRequestEvent = {
 
 export type PermissionAction = 'allow' | 'deny' | 'allow-session'
 
+export type WebMessageAttachment = {
+  id?: string
+  name: string
+  mimeType?: string
+  size: number
+  contentBase64: string
+}
+
 export type ClientMessage =
   | { type: 'start_session' }
-  | { type: 'send_message'; text: string }
+  | { type: 'send_message'; text: string; attachments?: WebMessageAttachment[] }
   | { type: 'select_session'; sessionId: string }
   | { type: 'delete_session'; sessionId: string }
   | {

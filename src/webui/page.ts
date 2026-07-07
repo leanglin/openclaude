@@ -823,13 +823,12 @@ export function renderWebUiPage(): string {
       background: var(--muted);
     }
 
-    .attachmentChip[data-status="uploading"] .statusDot,
-    .attachmentChip[data-status="parsing"] .statusDot {
+    .attachmentChip[data-status="uploading"] .statusDot {
       background: var(--accent);
       animation: ocPulse 1s infinite var(--oc-ease-standard);
     }
 
-    .attachmentChip[data-status="parsed"] .statusDot { background: #25845f; }
+    .attachmentChip[data-status="ready"] .statusDot { background: #25845f; }
     .attachmentChip[data-status="failed"] {
       border-color: #f0c2c8;
       background: #fff1f2;
@@ -2311,6 +2310,9 @@ export function renderWebUiPage(): string {
       }
     };
 
+    const MAX_COMPOSER_ATTACHMENT_COUNT = 10;
+    const MAX_COMPOSER_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+
     function getToken() {
       const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
       const queryParams = new URLSearchParams(location.search);
@@ -2446,9 +2448,8 @@ export function renderWebUiPage(): string {
 
     function attachmentStatusLabel(status) {
       return {
-        uploading: '上传中',
-        parsing: '解析中',
-        parsed: '已解析',
+        uploading: '读取中',
+        ready: '已就绪',
         failed: '失败'
       }[status] || '准备中';
     }
@@ -2471,34 +2472,65 @@ export function renderWebUiPage(): string {
       });
     }
 
-    function updateAttachmentStatus(id, status, error) {
+    function updateAttachmentStatus(id, status, error, fields) {
       const item = state.attachments.find(candidate => candidate.id === id);
       if (!item) return;
       item.status = status;
       item.error = error || '';
+      Object.assign(item, fields || {});
       renderAttachments();
     }
 
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        const chunk = bytes.subarray(index, index + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      return btoa(binary);
+    }
+
+    async function readComposerFile(file, id) {
+      if (file.size > MAX_COMPOSER_ATTACHMENT_BYTES) {
+        updateAttachmentStatus(id, 'failed', '附件超过 15 MB。');
+        return;
+      }
+      try {
+        const buffer = await file.arrayBuffer();
+        updateAttachmentStatus(id, 'ready', '', {
+          contentBase64: arrayBufferToBase64(buffer),
+          mimeType: file.type || '',
+          size: file.size
+        });
+      } catch (error) {
+        updateAttachmentStatus(id, 'failed', error.message || '附件读取失败。');
+      }
+    }
+
     function addComposerFiles(files) {
-      Array.from(files || []).forEach(file => {
+      const incoming = Array.from(files || []);
+      const available = MAX_COMPOSER_ATTACHMENT_COUNT - state.attachments.length;
+      if (available <= 0) {
+        showToast('最多只能添加 10 个附件。', 'warning');
+        return;
+      }
+      if (incoming.length > available) {
+        showToast('最多只能添加 10 个附件。', 'warning');
+      }
+      incoming.slice(0, available).forEach(file => {
         const id = 'att-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
         state.attachments.push({
           id,
-          name: file.name,
+          name: file.name || 'attachment',
+          mimeType: file.type || '',
           size: file.size,
+          contentBase64: '',
           status: 'uploading',
           error: ''
         });
-        window.setTimeout(() => updateAttachmentStatus(id, 'parsing'), 160);
-        window.setTimeout(() => {
-          if (file.size === 0) {
-            updateAttachmentStatus(id, 'failed', '空文件无法解析。');
-          } else if (file.size > 15 * 1024 * 1024) {
-            updateAttachmentStatus(id, 'failed', '附件超过 15 MB。');
-          } else {
-            updateAttachmentStatus(id, 'parsed');
-          }
-        }, 520);
+        void readComposerFile(file, id);
       });
       renderAttachments();
     }
@@ -4829,15 +4861,29 @@ export function renderWebUiPage(): string {
       document.getElementById('composerForm').addEventListener('submit', event => {
         event.preventDefault();
         const text = composerInput.value.trim();
-        if (!text) return;
-        if (state.attachments.length) {
-          const hasFailed = state.attachments.some(item => item.status === 'failed');
-          showToast(hasFailed ? '有附件解析失败，当前仅发送文本。' : '附件已在输入区准备，当前仅发送文本。', hasFailed ? 'warning' : 'success');
+        if (!text && state.attachments.length === 0) return;
+        if (state.attachments.some(item => item.status === 'uploading')) {
+          showToast('附件仍在读取中，请稍后发送。', 'warning');
+          return;
         }
-        addMessage('user', text, 'user-' + Date.now());
+        if (state.attachments.some(item => item.status === 'failed')) {
+          showToast('请先移除失败的附件。', 'warning');
+          return;
+        }
+        const attachments = state.attachments.map(item => ({
+          id: item.id,
+          name: item.name,
+          mimeType: item.mimeType || '',
+          size: item.size,
+          contentBase64: item.contentBase64 || ''
+        }));
+        const visibleText = text || ('附件文件：' + attachments.map(item => item.name).join(', '));
+        addMessage('user', visibleText, 'user-' + Date.now());
         composerInput.value = '';
+        state.attachments = [];
+        renderAttachments();
         setRunning(true);
-        sendWs({ type: 'send_message', text });
+        sendWs({ type: 'send_message', text, attachments });
       });
       attachButton.addEventListener('click', () => attachmentInput.click());
       attachmentInput.addEventListener('change', event => {

@@ -18,7 +18,7 @@ inside a Tauri WebView.
 Run from the repository root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\opencat\package-windows.ps1
+.\package-windows.bat
 ```
 
 The script checks prerequisites, repairs the local Tauri NSIS cache when needed,
@@ -28,7 +28,7 @@ installer path with its SHA256 hash.
 To check or prepare packaging tools without building:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\opencat\package-windows.ps1 -CheckOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\package-windows.ps1 -CheckOnly
 ```
 
 Useful flags:
@@ -42,6 +42,18 @@ Useful flags:
 
 The package log is written to
 `launcher/src-tauri/target/opencat-package-windows.log`.
+
+### Version Bump
+
+Before packaging a new OpenCat release, update the synchronized project and
+launcher version fields from the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\set-opencat-version.ps1 -Version 7.0.2
+```
+
+For a double-click workflow, run `set-opencat-version.bat` and enter the new
+plain SemVer value when prompted. Do not include a leading `v`.
 
 Manual fallback commands:
 
@@ -124,7 +136,7 @@ DMG_ROOT="$(mktemp -d)"
 ditto launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OpenCat.app "$DMG_ROOT/OpenCat.app"
 ln -s /Applications "$DMG_ROOT/Applications"
 mkdir -p launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
-hdiutil create -volname OpenCat -srcfolder "$DMG_ROOT" -ov -format UDZO launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OpenCat_7.0.1_aarch64.dmg
+hdiutil create -volname OpenCat -srcfolder "$DMG_ROOT" -ov -format UDZO launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OpenCat_<version>_aarch64.dmg
 rm -rf "$DMG_ROOT"
 ```
 

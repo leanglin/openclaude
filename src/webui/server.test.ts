@@ -563,6 +563,105 @@ describe('webui server', () => {
     )
   })
 
+  test('stages Web message attachments and passes quoted local paths to the CLI', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const writes: string[] = []
+
+    await withServer(
+      async baseUrl => {
+        const { ws, reader } = await connectWebSocket(baseUrl)
+        try {
+          await reader.waitFor(event => event.type === 'ready')
+          const content = Buffer.from('attachment body')
+          ws.send(JSON.stringify({
+            type: 'send_message',
+            text: '请分析附件',
+            attachments: [{
+              name: '浙江安防报告v2_clean.md',
+              mimeType: 'text/markdown',
+              size: content.length,
+              contentBase64: content.toString('base64'),
+            }],
+          }))
+          await reader.waitFor(event => event.type === 'status' && event.status === 'Running')
+          await reader.waitFor(
+            event => event.type === 'activity' && event.activity.title === 'User message',
+          )
+
+          expect(writes).toHaveLength(1)
+          const sent = JSON.parse(writes[0]!) as {
+            message: { content: string }
+          }
+          const messageContent = sent.message.content
+          expect(messageContent).toContain('附件文件：')
+          expect(messageContent).toContain('浙江安防报告v2_clean.md')
+          expect(messageContent).toContain('@"')
+          expect(messageContent).toContain('请分析附件')
+          expect(messageContent).not.toContain(content.toString('base64'))
+
+          const stagedPath = /@"([^"]+)"/.exec(messageContent)?.[1]
+          expect(stagedPath).toBeDefined()
+          expect(existsSync(stagedPath!)).toBe(true)
+          expect(readFileSync(stagedPath!, 'utf8')).toBe('attachment body')
+        } finally {
+          await terminateWebSocket(ws)
+        }
+      },
+      {
+        cwd,
+        spawnFactory: () => {
+          const child = createMockChild()
+          child.stdin.on('data', chunk => writes.push(Buffer.from(chunk).toString('utf8').trim()))
+          return child
+        },
+      },
+    )
+  })
+
+  test('rejects invalid Web attachments without sending a text-only CLI message', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const writes: string[] = []
+    let spawned = false
+
+    await withServer(
+      async baseUrl => {
+        const { ws, reader } = await connectWebSocket(baseUrl)
+        try {
+          await reader.waitFor(event => event.type === 'ready')
+          ws.send(JSON.stringify({
+            type: 'send_message',
+            text: 'must not send without the attachment',
+            attachments: [{
+              name: 'bad.txt',
+              mimeType: 'text/plain',
+              size: 999,
+              contentBase64: Buffer.from('small').toString('base64'),
+            }],
+          }))
+
+          const error = await reader.waitFor(event => event.type === 'error')
+          expect(error).toEqual(expect.objectContaining({
+            type: 'error',
+            message: expect.stringContaining('size does not match'),
+          }))
+          expect(spawned).toBe(false)
+          expect(writes).toEqual([])
+        } finally {
+          await terminateWebSocket(ws)
+        }
+      },
+      {
+        cwd,
+        spawnFactory: () => {
+          spawned = true
+          const child = createMockChild()
+          child.stdin.on('data', chunk => writes.push(Buffer.from(chunk).toString('utf8').trim()))
+          return child
+        },
+      },
+    )
+  })
+
   test('serves platform auth SSO APIs and manual usage report without token login route', async () => {
     const { cwd } = setupIsolatedApiState()
     let reportedPayload: Record<string, unknown> | null = null

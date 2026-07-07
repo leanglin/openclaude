@@ -236,6 +236,23 @@ fn app_test_runner_path(runtime_dir: &Path) -> PathBuf {
     .join("cli.js")
 }
 
+#[cfg(windows)]
+fn node_compatible_path(path: &Path) -> PathBuf {
+  let value = path.as_os_str().to_string_lossy();
+  if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+    PathBuf::from(format!(r"\\{rest}"))
+  } else if let Some(rest) = value.strip_prefix(r"\\?\") {
+    PathBuf::from(rest)
+  } else {
+    path.to_path_buf()
+  }
+}
+
+#[cfg(not(windows))]
+fn node_compatible_path(path: &Path) -> PathBuf {
+  path.to_path_buf()
+}
+
 fn non_empty_env(name: &str) -> Option<String> {
   env::var(name)
     .ok()
@@ -1006,9 +1023,17 @@ fn start_opencat(
     guard.adb_path.clone()
   };
 
-  let mut command = Command::new(&node_path);
+  let runtime_dir_for_node = node_compatible_path(&runtime_dir);
+  let node_path_for_node = node_compatible_path(&node_path);
+  let cli_path_for_node = node_compatible_path(&cli_path);
+  let app_test_runner_for_node = node_compatible_path(&app_test_runner);
+  let browsers_path_for_node = node_compatible_path(&browsers_path);
+  let config_dir_for_node = node_compatible_path(&config_dir);
+  let workspace_dir_for_node = node_compatible_path(&workspace_dir);
+
+  let mut command = Command::new(&node_path_for_node);
   command
-    .arg(&cli_path)
+    .arg(&cli_path_for_node)
     .args([
       "web",
       "--host",
@@ -1020,14 +1045,14 @@ fn start_opencat(
       "--no-open",
     ])
     .arg("--cwd")
-    .arg(&workspace_dir)
-    .current_dir(&runtime_dir)
-    .env("OPENCAT_CONFIG_DIR", &config_dir)
+    .arg(&workspace_dir_for_node)
+    .current_dir(&runtime_dir_for_node)
+    .env("OPENCAT_CONFIG_DIR", &config_dir_for_node)
     .env("OPENCAT_BOOTSTRAP_WEB_DIRS", "1")
-    .env("OPENCAT_LEGACY_WEB_CWD", &runtime_dir)
-    .env("OPENCAT_APP_TEST_NODE", &node_path)
-    .env("OPENCAT_APP_TEST_RUNNER", &app_test_runner)
-    .env("PLAYWRIGHT_BROWSERS_PATH", &browsers_path)
+    .env("OPENCAT_LEGACY_WEB_CWD", &runtime_dir_for_node)
+    .env("OPENCAT_APP_TEST_NODE", &node_path_for_node)
+    .env("OPENCAT_APP_TEST_RUNNER", &app_test_runner_for_node)
+    .env("PLAYWRIGHT_BROWSERS_PATH", &browsers_path_for_node)
     .env("NO_COLOR", "1")
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
@@ -1058,19 +1083,23 @@ fn start_opencat(
     push_activity(
       &mut guard,
       "info",
-      format!("Runtime: {}", runtime_dir.display()),
+      format!("Runtime: {}", runtime_dir_for_node.display()),
     );
     push_activity(
       &mut guard,
       "info",
-      format!("Config: {}", config_dir.display()),
+      format!("Config: {}", config_dir_for_node.display()),
     );
     push_activity(
       &mut guard,
       "info",
-      format!("Workspace: {}", workspace_dir.display()),
+      format!("Workspace: {}", workspace_dir_for_node.display()),
     );
-    push_activity(&mut guard, "info", format!("CLI: {}", cli_path.display()));
+    push_activity(
+      &mut guard,
+      "info",
+      format!("CLI: {}", cli_path_for_node.display()),
+    );
     guard.child = Some(child);
   }
 
@@ -1394,6 +1423,36 @@ mod tests {
 
   fn sha256_hex(content: &[u8]) -> String {
     bytes_to_lower_hex(&Sha256::digest(content))
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn node_compatible_path_strips_drive_letter_verbatim_prefix() {
+    assert_eq!(
+      node_compatible_path(Path::new(
+        r"\\?\E:\04 Coding\OpenCat7\OpenCat\resources\opencat-runtime\dist\cli.mjs"
+      )),
+      PathBuf::from(r"E:\04 Coding\OpenCat7\OpenCat\resources\opencat-runtime\dist\cli.mjs")
+    );
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn node_compatible_path_strips_unc_verbatim_prefix() {
+    assert_eq!(
+      node_compatible_path(Path::new(
+        r"\\?\UNC\server\share\OpenCat\resources\opencat-runtime\dist\cli.mjs"
+      )),
+      PathBuf::from(r"\\server\share\OpenCat\resources\opencat-runtime\dist\cli.mjs")
+    );
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn node_compatible_path_leaves_regular_windows_path_unchanged() {
+    let path =
+      Path::new(r"E:\04 Coding\OpenCat7\OpenCat\resources\opencat-runtime\dist\cli.mjs");
+    assert_eq!(node_compatible_path(path), PathBuf::from(path));
   }
 
   #[test]

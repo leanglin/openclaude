@@ -90,6 +90,11 @@ import { isPluginBlockedByPolicy } from '../utils/plugins/pluginPolicy.js'
 import type { PluginMarketplaceEntry } from '../utils/plugins/schemas.js'
 import { renderWebUiPage } from './page.js'
 import {
+  attachmentTitleFallback,
+  prependAttachmentReferences,
+  stageWebMessageAttachments,
+} from './attachments.js'
+import {
   createWebChatSession,
   deleteWebChatSession,
   getWebChatSession,
@@ -1117,24 +1122,7 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
       send({ type: 'status', status: 'Ready', detail: 'New chat created' })
     }
 
-    function ensureActiveSessionForMessage(text: string): string {
-      if (!activeSessionId) {
-        activeSessionId = createWebChatSession(
-          options.cwd,
-          options.sessionStoreLocation,
-        ).id
-      }
-      touchWebChatSessionWithUserMessage(
-        options.cwd,
-        activeSessionId,
-        text,
-        options.sessionStoreLocation,
-      )
-      sendSessionsUpdated()
-      return activeSessionId
-    }
-
-    function ensureSession(): CliChatSession {
+    function ensureActiveSessionId(): string {
       if (!activeSessionId) {
         activeSessionId = createWebChatSession(
           options.cwd,
@@ -1142,6 +1130,23 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
         ).id
         sendSessionsUpdated()
       }
+      return activeSessionId
+    }
+
+    function ensureActiveSessionForMessage(text: string): string {
+      const sessionId = ensureActiveSessionId()
+      touchWebChatSessionWithUserMessage(
+        options.cwd,
+        sessionId,
+        text,
+        options.sessionStoreLocation,
+      )
+      sendSessionsUpdated()
+      return sessionId
+    }
+
+    function ensureSession(): CliChatSession {
+      const sessionId = ensureActiveSessionId()
       if (!session) {
         session = new CliChatSession({
           cwd: options.cwd,
@@ -1149,83 +1154,96 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
           send,
           env: buildMidsceneSessionEnv(options.profileLocation),
           spawnFactory: options.spawnFactory,
-          sessionId: activeSessionId,
-          resumeSession: hasWebChatTranscriptMessages(options.cwd, activeSessionId),
+          sessionId,
+          resumeSession: hasWebChatTranscriptMessages(options.cwd, sessionId),
         })
       }
       return session
     }
 
     ws.on('message', data => {
-      try {
-        const message = parseClientMessage(data)
-        if (message.type === 'new_session') {
-          createAndSelectSession()
-          return
-        }
-        if (message.type === 'refresh_session') {
-          disposeSession()
-          send({ type: 'status', status: 'Ready', detail: 'Session refreshed' })
-          send({ type: 'ready', bootstrap: bootstrap(options) })
-          return
-        }
-        if (message.type === 'select_session') {
-          if (!getWebChatSession(options.cwd, message.sessionId, options.sessionStoreLocation)) {
-            send({ type: 'error', message: 'Chat session was not found.' })
+      void (async () => {
+        try {
+          const message = parseClientMessage(data)
+          if (message.type === 'new_session') {
+            createAndSelectSession()
             return
           }
-          loadActiveSession(message.sessionId)
-          sendSessionsUpdated()
-          return
-        }
-        if (message.type === 'delete_session') {
-          const deleted = deleteWebChatSession(
-            options.cwd,
-            message.sessionId,
-            options.sessionStoreLocation,
-          )
-          if (!deleted) {
-            send({ type: 'error', message: 'Chat session was not found.' })
+          if (message.type === 'refresh_session') {
+            disposeSession()
+            send({ type: 'status', status: 'Ready', detail: 'Session refreshed' })
+            send({ type: 'ready', bootstrap: bootstrap(options) })
             return
           }
-          const remaining = listWebChatSessions(
-            options.cwd,
-            options.sessionStoreLocation,
-          )
-          if (message.sessionId === activeSessionId) {
-            loadActiveSession(remaining[0]?.id)
+          if (message.type === 'select_session') {
+            if (!getWebChatSession(options.cwd, message.sessionId, options.sessionStoreLocation)) {
+              send({ type: 'error', message: 'Chat session was not found.' })
+              return
+            }
+            loadActiveSession(message.sessionId)
+            sendSessionsUpdated()
+            return
           }
-          sendSessionsUpdated()
-          return
-        }
-        if (message.type === 'send_message') {
-          ensureActiveSessionForMessage(message.text)
+          if (message.type === 'delete_session') {
+            const deleted = deleteWebChatSession(
+              options.cwd,
+              message.sessionId,
+              options.sessionStoreLocation,
+            )
+            if (!deleted) {
+              send({ type: 'error', message: 'Chat session was not found.' })
+              return
+            }
+            const remaining = listWebChatSessions(
+              options.cwd,
+              options.sessionStoreLocation,
+            )
+            if (message.sessionId === activeSessionId) {
+              loadActiveSession(remaining[0]?.id)
+            }
+            sendSessionsUpdated()
+            return
+          }
+          if (message.type === 'send_message') {
+            const sessionId = ensureActiveSessionId()
+            const staged = await stageWebMessageAttachments({
+              cwd: options.cwd,
+              sessionId,
+              attachments: message.attachments,
+            })
+            const titleText = attachmentTitleFallback(message.text, message.attachments)
+            ensureActiveSessionForMessage(titleText)
+            ensureSession().handleClientMessage({
+              ...message,
+              text: prependAttachmentReferences(message.text, staged),
+              attachments: undefined,
+            })
+            return
+          }
+          if (message.type === 'permission_response') {
+            if (!session) {
+              send({ type: 'error', message: 'Permission request is no longer pending.' })
+              return
+            }
+            session.handleClientMessage(message)
+            return
+          }
+          if (message.type === 'abort') {
+            if (!session) {
+              send({ type: 'status', status: 'Ready', detail: 'No running session' })
+              return
+            }
+            session.handleClientMessage(message)
+            return
+          }
           ensureSession().handleClientMessage(message)
-          return
+        } catch (error) {
+          send({
+            type: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          })
         }
-        if (message.type === 'permission_response') {
-          if (!session) {
-            send({ type: 'error', message: 'Permission request is no longer pending.' })
-            return
-          }
-          session.handleClientMessage(message)
-          return
-        }
-        if (message.type === 'abort') {
-          if (!session) {
-            send({ type: 'status', status: 'Ready', detail: 'No running session' })
-            return
-          }
-          session.handleClientMessage(message)
-          return
-        }
-        ensureSession().handleClientMessage(message)
-      } catch (error) {
-        send({
-          type: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        })
-      }
+      })()
     })
 
     ws.on('close', () => {

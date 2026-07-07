@@ -69,6 +69,15 @@ LOG_PATH="$TARGET_DIR/opencat-package-macos.log"
 BUILD_CACHE_DIR="${OPENCAT_BUILD_CACHE_DIR:-"$HOME/Library/Caches/OpenCatBuildCache"}"
 MINIMUM_NODE_MAJOR=22
 
+get_expected_opencat_version() {
+  local version
+  version="$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -n 1)"
+  if [[ -z "$version" ]]; then
+    fail "package.json does not contain a version."
+  fi
+  printf '%s\n' "$version"
+}
+
 if [[ "$ARCH" == "all" ]]; then
   ARCHES=(arm64 x64)
 else
@@ -87,6 +96,9 @@ fail() {
   echo "[OpenCat package] $1" >&2
   exit 1
 }
+
+EXPECTED_OPENCAT_VERSION="$(get_expected_opencat_version)"
+EXPECTED_RUNTIME_VERSION="$EXPECTED_OPENCAT_VERSION (OpenCat)"
 
 command_path() {
   command -v "$1" 2>/dev/null || true
@@ -266,8 +278,8 @@ assert_runtime_staging() {
   local version
   version="$("$node_path" "$cli_path" --version)"
   info "runtime version = $version"
-  if [[ "$version" != "7.0.1 (OpenCat)" ]]; then
-    fail "Unexpected runtime version output: $version"
+  if [[ "$version" != "$EXPECTED_RUNTIME_VERSION" ]]; then
+    fail "Unexpected runtime version output: $version. Expected: $EXPECTED_RUNTIME_VERSION"
   fi
 }
 
@@ -305,8 +317,8 @@ assert_app_bundle_runtime() {
   local version
   version="$("$node_path" "$cli_path" --version)"
   info "bundled runtime version = $version"
-  if [[ "$version" != "7.0.1 (OpenCat)" ]]; then
-    fail "Unexpected bundled runtime version output: $version"
+  if [[ "$version" != "$EXPECTED_RUNTIME_VERSION" ]]; then
+    fail "Unexpected bundled runtime version output: $version. Expected: $EXPECTED_RUNTIME_VERSION"
   fi
 }
 
@@ -347,7 +359,7 @@ build_dmg() {
 
   step "Creating simple DMG for macOS $arch"
   local dmg_dir="$TARGET_DIR/$rust_target/release/bundle/dmg"
-  local dmg="$dmg_dir/OpenCat_7.0.1_${rust_target%%-*}.dmg"
+  local dmg="$dmg_dir/OpenCat_${EXPECTED_OPENCAT_VERSION}_${rust_target%%-*}.dmg"
   local dmg_root
   dmg_root="$(mktemp -d)"
   mkdir -p "$dmg_dir"

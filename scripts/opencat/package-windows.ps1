@@ -555,6 +555,19 @@ function Set-ProcessEnvironmentVariable([string]$Name, [AllowNull()][string]$Val
   Set-Item -Path "Env:$Name" -Value $Value
 }
 
+function Get-ExpectedOpenCatVersion {
+  $packageJsonPath = Join-Path $RepoRoot 'package.json'
+  if (-not (Test-Path -LiteralPath $packageJsonPath)) {
+    Fail "Missing package.json at $packageJsonPath"
+  }
+  $packageJson = Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json
+  $version = [string]$packageJson.version
+  if ([string]::IsNullOrWhiteSpace($version)) {
+    Fail 'package.json does not contain a version.'
+  }
+  return $version.Trim()
+}
+
 function Invoke-PrepareRuntime([string]$BunPath) {
   $previousBuildCacheDir = [Environment]::GetEnvironmentVariable('OPENCAT_BUILD_CACHE_DIR', 'Process')
   $previousCleanRuntimeCache = [Environment]::GetEnvironmentVariable('OPENCAT_CLEAN_RUNTIME_CACHE', 'Process')
@@ -598,9 +611,11 @@ function Assert-RuntimeStaging {
   }
 
   $version = (& $runtimeNode $runtimeCli --version).Trim()
+  $expectedVersion = Get-ExpectedOpenCatVersion
+  $expectedOutput = "$expectedVersion (OpenCat)"
   Write-Info "runtime version = $version"
-  if ($version -ne '7.0.1 (OpenCat)') {
-    Fail "Unexpected runtime version output: $version"
+  if ($version -ne $expectedOutput) {
+    Fail "Unexpected runtime version output: $version. Expected: $expectedOutput"
   }
 }
 

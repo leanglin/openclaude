@@ -1,5 +1,30 @@
 import { describe, expect, test } from 'bun:test'
-import { renderWebUiPage } from './page.js'
+import { findWebComposerCommandToken, renderWebUiPage } from './page.js'
+
+describe('webui slash command token detection', () => {
+  test('detects start and mid-sentence command tokens', () => {
+    expect(findWebComposerCommandToken('/rev', 4)).toEqual({
+      input: '/rev',
+      start: 0,
+      end: 4,
+    })
+    expect(findWebComposerCommandToken('help /rev', 9)).toEqual({
+      input: '/rev',
+      start: 5,
+      end: 9,
+    })
+  })
+
+  test('does not treat normal slash-containing paths as command tokens', () => {
+    expect(findWebComposerCommandToken('help /rev now', 13)).toBeNull()
+    expect(findWebComposerCommandToken('src/foo/bar', 11)).toBeNull()
+    expect(findWebComposerCommandToken('C:/Users/name', 13)).toBeNull()
+    expect(findWebComposerCommandToken('/usr/bin', 8)).toBeNull()
+    expect(findWebComposerCommandToken('./foo/bar', 9)).toBeNull()
+    expect(findWebComposerCommandToken('../foo/bar', 10)).toBeNull()
+    expect(findWebComposerCommandToken('README.md', 9)).toBeNull()
+  })
+})
 
 describe('webui page', () => {
   test('uses Chinese OpenCat visible branding and the icon asset', () => {
@@ -165,8 +190,12 @@ describe('webui page', () => {
     expect(html).toContain('id="commandSuggestions"')
     expect(html).toContain('class="commandSuggestions"')
     expect(html).toContain('/api/command-suggestions?input=')
+    expect(html).toContain('function findWebComposerCommandToken(')
+    expect(html).toContain('function getComposerCommandToken()')
     expect(html).toContain('function applyCommandSuggestion(index)')
-    expect(html).toContain("composerInput.value = '/' + item.commandName + ' ';")
+    expect(html).toContain("const replacement = '/' + item.commandName + ' ';")
+    expect(html).toContain('composerInput.value = composerInput.value.slice(0, token.start) + replacement + composerInput.value.slice(token.end);')
+    expect(html).not.toContain("composerInput.value = '/' + item.commandName + ' ';")
     expect(html).toContain('data-command-suggestion-index')
     expect(html).toContain('if (handleCommandSuggestionKeydown(event)) return;')
     expect(html).toContain('composerInput.addEventListener(\'input\', scheduleCommandSuggestions)')

@@ -1,3 +1,35 @@
+export type WebComposerCommandToken = {
+  input: string
+  start: number
+  end: number
+}
+
+export function findWebComposerCommandToken(
+  value: string,
+  cursor: number,
+): WebComposerCommandToken | null {
+  const cursorOffset = Math.min(Math.max(cursor, 0), value.length)
+  const beforeCursor = value.slice(0, cursorOffset)
+  const slashIndex = beforeCursor.lastIndexOf('/')
+  if (slashIndex < 0 || cursorOffset <= slashIndex) return null
+  if (slashIndex > 0 && !/\s/.test(value.charAt(slashIndex - 1))) {
+    return null
+  }
+
+  const afterSlash = value.slice(slashIndex)
+  const boundaryOffset = afterSlash.search(/\s/)
+  const tokenEnd =
+    boundaryOffset === -1 ? value.length : slashIndex + boundaryOffset
+  if (cursorOffset > tokenEnd) return null
+
+  const rawToken = value.slice(slashIndex, tokenEnd)
+  const input = value.slice(slashIndex, cursorOffset)
+  if (!/^\/[a-zA-Z0-9_:-]*$/.test(rawToken)) return null
+  if (!/^\/[a-zA-Z0-9_:-]*$/.test(input)) return null
+
+  return { input, start: slashIndex, end: tokenEnd }
+}
+
 export function renderWebUiPage(): string {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -2215,6 +2247,8 @@ export function renderWebUiPage(): string {
 
   <script>
   (() => {
+    ${findWebComposerCommandToken.toString()}
+
     const iconSvg = {
       "message-square": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
       brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.2A4 4 0 0 0 4 13a4 4 0 0 0 3.5 6H9V2z"/><path d="M14.5 2A3.5 3.5 0 0 1 18 5.5v.2A4 4 0 0 1 20 13a4 4 0 0 1-3.5 6H15V2z"/><path d="M9 8H7"/><path d="M15 8h2"/><path d="M9 14H7"/><path d="M15 14h2"/></svg>',
@@ -2285,7 +2319,8 @@ export function renderWebUiPage(): string {
         selectedIndex: 0,
         open: false,
         requestId: 0,
-        debounceTimer: 0
+        debounceTimer: 0,
+        activeToken: null
       },
       providerEditorOpen: { chat: false, midscene: false },
       memory: {
@@ -2405,12 +2440,14 @@ export function renderWebUiPage(): string {
       })[ch]);
     }
 
-    function getComposerCommandInput() {
+    function getComposerCommandToken() {
       const value = composerInput.value;
       const cursor = composerInput.selectionStart ?? value.length;
-      if (!value.startsWith('/') || cursor < 1) return null;
-      if (/\\s/.test(value)) return null;
-      return value.slice(0, cursor);
+      return findWebComposerCommandToken(value, cursor);
+    }
+
+    function commandTokenKey(token) {
+      return token ? [token.start, token.end, token.input].join(':') : '';
     }
 
     function closeCommandSuggestions() {
@@ -2422,6 +2459,7 @@ export function renderWebUiPage(): string {
       state.commandSuggestions.items = [];
       state.commandSuggestions.selectedIndex = 0;
       state.commandSuggestions.open = false;
+      state.commandSuggestions.activeToken = null;
       commandSuggestions.hidden = true;
       commandSuggestions.innerHTML = '';
     }
@@ -2450,9 +2488,12 @@ export function renderWebUiPage(): string {
     function applyCommandSuggestion(index) {
       const item = state.commandSuggestions.items[index];
       if (!item) return;
-      composerInput.value = '/' + item.commandName + ' ';
+      const token = state.commandSuggestions.activeToken || getComposerCommandToken();
+      if (!token) return;
+      const replacement = '/' + item.commandName + ' ';
+      composerInput.value = composerInput.value.slice(0, token.start) + replacement + composerInput.value.slice(token.end);
       composerInput.focus();
-      const cursor = composerInput.value.length;
+      const cursor = token.start + replacement.length;
       composerInput.setSelectionRange(cursor, cursor);
       closeCommandSuggestions();
     }
@@ -2465,8 +2506,8 @@ export function renderWebUiPage(): string {
     }
 
     function scheduleCommandSuggestions() {
-      const input = getComposerCommandInput();
-      if (!input) {
+      const token = getComposerCommandToken();
+      if (!token) {
         closeCommandSuggestions();
         return;
       }
@@ -2474,17 +2515,20 @@ export function renderWebUiPage(): string {
         clearTimeout(state.commandSuggestions.debounceTimer);
       }
       const requestId = state.commandSuggestions.requestId + 1;
+      const tokenKey = commandTokenKey(token);
       state.commandSuggestions.requestId = requestId;
+      state.commandSuggestions.activeToken = token;
       state.commandSuggestions.debounceTimer = setTimeout(async () => {
         state.commandSuggestions.debounceTimer = 0;
         try {
-          const result = await api('/api/command-suggestions?input=' + encodeURIComponent(input));
+          const result = await api('/api/command-suggestions?input=' + encodeURIComponent(token.input));
           if (requestId !== state.commandSuggestions.requestId) return;
-          const currentInput = getComposerCommandInput();
-          if (currentInput !== input) return;
+          const currentToken = getComposerCommandToken();
+          if (commandTokenKey(currentToken) !== tokenKey) return;
           state.commandSuggestions.items = Array.isArray(result.suggestions) ? result.suggestions : [];
           state.commandSuggestions.selectedIndex = 0;
           state.commandSuggestions.open = state.commandSuggestions.items.length > 0;
+          state.commandSuggestions.activeToken = currentToken;
           renderCommandSuggestions();
         } catch {
           if (requestId === state.commandSuggestions.requestId) closeCommandSuggestions();

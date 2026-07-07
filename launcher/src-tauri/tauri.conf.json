@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "OpenCat",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "identifier": "com.opencat.launcher",
   "build": {
     "beforeDevCommand": "bun run dev",

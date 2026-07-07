@@ -4,6 +4,16 @@ export type WebComposerCommandToken = {
   end: number
 }
 
+function escapeWebComposerHighlightHtml(value: string): string {
+  return value.replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[ch] ?? ch)
+}
+
 export function findWebComposerCommandToken(
   value: string,
   cursor: number,
@@ -28,6 +38,34 @@ export function findWebComposerCommandToken(
   if (!/^\/[a-zA-Z0-9_:-]*$/.test(input)) return null
 
   return { input, start: slashIndex, end: tokenEnd }
+}
+
+export function findWebComposerCommandTokens(
+  value: string,
+): WebComposerCommandToken[] {
+  const tokens: WebComposerCommandToken[] = []
+  const regex = /(^|\s)(\/[a-zA-Z0-9_:-]*)(?=\s|$)/g
+  let match: RegExpExecArray | null = null
+  while ((match = regex.exec(value)) !== null) {
+    const leading = match[1] ?? ''
+    const input = match[2] ?? ''
+    const start = match.index + leading.length
+    tokens.push({ input, start, end: start + input.length })
+  }
+  return tokens
+}
+
+export function renderWebComposerHighlightHtml(value: string): string {
+  const tokens = findWebComposerCommandTokens(value)
+  let cursor = 0
+  let html = ''
+  for (const token of tokens) {
+    html += escapeWebComposerHighlightHtml(value.slice(cursor, token.start))
+    html += `<span class="composerCommandToken">${escapeWebComposerHighlightHtml(token.input)}</span>`
+    cursor = token.end
+  }
+  html += escapeWebComposerHighlightHtml(value.slice(cursor))
+  return html
 }
 
 export function renderWebUiPage(): string {
@@ -741,11 +779,73 @@ export function renderWebUiPage(): string {
     }
 
     #composerInput {
+      position: relative;
+      z-index: 2;
+      background: transparent;
+      color: transparent;
+      caret-color: var(--text);
       transition:
         min-height var(--oc-duration-normal) var(--oc-ease-standard),
         border-color var(--oc-duration-fast) var(--oc-ease-standard),
         box-shadow var(--oc-duration-fast) var(--oc-ease-standard),
         transform var(--oc-duration-fast) var(--oc-ease-standard);
+    }
+
+    #composerInput:focus {
+      transform: none;
+    }
+
+    #composerInput::placeholder {
+      color: var(--muted);
+      opacity: 0.72;
+    }
+
+    #composerInput::selection {
+      background: rgba(37, 99, 235, 0.18);
+      color: transparent;
+    }
+
+    .composerInputWrap {
+      position: relative;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .composerHighlight {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 13px 14px;
+      color: var(--text);
+      font: inherit;
+      line-height: 1.35;
+      letter-spacing: 0;
+      word-spacing: 0;
+      tab-size: 4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    #composerInput {
+      font: inherit;
+      line-height: 1.35;
+      letter-spacing: 0;
+      word-spacing: 0;
+      tab-size: 4;
+    }
+
+    .composerCommandToken {
+      display: inline;
+      color: #1d6fe8;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px #bfd7ff;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
 
     .commandSuggestions {
@@ -2212,7 +2312,10 @@ export function renderWebUiPage(): string {
           <div id="attachmentTray" class="attachmentTray" hidden></div>
           <button id="attachButton" class="iconButton attachButton" type="button" title="添加附件" aria-label="添加附件"></button>
           <label class="srOnly" for="composerInput">向 OpenCat 提问</label>
-          <textarea id="composerInput" placeholder="向 OpenCat 提问..." rows="1"></textarea>
+          <div class="composerInputWrap">
+            <div id="composerHighlight" class="composerHighlight" aria-hidden="true"></div>
+            <textarea id="composerInput" placeholder="向 OpenCat 提问..." rows="1"></textarea>
+          </div>
           <div id="commandSuggestions" class="commandSuggestions" role="listbox" hidden></div>
           <button id="sendButton" class="sendButton" title="发送" aria-label="发送"></button>
         </form>
@@ -2247,7 +2350,10 @@ export function renderWebUiPage(): string {
 
   <script>
   (() => {
+    ${escapeWebComposerHighlightHtml.toString()}
     ${findWebComposerCommandToken.toString()}
+    ${findWebComposerCommandTokens.toString()}
+    ${renderWebComposerHighlightHtml.toString()}
 
     const iconSvg = {
       "message-square": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
@@ -2290,6 +2396,7 @@ export function renderWebUiPage(): string {
     const permissionPrompt = document.getElementById('permissionPrompt');
     const permissionPreview = document.getElementById('permissionPreview');
     const composerInput = document.getElementById('composerInput');
+    const composerHighlight = document.getElementById('composerHighlight');
     const commandSuggestions = document.getElementById('commandSuggestions');
     const stopSession = document.getElementById('stopSession');
     const sendButton = document.getElementById('sendButton');
@@ -2459,6 +2566,16 @@ export function renderWebUiPage(): string {
       })[ch]);
     }
 
+    function syncComposerHighlightScroll() {
+      composerHighlight.scrollTop = composerInput.scrollTop;
+      composerHighlight.scrollLeft = composerInput.scrollLeft;
+    }
+
+    function renderComposerHighlight() {
+      composerHighlight.innerHTML = renderWebComposerHighlightHtml(composerInput.value);
+      syncComposerHighlightScroll();
+    }
+
     function getComposerCommandToken() {
       const value = composerInput.value;
       const cursor = composerInput.selectionStart ?? value.length;
@@ -2514,6 +2631,7 @@ export function renderWebUiPage(): string {
       composerInput.focus();
       const cursor = token.start + replacement.length;
       composerInput.setSelectionRange(cursor, cursor);
+      renderComposerHighlight();
       closeCommandSuggestions();
     }
 
@@ -5411,6 +5529,7 @@ export function renderWebUiPage(): string {
         const visibleText = text || ('附件文件：' + attachments.map(item => item.name).join(', '));
         addMessage('user', visibleText, 'user-' + Date.now());
         composerInput.value = '';
+        renderComposerHighlight();
         closeCommandSuggestions();
         state.attachments = [];
         renderAttachments();
@@ -5429,13 +5548,22 @@ export function renderWebUiPage(): string {
           document.getElementById('composerForm').requestSubmit();
         }
       });
-      composerInput.addEventListener('input', scheduleCommandSuggestions);
-      composerInput.addEventListener('click', scheduleCommandSuggestions);
+      composerInput.addEventListener('input', () => {
+        renderComposerHighlight();
+        scheduleCommandSuggestions();
+      });
+      composerInput.addEventListener('click', () => {
+        renderComposerHighlight();
+        scheduleCommandSuggestions();
+      });
+      composerInput.addEventListener('keyup', renderComposerHighlight);
+      composerInput.addEventListener('scroll', syncComposerHighlightScroll);
       composerInput.addEventListener('blur', () => {
         setTimeout(() => {
           if (!commandSuggestions.contains(document.activeElement)) closeCommandSuggestions();
         }, 0);
       });
+      renderComposerHighlight();
       modal.querySelectorAll('[data-permission-action]').forEach(button => {
         button.addEventListener('click', () => {
           const pendingPermission = state.pendingPermission;

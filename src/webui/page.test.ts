@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { findWebComposerCommandToken, renderWebUiPage } from './page.js'
+import {
+  findWebComposerCommandToken,
+  renderWebComposerHighlightHtml,
+  renderWebUiPage,
+} from './page.js'
 
 describe('webui slash command token detection', () => {
   test('detects start and mid-sentence command tokens', () => {
@@ -23,6 +27,35 @@ describe('webui slash command token detection', () => {
     expect(findWebComposerCommandToken('./foo/bar', 9)).toBeNull()
     expect(findWebComposerCommandToken('../foo/bar', 10)).toBeNull()
     expect(findWebComposerCommandToken('README.md', 9)).toBeNull()
+  })
+})
+
+describe('webui composer command token highlighting', () => {
+  test('renders command tokens with escaped white-background spans', () => {
+    expect(renderWebComposerHighlightHtml('/rev')).toBe(
+      '<span class="composerCommandToken">/rev</span>',
+    )
+    expect(renderWebComposerHighlightHtml('帮我 /rev')).toBe(
+      '帮我 <span class="composerCommandToken">/rev</span>',
+    )
+    expect(renderWebComposerHighlightHtml('<b>/rev</b>')).toContain(
+      '&lt;b&gt;/rev&lt;/b&gt;',
+    )
+  })
+
+  test('does not highlight slash-containing paths or urls', () => {
+    for (const value of [
+      'src/foo/bar',
+      'https://github.com/a/b',
+      'C:/Users/name',
+      '/usr/bin',
+      './foo/bar',
+      '../foo/bar',
+    ]) {
+      expect(renderWebComposerHighlightHtml(value)).not.toContain(
+        'composerCommandToken',
+      )
+    }
   })
 })
 
@@ -189,16 +222,33 @@ describe('webui page', () => {
 
     expect(html).toContain('id="commandSuggestions"')
     expect(html).toContain('class="commandSuggestions"')
+    expect(html).toContain('class="composerInputWrap"')
+    expect(html).toContain('id="composerHighlight"')
+    expect(html).toContain('class="composerHighlight"')
     expect(html).toContain('/api/command-suggestions?input=')
     expect(html).toContain('function findWebComposerCommandToken(')
     expect(html).toContain('function getComposerCommandToken()')
+    expect(html).toContain('function renderComposerHighlight()')
     expect(html).toContain('function applyCommandSuggestion(index)')
     expect(html).toContain("const replacement = '/' + item.commandName + ' ';")
     expect(html).toContain('composerInput.value = composerInput.value.slice(0, token.start) + replacement + composerInput.value.slice(token.end);')
     expect(html).not.toContain("composerInput.value = '/' + item.commandName + ' ';")
+    expect(html).toContain('composerHighlight.innerHTML = renderWebComposerHighlightHtml(composerInput.value);')
+    expect(html).toContain('.composerCommandToken')
+    expect(html).toContain('color: #1d6fe8;')
+    expect(html).toContain('background: #fff;')
+    expect(html).toContain('box-shadow: 0 0 0 1px #bfd7ff;')
+    expect(html).toContain('letter-spacing: 0;')
+    expect(html).toContain('word-spacing: 0;')
+    expect(html).toContain('tab-size: 4;')
+    expect(html).not.toContain('border: 1px solid #bfd7ff;')
+    expect(html).not.toContain('padding: 1px 3px;')
+    expect(html).not.toContain('font-weight: 650;')
     expect(html).toContain('data-command-suggestion-index')
     expect(html).toContain('if (handleCommandSuggestionKeydown(event)) return;')
-    expect(html).toContain('composerInput.addEventListener(\'input\', scheduleCommandSuggestions)')
+    expect(html).toContain("composerInput.addEventListener('input', () => {")
+    expect(html).toContain('renderComposerHighlight();')
+    expect(html).toContain('scheduleCommandSuggestions();')
     expect(html).toContain("sendWs({ type: 'send_message', text, attachments })")
   })
 

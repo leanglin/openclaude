@@ -6,11 +6,14 @@ import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import type { Duplex } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
+import { getCommands, isBridgeSafeCommand } from '../commands.js'
 import { PRODUCT_PROJECT_CONFIG_DIR_NAME } from '../constants/product.js'
 import { openBrowser as openSystemBrowser } from '../utils/browser.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 import { PERMISSION_MODES } from '../utils/permissions/PermissionMode.js'
 import type { ProfileFileLocation } from '../utils/providerProfile.js'
+import { generateCommandSuggestions } from '../utils/suggestions/commandSuggestions.js'
+import { getCommandName, type Command } from '../types/command.js'
 import { CliChatSession, type SpawnFactory } from './chatSession.js'
 import {
   buildBootstrapState,
@@ -114,6 +117,7 @@ import type {
   WebPluginMarketplaceSummary,
   WebPluginScope,
   WebPluginSummary,
+  WebCommandSuggestion,
   WebUiPermissionMode,
 } from './types.js'
 
@@ -400,6 +404,52 @@ function bootstrap(options: WebUiAppOptions): BootstrapState {
     chatSessions,
     activeChatSessionId: chatSessions[0]?.id,
   })
+}
+
+const MAX_COMMAND_SUGGESTION_INPUT_LENGTH = 200
+const MAX_WEB_COMMAND_SUGGESTIONS = 50
+
+function commandNameFromSuggestionDisplay(displayText: string): string {
+  return displayText.match(/^\/([^\s(]+)/)?.[1] ?? ''
+}
+
+function commandNameFromSuggestionMetadata(metadata: unknown): string | null {
+  try {
+    return metadata ? getCommandName(metadata as Command) : null
+  } catch {
+    return null
+  }
+}
+
+function toWebCommandSuggestion(suggestion: {
+  id: string
+  displayText: string
+  tag?: string
+  description?: string
+  metadata?: unknown
+}): WebCommandSuggestion {
+  const commandName =
+    commandNameFromSuggestionMetadata(suggestion.metadata) ??
+    commandNameFromSuggestionDisplay(suggestion.displayText)
+  return {
+    id: suggestion.id,
+    commandName,
+    displayText: suggestion.displayText,
+    description: suggestion.description,
+    tag: suggestion.tag,
+  }
+}
+
+async function getWebCommandSuggestions(
+  cwd: string,
+  rawInput: string | null,
+): Promise<{ suggestions: WebCommandSuggestion[] }> {
+  const input = (rawInput ?? '').slice(0, MAX_COMMAND_SUGGESTION_INPUT_LENGTH)
+  const commands = (await getCommands(cwd)).filter(isBridgeSafeCommand)
+  const suggestions = generateCommandSuggestions(input, commands)
+    .slice(0, MAX_WEB_COMMAND_SUGGESTIONS)
+    .map(toWebCommandSuggestion)
+  return { suggestions }
 }
 
 async function handleMemoryApi(
@@ -1018,6 +1068,15 @@ export function createWebUiApp(options: WebUiAppOptions): WebUiApp {
 
         if (request.method === 'GET' && url.pathname === '/api/bootstrap') {
           sendJson(response, 200, bootstrap(options))
+          return
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/command-suggestions') {
+          sendJson(
+            response,
+            200,
+            await getWebCommandSuggestions(options.cwd, url.searchParams.get('input')),
+          )
           return
         }
 

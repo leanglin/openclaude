@@ -676,6 +676,7 @@ export function renderWebUiPage(): string {
       max-width: 980px;
       margin: 0 auto;
       align-items: center;
+      position: relative;
     }
 
     .attachmentTray {
@@ -713,6 +714,64 @@ export function renderWebUiPage(): string {
         border-color var(--oc-duration-fast) var(--oc-ease-standard),
         box-shadow var(--oc-duration-fast) var(--oc-ease-standard),
         transform var(--oc-duration-fast) var(--oc-ease-standard);
+    }
+
+    .commandSuggestions {
+      position: absolute;
+      left: 50px;
+      right: 50px;
+      bottom: calc(100% + 8px);
+      z-index: 16;
+      max-height: 280px;
+      overflow: auto;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      padding: 6px;
+    }
+
+    .commandSuggestion {
+      width: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      display: grid;
+      grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .commandSuggestion:hover,
+    .commandSuggestion.active {
+      background: #eef7f4;
+    }
+
+    .commandSuggestionName {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 760;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .commandSuggestionDetail {
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .commandSuggestionTag {
+      color: var(--accent);
+      font-weight: 700;
+      margin-right: 6px;
     }
 
     .sendButton {
@@ -2020,6 +2079,11 @@ export function renderWebUiPage(): string {
         grid-template-columns: 38px minmax(0, 1fr) 38px;
       }
 
+      .commandSuggestions {
+        left: 48px;
+        right: 48px;
+      }
+
       .splitFields {
         grid-template-columns: 1fr;
       }
@@ -2117,6 +2181,7 @@ export function renderWebUiPage(): string {
           <button id="attachButton" class="iconButton attachButton" type="button" title="添加附件" aria-label="添加附件"></button>
           <label class="srOnly" for="composerInput">向 OpenCat 提问</label>
           <textarea id="composerInput" placeholder="向 OpenCat 提问..." rows="1"></textarea>
+          <div id="commandSuggestions" class="commandSuggestions" role="listbox" hidden></div>
           <button id="sendButton" class="sendButton" title="发送" aria-label="发送"></button>
         </form>
       </footer>
@@ -2191,6 +2256,7 @@ export function renderWebUiPage(): string {
     const permissionPrompt = document.getElementById('permissionPrompt');
     const permissionPreview = document.getElementById('permissionPreview');
     const composerInput = document.getElementById('composerInput');
+    const commandSuggestions = document.getElementById('commandSuggestions');
     const stopSession = document.getElementById('stopSession');
     const sendButton = document.getElementById('sendButton');
     const attachButton = document.getElementById('attachButton');
@@ -2214,6 +2280,13 @@ export function renderWebUiPage(): string {
       streams: new Map(),
       attachments: [],
       pendingPermission: null,
+      commandSuggestions: {
+        items: [],
+        selectedIndex: 0,
+        open: false,
+        requestId: 0,
+        debounceTimer: 0
+      },
       providerEditorOpen: { chat: false, midscene: false },
       memory: {
         status: null,
@@ -2330,6 +2403,118 @@ export function renderWebUiPage(): string {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[ch]);
+    }
+
+    function getComposerCommandInput() {
+      const value = composerInput.value;
+      const cursor = composerInput.selectionStart ?? value.length;
+      if (!value.startsWith('/') || cursor < 1) return null;
+      if (/\\s/.test(value)) return null;
+      return value.slice(0, cursor);
+    }
+
+    function closeCommandSuggestions() {
+      state.commandSuggestions.requestId += 1;
+      if (state.commandSuggestions.debounceTimer) {
+        clearTimeout(state.commandSuggestions.debounceTimer);
+        state.commandSuggestions.debounceTimer = 0;
+      }
+      state.commandSuggestions.items = [];
+      state.commandSuggestions.selectedIndex = 0;
+      state.commandSuggestions.open = false;
+      commandSuggestions.hidden = true;
+      commandSuggestions.innerHTML = '';
+    }
+
+    function renderCommandSuggestions() {
+      const items = state.commandSuggestions.items;
+      commandSuggestions.hidden = !state.commandSuggestions.open || items.length === 0;
+      if (commandSuggestions.hidden) {
+        commandSuggestions.innerHTML = '';
+        return;
+      }
+      commandSuggestions.innerHTML = items.map((item, index) => [
+        '<button type="button" role="option" class="commandSuggestion ' + (index === state.commandSuggestions.selectedIndex ? 'active' : '') + '" aria-selected="' + (index === state.commandSuggestions.selectedIndex ? 'true' : 'false') + '" data-command-suggestion-index="' + String(index) + '">',
+        '<span class="commandSuggestionName">' + escapeHtml(item.displayText) + '</span>',
+        '<span class="commandSuggestionDetail">' + (item.tag ? '<span class="commandSuggestionTag">' + escapeHtml(item.tag) + '</span>' : '') + escapeHtml(item.description || '') + '</span>',
+        '</button>'
+      ].join('')).join('');
+      commandSuggestions.querySelectorAll('[data-command-suggestion-index]').forEach(button => {
+        button.addEventListener('mousedown', event => {
+          event.preventDefault();
+          applyCommandSuggestion(Number(button.dataset.commandSuggestionIndex || '0'));
+        });
+      });
+    }
+
+    function applyCommandSuggestion(index) {
+      const item = state.commandSuggestions.items[index];
+      if (!item) return;
+      composerInput.value = '/' + item.commandName + ' ';
+      composerInput.focus();
+      const cursor = composerInput.value.length;
+      composerInput.setSelectionRange(cursor, cursor);
+      closeCommandSuggestions();
+    }
+
+    function moveCommandSuggestionSelection(delta) {
+      const count = state.commandSuggestions.items.length;
+      if (!count) return;
+      state.commandSuggestions.selectedIndex = (state.commandSuggestions.selectedIndex + delta + count) % count;
+      renderCommandSuggestions();
+    }
+
+    function scheduleCommandSuggestions() {
+      const input = getComposerCommandInput();
+      if (!input) {
+        closeCommandSuggestions();
+        return;
+      }
+      if (state.commandSuggestions.debounceTimer) {
+        clearTimeout(state.commandSuggestions.debounceTimer);
+      }
+      const requestId = state.commandSuggestions.requestId + 1;
+      state.commandSuggestions.requestId = requestId;
+      state.commandSuggestions.debounceTimer = setTimeout(async () => {
+        state.commandSuggestions.debounceTimer = 0;
+        try {
+          const result = await api('/api/command-suggestions?input=' + encodeURIComponent(input));
+          if (requestId !== state.commandSuggestions.requestId) return;
+          const currentInput = getComposerCommandInput();
+          if (currentInput !== input) return;
+          state.commandSuggestions.items = Array.isArray(result.suggestions) ? result.suggestions : [];
+          state.commandSuggestions.selectedIndex = 0;
+          state.commandSuggestions.open = state.commandSuggestions.items.length > 0;
+          renderCommandSuggestions();
+        } catch {
+          if (requestId === state.commandSuggestions.requestId) closeCommandSuggestions();
+        }
+      }, 120);
+    }
+
+    function handleCommandSuggestionKeydown(event) {
+      if (!state.commandSuggestions.open || state.commandSuggestions.items.length === 0) return false;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveCommandSuggestionSelection(1);
+        return true;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveCommandSuggestionSelection(-1);
+        return true;
+      }
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+        event.preventDefault();
+        applyCommandSuggestion(state.commandSuggestions.selectedIndex);
+        return true;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCommandSuggestions();
+        return true;
+      }
+      return false;
     }
 
     function renderInlineMarkdown(value) {
@@ -4880,6 +5065,7 @@ export function renderWebUiPage(): string {
         const visibleText = text || ('附件文件：' + attachments.map(item => item.name).join(', '));
         addMessage('user', visibleText, 'user-' + Date.now());
         composerInput.value = '';
+        closeCommandSuggestions();
         state.attachments = [];
         renderAttachments();
         setRunning(true);
@@ -4891,10 +5077,18 @@ export function renderWebUiPage(): string {
         attachmentInput.value = '';
       });
       composerInput.addEventListener('keydown', event => {
+        if (handleCommandSuggestionKeydown(event)) return;
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           document.getElementById('composerForm').requestSubmit();
         }
+      });
+      composerInput.addEventListener('input', scheduleCommandSuggestions);
+      composerInput.addEventListener('click', scheduleCommandSuggestions);
+      composerInput.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (!commandSuggestions.contains(document.activeElement)) closeCommandSuggestions();
+        }, 0);
       });
       modal.querySelectorAll('[data-permission-action]').forEach(button => {
         button.addEventListener('click', () => {

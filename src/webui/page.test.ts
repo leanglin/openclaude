@@ -159,6 +159,20 @@ describe('webui page', () => {
     expect(html).toContain('function renderToolSummary(tool)')
   })
 
+  test('wires slash command suggestions into the chat composer', () => {
+    const html = renderWebUiPage()
+
+    expect(html).toContain('id="commandSuggestions"')
+    expect(html).toContain('class="commandSuggestions"')
+    expect(html).toContain('/api/command-suggestions?input=')
+    expect(html).toContain('function applyCommandSuggestion(index)')
+    expect(html).toContain("composerInput.value = '/' + item.commandName + ' ';")
+    expect(html).toContain('data-command-suggestion-index')
+    expect(html).toContain('if (handleCommandSuggestionKeydown(event)) return;')
+    expect(html).toContain('composerInput.addEventListener(\'input\', scheduleCommandSuggestions)')
+    expect(html).toContain("sendWs({ type: 'send_message', text, attachments })")
+  })
+
   test('animates only newly inserted chat bubbles and tool rows', () => {
     const html = renderWebUiPage()
 

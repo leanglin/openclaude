@@ -387,6 +387,50 @@ describe('webui server', () => {
     })
   })
 
+  test('serves bridge-safe command suggestions without command metadata', async () => {
+    await withServer(async baseUrl => {
+      const denied = await fetch(`${baseUrl}/api/command-suggestions?input=%2F`)
+      expect(denied.status).toBe(401)
+
+      const headers = { Authorization: 'Bearer test-token' }
+      const all = await fetch(`${baseUrl}/api/command-suggestions?input=%2F`, {
+        headers,
+      }).then(response => response.json())
+      const review = await fetch(
+        `${baseUrl}/api/command-suggestions?input=%2Frev`,
+        { headers },
+      ).then(response => response.json())
+      const unsafe = await fetch(
+        `${baseUrl}/api/command-suggestions?input=%2Fconfig`,
+        { headers },
+      ).then(response => response.json())
+
+      expect(Array.isArray(all.suggestions)).toBe(true)
+      expect(all.suggestions.length).toBeGreaterThan(0)
+      expect(all.suggestions.length).toBeLessThanOrEqual(50)
+      expect(review.suggestions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            commandName: 'review',
+            displayText: '/review',
+          }),
+        ]),
+      )
+      expect(unsafe.suggestions.map((item: { displayText: string }) => item.displayText)).not.toContain('/config')
+      for (const suggestion of review.suggestions) {
+        expect(Object.keys(suggestion).sort()).toEqual(
+          expect.arrayContaining([
+            'commandName',
+            'displayText',
+            'id',
+          ]),
+        )
+        expect(suggestion).not.toHaveProperty('metadata')
+        expect(JSON.stringify(suggestion)).not.toContain('getPromptForCommand')
+      }
+    })
+  })
+
   test('serves plugin marketplace APIs and installs plugins through user scope', async () => {
     const { cwd, managedDir } = setupIsolatedApiState()
     const marketplaceSource = createLocalPluginMarketplace(tempApiDir!)

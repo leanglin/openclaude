@@ -109,6 +109,14 @@ export type WebChatMessage = {
   content: string
 }
 
+export type WebCommandSuggestion = {
+  id: string
+  commandName: string
+  displayText: string
+  description?: string
+  tag?: string
+}
+
 export type WebPluginScope = 'user' | 'project' | 'local'
 
 export type WebPluginMarketplaceSummary = {

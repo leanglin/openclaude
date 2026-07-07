@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAppTest } from './runner.js'
+import {
+  cleanupAppTestSessionsForTesting,
+  finishAppTestSession,
+  observeAppTestSession,
+  runAppTestSessionAction,
+  runAppTestSessionAssert,
+  startAppTestSession,
+} from './sessionClient.js'
 import {
   getClaudeConfigHomeDir,
   getClaudeConfigHomeDirOverrideForTesting,
@@ -23,6 +31,80 @@ function writeMockRunner(): string {
   writeFileSync(
     runnerPath,
     `
+const readline = require('node:readline');
+if (process.argv.includes('session')) {
+  let active = null;
+  const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  function emit(payload) {
+    process.stdout.write(JSON.stringify(payload) + '\\n');
+  }
+  rl.on('line', line => {
+    const command = JSON.parse(line || '{}');
+    const requestId = command.request_id;
+    const action = command.action || command.command || command.tool;
+    if (action === 'start') {
+      active = {
+        session_id: command.session_id,
+        trace_dir: command.trace_dir,
+        platform: command.platform,
+        slots: command.slots || {},
+      };
+      emit({
+        type: 'session_response',
+        request_id: requestId,
+        success: true,
+        message: 'mock session started',
+        session_id: active.session_id,
+        trace_dir: active.trace_dir,
+        platform: active.platform,
+        mock_mode: true,
+        received_slots: active.slots,
+      });
+      return;
+    }
+    if (!active) {
+      emit({ type: 'session_response', request_id: requestId, success: false, message: 'not started' });
+      return;
+    }
+    if (action === 'observe') {
+      const observation = {
+        step_index: 1,
+        current_ref: 'mock://home',
+        visible_text: 'mock Midscene screen ready',
+        screenshot_artifact_path: 'screenshots/step_001.png',
+      };
+      emit({ type: 'event', event_type: 'visual_observed', payload: observation });
+      emit({ type: 'session_response', request_id: requestId, success: true, message: 'observed', session_id: active.session_id, observation });
+      return;
+    }
+    if (action === 'action') {
+      const payload = { step_index: 2, action: command.step_action || command.type || 'tap', success: true, message: command.intent || 'mock action completed' };
+      emit({ type: 'event', event_type: 'visual_action_planned', payload: { step_index: 2, action: payload.action } });
+      emit({ type: 'event', event_type: 'visual_action_executed', payload });
+      emit({ type: 'event', event_type: 'visual_observed', payload: { step_index: 3, current_ref: 'mock://detail', visible_text: 'mock detail screen', screenshot_artifact_path: 'screenshots/step_003.png' } });
+      emit({ type: 'session_response', request_id: requestId, success: true, message: 'action completed', session_id: active.session_id, result: payload });
+      return;
+    }
+    if (action === 'assert') {
+      const payload = { step_index: 4, assertion: command.assertion || command.expected, success: command.mock_pass !== false, message: 'assertion passed' };
+      emit({ type: 'event', event_type: 'visual_assertion_result', payload });
+      emit({ type: 'session_response', request_id: requestId, success: payload.success, message: payload.message, session_id: active.session_id, result: payload });
+      return;
+    }
+    if (action === 'android_adb') {
+      emit({ type: 'session_response', request_id: requestId, success: true, message: 'ADB command completed', session_id: active.session_id, output: 'device' });
+      return;
+    }
+    if (action === 'finish') {
+      const success = command.success !== false;
+      emit({ type: 'event', event_type: 'visual_trace_saved', payload: { visual_trace: 'trace.json', midscene_report: 'midscene_report.html', screenshots: [{ artifact_path: 'screenshots/step_003.png' }] } });
+      emit({ type: 'session_response', request_id: requestId, success, status: success ? 'completed' : 'failed', message: command.summary || 'done', summary: command.summary || 'done', session_id: active.session_id, visual_trace: 'trace.json', midscene_report: 'midscene_report.html', screenshots: [{ artifact_path: 'screenshots/step_003.png' }] });
+      process.exit(0);
+      return;
+    }
+    emit({ type: 'session_response', request_id: requestId, success: false, message: 'unknown action ' + action });
+  });
+} else {
 let raw = '';
 process.stdin.on('data', chunk => raw += chunk);
 process.stdin.on('end', () => {
@@ -78,6 +160,7 @@ process.stdin.on('end', () => {
     midscene_report: 'midscene_report.html'
   }) + '\\n');
 });
+}
 `,
     'utf8',
   )
@@ -97,6 +180,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanupAppTestSessionsForTesting()
   if (originalOpenCatRunner === undefined) delete process.env.OPENCAT_APP_TEST_RUNNER
   else process.env.OPENCAT_APP_TEST_RUNNER = originalOpenCatRunner
   if (originalOpenCatNode === undefined) delete process.env.OPENCAT_APP_TEST_NODE
@@ -177,5 +261,184 @@ describe('runAppTest', () => {
       midscene_api_key: '[redacted]',
     })
     expect(JSON.stringify(result)).not.toContain('super-secret-key')
+  })
+})
+
+describe('AppTest low-level session client', () => {
+  test('starts a mock runner session and reuses it for low-level calls', async () => {
+    const started = await startAppTestSession({
+      session_id: 'mock-session-client',
+      platform: 'android',
+      mock_mode: true,
+      app_package: 'com.example.demo',
+      test_goal: 'mock session flow',
+      trace_dir: tempDir,
+    })
+
+    expect(started.success).toBe(true)
+    expect(started.session_id).toBe('mock-session-client')
+
+    const observed = await observeAppTestSession({
+      session_id: 'mock-session-client',
+    })
+    expect(observed.success).toBe(true)
+    expect(JSON.stringify(observed.response)).toContain('mock Midscene screen ready')
+
+    const acted = await runAppTestSessionAction({
+      session_id: 'mock-session-client',
+      action: 'tap',
+      intent: 'open detail',
+    })
+    expect(acted.success).toBe(true)
+
+    const asserted = await runAppTestSessionAssert({
+      session_id: 'mock-session-client',
+      assertion: 'mock detail screen',
+      mock_pass: true,
+    })
+    expect(asserted.success).toBe(true)
+
+    const finished = await finishAppTestSession({
+      session_id: 'mock-session-client',
+      success: true,
+      summary: 'done',
+    })
+    expect(finished.success).toBe(true)
+    expect(finished.response.midscene_report).toBe('midscene_report.html')
+
+    await expect(
+      observeAppTestSession({ session_id: 'mock-session-client' }),
+    ).rejects.toThrow('has not been started')
+  })
+
+  test('rejects low-level calls without a started session', async () => {
+    await expect(
+      observeAppTestSession({ session_id: 'missing-session' }),
+    ).rejects.toThrow('has not been started')
+  })
+
+  test('injects execution plan and route memory, then merges finish artifacts', async () => {
+    const executionPlanPath = join(tempDir, 'execution_plan.json')
+    const routeMemoryPath = join(tempDir, 'route_memory.json')
+    const reflectionReportPath = join(tempDir, 'reflection_report.json')
+    const executionReportPath = join(tempDir, 'execution_report.json')
+    writeFileSync(
+      executionPlanPath,
+      JSON.stringify({
+        batches: [
+          {
+            batch_id: 'batch-1',
+            shared_navigation_steps: ['open home', 'open devices'],
+            case_specific_steps: {
+              'case-1': ['open camera', 'assert live view'],
+            },
+          },
+        ],
+      }),
+      'utf8',
+    )
+    writeFileSync(
+      routeMemoryPath,
+      JSON.stringify({
+        current_page: { current_ref: 'mock://home', summary: 'home' },
+        successful_routes: [
+          { route_id: 'route-1', to_ref: 'mock://devices', action_text: 'open devices' },
+        ],
+        failed_routes: [
+          { route_id: 'bad-route', action_text: 'tap banner', reason: 'wrong page' },
+        ],
+      }),
+      'utf8',
+    )
+    writeFileSync(reflectionReportPath, JSON.stringify({ reflections: [] }), 'utf8')
+    writeFileSync(executionReportPath, JSON.stringify({ previous: true }), 'utf8')
+
+    const started = await startAppTestSession({
+      session_id: 'artifact-session',
+      platform: 'android',
+      mock_mode: true,
+      app_package: 'com.example.demo',
+      test_goal: 'execute structured case',
+      trace_dir: tempDir,
+      execution_plan_path: executionPlanPath,
+      route_memory_path: routeMemoryPath,
+      reflection_report_path: reflectionReportPath,
+      execution_report_path: executionReportPath,
+      batch_id: 'batch-1',
+      case_id: 'case-1',
+    })
+    const receivedSlots = started.response.received_slots as Record<string, unknown>
+    expect(receivedSlots.shared_navigation_steps).toEqual(['open home', 'open devices'])
+    expect(receivedSlots.case_specific_steps).toEqual(['open camera', 'assert live view'])
+    expect(receivedSlots.visual_execution_memory).toBeDefined()
+    expect(receivedSlots.route_reuse).toBeDefined()
+    expect(receivedSlots.current_page_reuse).toBeDefined()
+
+    await observeAppTestSession({ session_id: 'artifact-session' })
+    await runAppTestSessionAction({
+      session_id: 'artifact-session',
+      action: 'tap',
+      intent: 'open camera',
+    })
+    await runAppTestSessionAssert({
+      session_id: 'artifact-session',
+      assertion: 'camera live view',
+      mock_pass: false,
+    })
+    const finished = await finishAppTestSession({
+      session_id: 'artifact-session',
+      success: false,
+      summary: 'camera live view missing',
+    })
+
+    expect(finished.success).toBe(false)
+    expect(finished.route_memory_path).toBe(routeMemoryPath)
+    expect(finished.reflection_report_path).toBe(reflectionReportPath)
+    expect(finished.execution_report_path).toBe(executionReportPath)
+
+    const routeMemory = JSON.parse(readFileSync(routeMemoryPath, 'utf8')) as Record<string, unknown>
+    expect((routeMemory.failed_routes as unknown[]).length).toBeGreaterThan(1)
+    expect((routeMemory.case_results as Record<string, unknown>)['case-1']).toMatchObject({
+      status: 'failed',
+    })
+    expect((routeMemory.batch_results as Record<string, unknown>)['batch-1']).toMatchObject({
+      failed_runs: 1,
+    })
+
+    const reflection = JSON.parse(readFileSync(reflectionReportPath, 'utf8')) as Record<string, unknown>
+    expect((reflection.reflections as unknown[]).length).toBe(1)
+
+    const execution = JSON.parse(readFileSync(executionReportPath, 'utf8')) as Record<string, unknown>
+    expect(execution).toMatchObject({
+      session_id: 'artifact-session',
+      case_id: 'case-1',
+      success: false,
+    })
+  })
+
+  test('does not silently overwrite an invalid execution report', async () => {
+    const executionReportPath = join(tempDir, 'bad_execution_report.json')
+    writeFileSync(executionReportPath, '{bad json', 'utf8')
+
+    await startAppTestSession({
+      session_id: 'invalid-report-session',
+      platform: 'android',
+      mock_mode: true,
+      app_package: 'com.example.demo',
+      test_goal: 'finish with invalid prior report',
+      trace_dir: tempDir,
+      execution_report_path: executionReportPath,
+    })
+    const finished = await finishAppTestSession({
+      session_id: 'invalid-report-session',
+      success: true,
+      summary: 'done',
+    })
+
+    expect(finished.execution_report_path).not.toBe(executionReportPath)
+    expect(finished.execution_report_path).toContain('generated')
+    expect(finished.artifact_warnings?.join('\n')).toContain('invalid JSON')
+    expect(readFileSync(executionReportPath, 'utf8')).toBe('{bad json')
+    expect(() => JSON.parse(readFileSync(String(finished.execution_report_path), 'utf8'))).not.toThrow()
   })
 })

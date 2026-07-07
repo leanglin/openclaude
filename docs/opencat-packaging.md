@@ -1,6 +1,6 @@
 # OpenCat Desktop Packaging
 
-OpenCat 7.0.0 ships as a Tauri launcher plus bundled runtime. The launcher
+OpenCat 7.0.1 ships as a Tauri launcher plus bundled runtime. The launcher
 starts the local Web server as a hidden child process and opens the Web UI
 inside a Tauri WebView.
 
@@ -124,7 +124,7 @@ DMG_ROOT="$(mktemp -d)"
 ditto launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/OpenCat.app "$DMG_ROOT/OpenCat.app"
 ln -s /Applications "$DMG_ROOT/Applications"
 mkdir -p launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
-hdiutil create -volname OpenCat -srcfolder "$DMG_ROOT" -ov -format UDZO launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OpenCat_7.0.0_aarch64.dmg
+hdiutil create -volname OpenCat -srcfolder "$DMG_ROOT" -ov -format UDZO launcher/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/OpenCat_7.0.1_aarch64.dmg
 rm -rf "$DMG_ROOT"
 ```
 

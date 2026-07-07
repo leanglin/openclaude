@@ -13,7 +13,7 @@ use tauri::{AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder, Wi
 use url::form_urlencoded;
 
 type SharedState = Arc<Mutex<LauncherState>>;
-const APP_VERSION: &str = "7.0.0";
+const APP_VERSION: &str = "7.0.1";
 const UPDATE_PRODUCT_KEY: &str = "opencat";
 #[cfg(windows)]
 const UPDATE_PLATFORM: &str = "windows";

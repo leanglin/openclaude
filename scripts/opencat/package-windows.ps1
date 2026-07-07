@@ -599,7 +599,7 @@ function Assert-RuntimeStaging {
 
   $version = (& $runtimeNode $runtimeCli --version).Trim()
   Write-Info "runtime version = $version"
-  if ($version -ne '7.0.0 (OpenCat)') {
+  if ($version -ne '7.0.1 (OpenCat)') {
     Fail "Unexpected runtime version output: $version"
   }
 }

@@ -378,6 +378,74 @@ test('session command runs low-level mock flow over JSONL', async () => {
   }
 });
 
+test('session command applies visual path memory to action and aiAct trace', async () => {
+  const traceDir = tempTraceDir();
+  const child = spawn(process.execPath, [DIST_CLI_PATH, 'session'], {
+    env: {
+      ...process.env,
+      MIDSCENE_RUNNER_MOCK: '1',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const rl: Interface = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  const iterator = rl[Symbol.asyncIterator]();
+  try {
+    writeSessionCommand(child, {
+      request_id: 'start-memory',
+      command: 'start',
+      session_id: 'memory-session',
+      trace_dir: traceDir,
+      platform: 'android',
+      app_package: 'com.example.app',
+      slots: {
+        mock_observations: [{ visible_text: 'mock Midscene screen ready' }],
+        visual_execution_memory: {
+          known_routes: [{ to_ref: 'DetailActivity', action_text: 'open detail' }],
+          avoid_actions: [{ action_text: 'tap banner', reason: 'opened wrong page' }],
+        },
+      },
+    });
+    const started = await readSessionResponse(iterator, 'start-memory');
+    assert.equal(started.success, true);
+
+    writeSessionCommand(child, {
+      request_id: 'action-memory',
+      command: 'action',
+      step_action: 'tap',
+      intent: 'open playback',
+    });
+    const acted = await readSessionResponse(iterator, 'action-memory');
+    assert.equal(acted.success, true);
+
+    writeSessionCommand(child, {
+      request_id: 'ai-memory',
+      command: 'ai_act',
+      instruction: 'tap playback tab',
+    });
+    const aiActed = await readSessionResponse(iterator, 'ai-memory');
+    assert.equal(aiActed.success, true);
+
+    writeSessionCommand(child, {
+      request_id: 'finish-memory',
+      command: 'finish',
+      success: true,
+      summary: 'done',
+    });
+    const finished = await readSessionResponse(iterator, 'finish-memory');
+    assert.equal(finished.success, true);
+
+    const trace = JSON.parse(readFileSync(join(traceDir, 'trace.json'), 'utf8'));
+    assert.match(String(trace.steps[0].action.reason), /Runtime path memory/);
+    assert.match(String(trace.steps[1].action.instruction), /Known routes/);
+    assert.ok(trace.visual_execution_memory);
+    assert.ok(Array.isArray(trace.visual_path_memory_deltas));
+  } finally {
+    rl.close();
+    child.kill();
+    rmSync(traceDir, { recursive: true, force: true });
+  }
+});
+
 test('resolves replanning cycle limit from slots', () => {
     assert.equal(resolveReplanningCycleLimit({ max_steps: 10000 }), 10000);
     assert.equal(resolveReplanningCycleLimit({ replanning_cycle_limit: 20000 }), 10000);

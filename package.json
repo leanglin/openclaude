@@ -1,6 +1,6 @@
 {
   "name": "@opencat/opencat",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "OpenCat opens coding-agent workflows to any LLM - OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
   "type": "module",
   "workspaces": [

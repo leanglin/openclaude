@@ -266,7 +266,7 @@ assert_runtime_staging() {
   local version
   version="$("$node_path" "$cli_path" --version)"
   info "runtime version = $version"
-  if [[ "$version" != "7.0.0 (OpenCat)" ]]; then
+  if [[ "$version" != "7.0.1 (OpenCat)" ]]; then
     fail "Unexpected runtime version output: $version"
   fi
 }
@@ -305,7 +305,7 @@ assert_app_bundle_runtime() {
   local version
   version="$("$node_path" "$cli_path" --version)"
   info "bundled runtime version = $version"
-  if [[ "$version" != "7.0.0 (OpenCat)" ]]; then
+  if [[ "$version" != "7.0.1 (OpenCat)" ]]; then
     fail "Unexpected bundled runtime version output: $version"
   fi
 }
@@ -347,7 +347,7 @@ build_dmg() {
 
   step "Creating simple DMG for macOS $arch"
   local dmg_dir="$TARGET_DIR/$rust_target/release/bundle/dmg"
-  local dmg="$dmg_dir/OpenCat_7.0.0_${rust_target%%-*}.dmg"
+  local dmg="$dmg_dir/OpenCat_7.0.1_${rust_target%%-*}.dmg"
   local dmg_root
   dmg_root="$(mktemp -d)"
   mkdir -p "$dmg_dir"

@@ -1,6 +1,6 @@
 {
   "name": "@opencat/app-test-runner",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "private": true,
   "description": "JSONL sidecar for OpenCat Android App and Web UI tests powered by Midscene.",
   "type": "commonjs",

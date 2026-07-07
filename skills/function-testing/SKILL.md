@@ -469,6 +469,8 @@ opencat_android_adb
 opencat_midscene_finish
 ```
 
+这些 low-level Midscene 名称是 OpenCat/Codex 内置可调用工具，不是文档占位。结构化用例、批次执行、路径记忆、逐步反思和纠偏必须默认走这组工具闭环；高层 `AppTest` / `run_visual_task` 只用于简单单目标执行或低层工具不可用时的 fallback。
+
 ### 9.3 run_visual_task 使用场景
 
 `run_visual_task` 可用于：

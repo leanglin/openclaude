@@ -62,6 +62,10 @@ type MidsceneSessionState = {
   stepIndex: number;
   latestObservation: JsonObject | null;
   mockMode: boolean;
+  visualMemory: VisualPathMemoryState;
+  selfHealing: VisualSelfHealingState;
+  reflectionEvents: JsonObject[];
+  repairAttempts: JsonObject[];
   finished: boolean;
 };
 
@@ -4773,11 +4777,15 @@ function mockSessionObservation(state: MidsceneSessionState, stepIndex: number):
 
 function safeSessionAction(command: JsonObject): JsonObject {
   if (isRecord(command.action)) return command.action as JsonObject;
-  const actionName = asText(firstConfiguredValue(command.action, command.type, command.name)).trim();
-  const target = isRecord(command.target) ? command.target as JsonObject : {};
+  const actionName = asText(firstConfiguredValue(command.step_action, command.ui_action, command.type, command.name, command.action)).trim();
+  const target = isRecord(command.target)
+    ? command.target as JsonObject
+    : command.target !== undefined
+      ? { text: asText(command.target) }
+      : {};
   const value = firstConfiguredValue(command.value, command.text, command.input);
   const intent = asText(firstConfiguredValue(command.intent, command.instruction, command.reason, command.message)).trim();
-  return {
+  const action: JsonObject = {
     action: actionName || 'aiAct',
     target,
     value,
@@ -4785,6 +4793,8 @@ function safeSessionAction(command: JsonObject): JsonObject {
     reason: intent,
     allow_midscene_fallback: command.allow_midscene_fallback !== false,
   };
+  if (command.assert_after !== undefined) action.assert_after = command.assert_after;
+  return action;
 }
 
 function sessionInstruction(command: JsonObject): string {
@@ -4839,12 +4849,44 @@ function runAllowedAdb(command: JsonObject, state: MidsceneSessionState): JsonOb
   }
 }
 
+function rememberSessionCommandReflection(
+  state: MidsceneSessionState,
+  stepIndex: number,
+  command: JsonObject,
+  result: JsonObject = {},
+): void {
+  const reflection: JsonObject = isRecord(command.reflection)
+    ? { ...(command.reflection as JsonObject) }
+    : isRecord(command.path_memory_delta)
+      ? { path_memory_delta: command.path_memory_delta as JsonObject }
+      : {};
+  if (!Object.keys(reflection).length) return;
+  const enriched: ReflectionDecision = {
+    ...reflection,
+    step_index: stepIndex,
+    action_result: result.success === false ? 'failed' : 'completed',
+  };
+  state.reflectionEvents.push(enriched);
+  state.reflectionEvents = state.reflectionEvents.slice(-30);
+  rememberVisualPathReflection(state.visualMemory, stepIndex, enriched);
+  if (command.repair_attempt || reflection.repair_attempt) {
+    state.repairAttempts.push({
+      step_index: stepIndex,
+      repair_attempt: command.repair_attempt || reflection.repair_attempt,
+      reflection: enriched,
+    });
+    state.repairAttempts = state.repairAttempts.slice(-30);
+  }
+}
+
 async function startMidsceneSession(command: JsonObject): Promise<MidsceneSessionState> {
   const request = sessionRunnerRequest(command);
   const sessionId = sessionIdFromCommand(command);
   const traceDir = ensureTraceDir(request);
   const mockMode = request.mock_mode === true || process.env.MIDSCENE_RUNNER_MOCK === '1';
   const runtime = mockMode ? null : await setupAgent(request);
+  const visualMemory = createVisualPathMemoryState(request.slots || {});
+  const selfHealing = createVisualSelfHealingState(request.slots || {});
   return {
     sessionId,
     request,
@@ -4857,6 +4899,10 @@ async function startMidsceneSession(command: JsonObject): Promise<MidsceneSessio
     stepIndex: 1,
     latestObservation: null,
     mockMode,
+    visualMemory,
+    selfHealing,
+    reflectionEvents: [],
+    repairAttempts: [],
     finished: false,
   };
 }
@@ -4880,13 +4926,18 @@ async function sessionObserve(state: MidsceneSessionState, source = 'manual_obse
 }
 
 async function sessionAction(state: MidsceneSessionState, command: JsonObject): Promise<JsonObject> {
-  const action = safeSessionAction(command);
   const observation = state.latestObservation || await sessionObserve(state, 'pre_action');
+  const stepIndex = Number(observation.step_index || state.stepIndex - 1);
+  const action = applyVisualPathMemoryToAction(
+    safeSessionAction(command),
+    state.visualMemory,
+    stepIndex,
+  );
   const result = state.mockMode
     ? { success: true, message: asText(action.intent || action.reason || action.action || 'mock session action'), execution_strategy: 'session_mock' }
     : await executeCodexStep(state.runtime as RuntimeHandle, state.request, action, observation);
   const step = {
-    step_index: Number(observation.step_index || state.stepIndex - 1),
+    step_index: stepIndex,
     observation,
     action,
     result,
@@ -4900,19 +4951,28 @@ async function sessionAction(state: MidsceneSessionState, command: JsonObject): 
     postObservation = await sessionObserve(state, 'post_action');
     (step as JsonObject).post_observation = postObservation;
   }
-  return { success: result.success !== false, message: asText(result.message || 'action completed'), result, observation: postObservation || observation };
+  rememberSessionCommandReflection(state, stepIndex, command, result);
+  const assertionResults: JsonObject[] = [];
+  for (const item of asList(command.assert_after)) {
+    const assertionCommand = isRecord(item) ? item : { assertion: asText(item) };
+    assertionResults.push(await sessionAssert(state, assertionCommand));
+  }
+  return { success: result.success !== false, message: asText(result.message || 'action completed'), result, observation: postObservation || observation, assertions: assertionResults };
 }
 
 async function sessionAiAct(state: MidsceneSessionState, command: JsonObject): Promise<JsonObject> {
-  const instruction = sessionInstruction(command);
-  if (!instruction) return { success: false, message: 'ai_act requires instruction' };
+  const rawInstruction = sessionInstruction(command);
+  if (!rawInstruction) return { success: false, message: 'ai_act requires instruction' };
   const observation = state.latestObservation || await sessionObserve(state, 'pre_action');
+  const stepIndex = Number(observation.step_index || state.stepIndex - 1);
+  emitVisualPathMemoryApplied(state.visualMemory, stepIndex);
+  const instruction = appendVisualPathMemoryInstruction(rawInstruction, state.visualMemory);
   const result = state.mockMode
     ? { success: true, message: instruction, execution_strategy: 'session_mock' }
     : { success: true, message: asText(await (state.runtime as RuntimeHandle).agent.aiAct(instruction) || 'aiAct completed'), execution_strategy: 'midscene_ai' };
   const action = { action: 'aiAct', instruction, reason: instruction };
   const step = {
-    step_index: Number(observation.step_index || state.stepIndex - 1),
+    step_index: stepIndex,
     observation,
     action,
     result,
@@ -4926,6 +4986,7 @@ async function sessionAiAct(state: MidsceneSessionState, command: JsonObject): P
     postObservation = await sessionObserve(state, 'post_action');
     (step as JsonObject).post_observation = postObservation;
   }
+  rememberSessionCommandReflection(state, stepIndex, command, result);
   return { success: true, message: result.message, result, observation: postObservation || observation };
 }
 
@@ -4983,6 +5044,11 @@ async function finishMidsceneSession(state: MidsceneSessionState, command: JsonO
     screenshots: state.screenshots,
     assertions: state.assertions,
     history: state.history,
+    self_healing: visualSelfHealingTracePayload(state.selfHealing),
+    visual_execution_memory: visualPathMemorySnapshot(state.visualMemory),
+    visual_path_memory_deltas: state.visualMemory.pathMemoryDeltas,
+    reflection_events: state.reflectionEvents,
+    repair_attempts: state.repairAttempts,
     midscene_report: reportArtifactPath,
     report_truncated: report.truncated,
     report_original_size_bytes: report.originalSizeBytes,
@@ -4995,6 +5061,8 @@ async function finishMidsceneSession(state: MidsceneSessionState, command: JsonO
     visual_trace: visualTrace,
     screenshots: state.screenshots,
     step_count: state.steps.length,
+    visual_execution_memory: visualPathMemorySnapshot(state.visualMemory),
+    visual_path_memory_deltas: state.visualMemory.pathMemoryDeltas,
     midscene_report: reportArtifactPath,
     report_truncated: report.truncated,
     report_original_size_bytes: report.originalSizeBytes,
@@ -5014,6 +5082,8 @@ async function finishMidsceneSession(state: MidsceneSessionState, command: JsonO
     visual_trace: visualTrace,
     midscene_report: reportArtifactPath,
     screenshots: state.screenshots,
+    visual_execution_memory: visualPathMemorySnapshot(state.visualMemory),
+    visual_path_memory_deltas: state.visualMemory.pathMemoryDeltas,
     artifacts: [
       { type: 'visual_trace', path: visualTrace },
       { type: 'midscene_report', path: reportArtifactPath },

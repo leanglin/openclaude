@@ -7,6 +7,7 @@ import {
   cleanupAppTestSessionsForTesting,
   finishAppTestSession,
   observeAppTestSession,
+  runAppTestSessionAdb,
   runAppTestSessionAction,
   runAppTestSessionAssert,
   startAppTestSession,
@@ -16,7 +17,10 @@ import {
   getClaudeConfigHomeDirOverrideForTesting,
   setClaudeConfigHomeDirForTesting,
 } from '../../utils/envUtils.js'
-import { readPlatformUsageEvents } from '../platformUsage/index.js'
+import {
+  collectPlatformUsageSummary,
+  readPlatformUsageEvents,
+} from '../platformUsage/index.js'
 
 const originalOpenCatRunner = process.env.OPENCAT_APP_TEST_RUNNER
 const originalOpenCatNode = process.env.OPENCAT_APP_TEST_NODE
@@ -277,6 +281,20 @@ describe('AppTest low-level session client', () => {
 
     expect(started.success).toBe(true)
     expect(started.session_id).toBe('mock-session-client')
+    expect(readPlatformUsageEvents()).toEqual([
+      expect.objectContaining({
+        eventType: 'case_generated',
+        caseId: 'mock-session-client',
+        platform: 'android',
+        executionMode: 'low_level_session',
+      }),
+      expect.objectContaining({
+        eventType: 'case_adopted',
+        caseId: 'mock-session-client',
+        platform: 'android',
+        executionMode: 'low_level_session',
+      }),
+    ])
 
     const observed = await observeAppTestSession({
       session_id: 'mock-session-client',
@@ -298,6 +316,13 @@ describe('AppTest low-level session client', () => {
     })
     expect(asserted.success).toBe(true)
 
+    const adb = await runAppTestSessionAdb({
+      session_id: 'mock-session-client',
+      args: ['devices'],
+    })
+    expect(adb.success).toBe(true)
+    expect(readPlatformUsageEvents()).toHaveLength(2)
+
     const finished = await finishAppTestSession({
       session_id: 'mock-session-client',
       success: true,
@@ -305,6 +330,43 @@ describe('AppTest low-level session client', () => {
     })
     expect(finished.success).toBe(true)
     expect(finished.response.midscene_report).toBe('midscene_report.html')
+    const usageEvents = readPlatformUsageEvents()
+    expect(usageEvents).toHaveLength(3)
+    expect(usageEvents.filter(event => event.eventType === 'case_executed')).toEqual([
+      expect.objectContaining({
+        caseId: 'mock-session-client',
+        platform: 'android',
+        executionMode: 'low_level_session',
+        success: true,
+        durationSeconds: expect.any(Number),
+      }),
+    ])
+    const summary = await collectPlatformUsageSummary({
+      statsLoader: async () => ({
+        totalSessions: 0,
+        totalMessages: 0,
+        totalDays: 0,
+        activeDays: 0,
+        streaks: {
+          currentStreak: 0,
+          longestStreak: 0,
+          currentStreakStart: null,
+          longestStreakStart: null,
+          longestStreakEnd: null,
+        },
+        dailyActivity: [],
+        dailyModelTokens: [],
+        longestSession: null,
+        modelUsage: {},
+        firstSessionDate: null,
+        lastSessionDate: null,
+        peakActivityDay: null,
+        peakActivityHour: null,
+        totalSpeculationTimeSavedMs: 0,
+      }),
+    })
+    expect(summary.payload.generated_case_count_total).toBe(1)
+    expect(summary.payload.executed_case_count_total).toBe(1)
 
     await expect(
       observeAppTestSession({ session_id: 'mock-session-client' }),
@@ -414,6 +476,24 @@ describe('AppTest low-level session client', () => {
       case_id: 'case-1',
       success: false,
     })
+    expect(readPlatformUsageEvents()).toEqual([
+      expect.objectContaining({
+        eventType: 'case_generated',
+        caseId: 'batch-1:case-1',
+        executionMode: 'low_level_session',
+      }),
+      expect.objectContaining({
+        eventType: 'case_adopted',
+        caseId: 'batch-1:case-1',
+        executionMode: 'low_level_session',
+      }),
+      expect.objectContaining({
+        eventType: 'case_executed',
+        caseId: 'batch-1:case-1',
+        executionMode: 'low_level_session',
+        success: false,
+      }),
+    ])
   })
 
   test('does not silently overwrite an invalid execution report', async () => {

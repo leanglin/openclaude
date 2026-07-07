@@ -16,6 +16,10 @@ import {
   type JsonObject,
 } from './sessionArtifacts.js'
 import type { AppTestEvent, AppTestPlatform } from './types.js'
+import {
+  recordAppTestUsageExecuted,
+  recordAppTestUsageStart,
+} from '../platformUsage/index.js'
 
 export type AppTestSessionStartInput = {
   session_id?: string
@@ -100,6 +104,9 @@ type PendingResponse = {
 type AppTestSessionRecord = {
   sessionId: string
   platform?: AppTestPlatform
+  usageCaseId: string
+  startedAt: number
+  executionMode: typeof LOW_LEVEL_APP_TEST_EXECUTION_MODE
   child: ChildProcessWithoutNullStreams
   stdout: Interface
   stderr: Interface
@@ -113,6 +120,7 @@ type AppTestSessionRecord = {
   finished: boolean
 }
 
+const LOW_LEVEL_APP_TEST_EXECUTION_MODE = 'low_level_session'
 const sessions = new Map<string, AppTestSessionRecord>()
 
 function asText(value: unknown): string {
@@ -121,6 +129,14 @@ function asText(value: unknown): string {
 
 function platformOf(input: AppTestSessionStartInput): AppTestPlatform {
   return input.platform === 'web' || input.start_url ? 'web' : 'android'
+}
+
+function usageCaseIdForSession(input: AppTestSessionStartInput, sessionId: string): string {
+  const batchId = input.batch_id?.trim()
+  const caseId = input.case_id?.trim()
+  if (batchId && caseId) return `${batchId}:${caseId}`
+  if (caseId) return caseId
+  return sessionId
 }
 
 function sessionTimeoutMs(): number {
@@ -161,6 +177,7 @@ function createSessionRecord(
   sessionId: string,
   input: AppTestSessionStartInput,
   artifacts: AppTestSessionArtifactContext,
+  startedAt: number,
 ): AppTestSessionRecord {
   const runnerPath = resolveAppTestRunnerPath()
   if (!runnerPath) {
@@ -175,6 +192,9 @@ function createSessionRecord(
   const record: AppTestSessionRecord = {
     sessionId,
     platform: platformOf(input),
+    usageCaseId: usageCaseIdForSession(input, sessionId),
+    startedAt,
+    executionMode: LOW_LEVEL_APP_TEST_EXECUTION_MODE,
     child,
     stdout: createInterface({ input: child.stdout, crlfDelay: Infinity }),
     stderr: createInterface({ input: child.stderr, crlfDelay: Infinity }),
@@ -304,6 +324,7 @@ export async function startAppTestSession(
   input: AppTestSessionStartInput,
   signal?: AbortSignal,
 ): Promise<AppTestSessionResult> {
+  const startedAt = Date.now()
   const sessionId = input.session_id?.trim() || `midscene-session-${randomUUID()}`
   if (sessions.has(sessionId)) {
     throw new Error(`AppTest session already exists: ${sessionId}`)
@@ -313,7 +334,12 @@ export async function startAppTestSession(
     ...input,
     session_id: sessionId,
   })
-  const record = createSessionRecord(sessionId, { ...input, trace_dir: traceDir }, artifacts)
+  const record = createSessionRecord(
+    sessionId,
+    { ...input, trace_dir: traceDir },
+    artifacts,
+    startedAt,
+  )
   const platform = platformOf(input)
   const appPackage = input.app_package || input.package_name
   const slots: JsonObject = {
@@ -352,6 +378,14 @@ export async function startAppTestSession(
     )
     if (response.success === false) {
       cleanupRecord(record)
+    }
+    if (response.success !== false) {
+      recordAppTestUsageStart({
+        caseId: record.usageCaseId,
+        platform,
+        executionMode: record.executionMode,
+        at: new Date(startedAt),
+      })
     }
     return resultFromResponse(record, response, {
       artifact_warnings: artifacts.warnings,
@@ -490,6 +524,13 @@ export async function finishAppTestSession(
     )
     const success =
       input.success === undefined ? response.success !== false : input.success !== false
+    recordAppTestUsageExecuted({
+      caseId: record.usageCaseId,
+      platform: record.platform || 'android',
+      executionMode: record.executionMode,
+      success,
+      durationMs: Date.now() - record.startedAt,
+    })
     const artifacts = mergeSessionArtifacts(record.artifacts, {
       session_id: record.sessionId,
       platform: record.platform,

@@ -88,6 +88,7 @@ export function renderWebUiPage(): string {
       --muted: #657379;
       --accent: #147d74;
       --accent-soft: #dff3ef;
+      --success: #25845f;
       --danger: #b73b48;
       --coral: #c7563f;
       --indigo: #4757a6;

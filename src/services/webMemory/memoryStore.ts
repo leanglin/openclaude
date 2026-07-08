@@ -153,8 +153,10 @@ function resolveMemoryPath(
 }
 
 function getMemoryKind(relativePath: string): MemoryFileKind {
-  if (relativePath === MEMORY_INDEX) return 'index'
   if (relativePath.startsWith('logs/')) return 'daily-log'
+  if (relativePath === MEMORY_INDEX || relativePath.endsWith(`/${MEMORY_INDEX}`)) {
+    return 'index'
+  }
   return 'topic'
 }
 
@@ -269,7 +271,10 @@ function walkMemoryFiles(memoryDir: string, cwd?: string): string[] {
 export function listMemoryFiles(cwd?: string): MemoryFile[] {
   const memoryDir = getMemoryDir(cwd)
   const relativePaths = walkMemoryFiles(memoryDir, cwd)
-  if (!relativePaths.includes(MEMORY_INDEX)) {
+  const hasRealIndex = relativePaths.some(
+    relativePath => getMemoryKind(relativePath) === 'index',
+  )
+  if (!relativePaths.includes(MEMORY_INDEX) && !hasRealIndex) {
     relativePaths.unshift(MEMORY_INDEX)
   }
   return relativePaths.map(relativePath =>
@@ -282,7 +287,11 @@ export async function getMemoryStatus(cwd: string): Promise<MemoryStatus> {
   const graph = await getKnowledgeGraphSnapshot(cwd)
   const autoMemoryEnabled = isAutoMemoryEnabled()
   const knowledgeGraphEnabled = getGlobalConfig().knowledgeGraphEnabled !== false
-  const hasMemoryIndex = existsSync(getMemoryEntrypoint(cwd))
+  const hasMemoryIndex = files.some(
+    file =>
+      file.kind === 'index' &&
+      existsSync(resolveMemoryPath(file.relativePath, { cwd })),
+  )
   const countedFiles = files.filter(
     file => file.relativePath !== MEMORY_INDEX || hasMemoryIndex,
   )

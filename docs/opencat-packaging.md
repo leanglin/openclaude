@@ -1,6 +1,6 @@
 # OpenCat Desktop Packaging
 
-OpenCat 7.0.2 ships as a Tauri launcher plus bundled runtime. The launcher
+OpenCat 7.0.3 ships as a Tauri launcher plus bundled runtime. The launcher
 starts the local Web server as a hidden child process and opens the Web UI
 inside a Tauri WebView.
 

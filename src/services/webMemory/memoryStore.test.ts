@@ -1,5 +1,11 @@
 import { afterEach, expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -78,6 +84,60 @@ test('status does not count the synthetic MEMORY.md placeholder as content', asy
   expect(status.totalBytes).toBe(0)
 })
 
+test('treats nested MEMORY.md files as real indexes', async () => {
+  const dir = useTempMemoryDir()
+  mkdirSync(join(dir, 'team'), { recursive: true })
+  writeFileSync(
+    join(dir, 'team', 'MEMORY.md'),
+    '- [Team Project](team-project.md): Shared memory index entry.\n',
+  )
+  writeFileSync(
+    join(dir, 'team', 'team-project.md'),
+    [
+      '---',
+      'title: "Team Project"',
+      'description: "Shared project memory"',
+      'type: "project"',
+      '---',
+      '',
+      '# Team Project',
+      '',
+      'Remember the team index contract.',
+      '',
+    ].join('\n'),
+  )
+
+  const files = listMemoryFiles()
+  expect(files.map(file => file.relativePath)).not.toContain('MEMORY.md')
+  expect(files).toContainEqual(
+    expect.objectContaining({
+      relativePath: 'team/MEMORY.md',
+      kind: 'index',
+      sizeBytes: expect.any(Number),
+    }),
+  )
+  expect(files).toContainEqual(
+    expect.objectContaining({
+      relativePath: 'team/team-project.md',
+      kind: 'topic',
+    }),
+  )
+
+  const index = getMemoryFile(encodeMemoryFileId('team/MEMORY.md'))
+  expect(index.kind).toBe('index')
+  expect(index.content).toContain('Shared memory index entry')
+  expect(searchMemoryFiles('Shared memory index')).toContainEqual(
+    expect.objectContaining({ relativePath: 'team/MEMORY.md' }),
+  )
+  expect(() =>
+    deleteMemoryFile(encodeMemoryFileId('team/MEMORY.md'), true),
+  ).toThrow(/cannot be deleted/)
+
+  const status = await getMemoryStatus(join(dir, 'project'))
+  expect(status.hasMemoryIndex).toBe(true)
+  expect(status.memoryFileCount).toBe(2)
+})
+
 test('rejects traversal file ids and refuses to delete MEMORY.md', () => {
   useTempMemoryDir()
 
@@ -87,4 +147,7 @@ test('rejects traversal file ids and refuses to delete MEMORY.md', () => {
   expect(() => deleteMemoryFile(encodeMemoryFileId('MEMORY.md'), true)).toThrow(
     /cannot be deleted/,
   )
+  expect(() =>
+    deleteMemoryFile(encodeMemoryFileId('team/MEMORY.md'), true),
+  ).toThrow(/cannot be deleted/)
 })

@@ -1637,6 +1637,33 @@ describe('webui server', () => {
         expect(status.knowledgeGraphEnabled).toBe(true)
         expect(status.knowledgeGraphCollectionEnabled).toBe(true)
 
+        mkdirSync(join(memoryDir, 'team'), { recursive: true })
+        writeFileSync(
+          join(memoryDir, 'team', 'MEMORY.md'),
+          '- [Team API](team-api.md): Shared memory API index.\n',
+        )
+
+        const teamIndexFiles = await fetch(`${baseUrl}/api/memory/files`, {
+          headers,
+        }).then(response => response.json())
+        expect(
+          teamIndexFiles.files.map(
+            (file: { relativePath: string }) => file.relativePath,
+          ),
+        ).not.toContain('MEMORY.md')
+        expect(teamIndexFiles.files).toContainEqual(
+          expect.objectContaining({
+            relativePath: 'team/MEMORY.md',
+            kind: 'index',
+          }),
+        )
+
+        const teamIndexStatus = await fetch(`${baseUrl}/api/memory/status`, {
+          headers,
+        }).then(response => response.json())
+        expect(teamIndexStatus.hasMemoryIndex).toBe(true)
+        expect(teamIndexStatus.memoryFileCount).toBe(1)
+
         const createdResponse = await fetch(`${baseUrl}/api/memory/files`, {
           method: 'POST',
           headers,
@@ -1660,6 +1687,12 @@ describe('webui server', () => {
         )
         expect(files.files.map((file: { relativePath: string }) => file.relativePath)).toContain(
           'api-topic.md',
+        )
+        expect(files.files).toContainEqual(
+          expect.objectContaining({
+            relativePath: 'team/MEMORY.md',
+            kind: 'index',
+          }),
         )
 
         const search = await fetch(`${baseUrl}/api/memory/search?q=endpoint`, {

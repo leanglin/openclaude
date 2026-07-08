@@ -1,6 +1,6 @@
 [package]
 name = "opencat-launcher"
-version = "7.0.2"
+version = "7.0.3"
 description = "OpenCat launcher"
 authors = ["OpenCat"]
 edition = "2021"

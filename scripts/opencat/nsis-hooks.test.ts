@@ -30,6 +30,13 @@ describe('OpenCat NSIS installer hooks', () => {
     expect(hook).not.toContain('-File "$0"')
   })
 
+  test('preinstall cleanup avoids quote-sensitive backslash string literals', () => {
+    const hook = readHook()
+
+    expect(hook).toContain('TrimEnd([char[]]@([char]92, [char]47))')
+    expect(hook).not.toContain("TrimEnd('\\')")
+  })
+
   test('preinstall cleanup still stops OpenCat runtime and checks the node lock', () => {
     const hook = readHook()
 

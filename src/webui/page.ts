@@ -2499,6 +2499,9 @@ export function renderWebUiPage(): string {
         loading: false,
         adding: false,
         installingId: '',
+        uninstallingId: '',
+        uninstallConfirmId: '',
+        sessionRefreshPending: false,
         addSource: '',
         error: '',
         notice: '',
@@ -3887,7 +3890,9 @@ export function renderWebUiPage(): string {
         asset.readonly ? '' : '<button class="miniButton danger" type="button" data-asset-delete>删除</button>',
         '</div></div>',
         state.assets.error ? '<div class="errorBox">' + escapeHtml(state.assets.error) + '</div>' : '',
-        asset.readonly ? '<div class="readonlyNotice">此资产来自 ' + escapeHtml(asset.source) + '，因此为只读。</div>' : '',
+        asset.readonly && asset.source === 'plugin'
+          ? '<div class="readonlyNotice">此资产来自插件，因此为只读，不能单独删除。请卸载整个插件。<div style="margin-top:8px"><button class="miniButton" type="button" data-asset-plugin-management>前往已安装插件</button></div></div>'
+          : asset.readonly ? '<div class="readonlyNotice">此资产来自 ' + escapeHtml(asset.source) + '，因此为只读。</div>' : '',
         (asset.warnings || []).map(warning => '<div class="readonlyNotice">' + escapeHtml(warning) + '</div>').join(''),
         '<div class="workspaceCard">',
         '<div class="tagRow"><span class="tag">' + escapeHtml(asset.kind) + '</span><span class="tag">' + escapeHtml(asset.source) + '</span><span class="tag ' + enabledClass + '">' + escapeHtml(asset.enabled ? '已启用' : '已禁用') + '</span><span class="tag ' + (asset.readonly ? 'warning' : 'success') + '">' + (asset.readonly ? '只读' : '可编辑') + '</span></div>',
@@ -3906,6 +3911,16 @@ export function renderWebUiPage(): string {
       workspaceView.querySelector('[data-asset-edit]')?.addEventListener('click', () => {
         state.assets.editing = true;
         renderAssetsWorkspace();
+      });
+      workspaceView.querySelector('[data-asset-plugin-management]')?.addEventListener('click', () => {
+        state.tools.view = 'plugins';
+        state.tools.status = 'installed';
+        state.tools.search = '';
+        state.tools.marketplace = '';
+        state.tools.selectedId = '';
+        const hasCachedPlugins = state.tools.plugins.length > 0;
+        selectMenu('tools');
+        if (hasCachedPlugins) refreshTools();
       });
       workspaceView.querySelector('[data-asset-delete]')?.addEventListener('click', async () => {
         if (!confirm('确定删除这个 ' + (asset.kind === 'knowledge' ? 'Knowledge' : 'Skill') + ' 吗？')) return;
@@ -4361,9 +4376,75 @@ export function renderWebUiPage(): string {
       if (plugin.category) tags.push('<span class="tag">' + escapeHtml(plugin.category) + '</span>');
       if (plugin.version) tags.push('<span class="tag">v' + escapeHtml(plugin.version) + '</span>');
       tags.push('<span class="tag ' + (plugin.installed ? 'success' : 'warning') + '">' + (plugin.installed ? '已安装' : '未安装') + '</span>');
+      if (plugin.projectEnabled) tags.push('<span class="tag success">项目已启用</span>');
       if (plugin.blocked) tags.push('<span class="tag danger">策略阻止</span>');
       if (plugin.needsConfiguration) tags.push('<span class="tag warning">需要配置</span>');
       return tags.join('');
+    }
+
+    function toolInstalledScopes(plugin) {
+      const scopeOrder = ['user', 'project', 'local', 'managed'];
+      const scopes = Array.isArray(plugin.installedScopes)
+        ? plugin.installedScopes
+        : plugin.userInstalled || plugin.installed ? ['user'] : [];
+      return [...new Set(scopes.filter(scope => scopeOrder.includes(scope)))]
+        .sort((left, right) => scopeOrder.indexOf(left) - scopeOrder.indexOf(right));
+    }
+
+    function toolIsUserInstalled(plugin) {
+      return plugin.userInstalled === true || (plugin.userInstalled === undefined && toolInstalledScopes(plugin).includes('user'));
+    }
+
+    function renderToolScopeNotices(plugin) {
+      const scopes = toolInstalledScopes(plugin);
+      const notices = [];
+      if (plugin.installed && !toolIsUserInstalled(plugin)) {
+        const cliScopes = scopes.filter(scope => scope === 'project' || scope === 'local');
+        if (cliScopes.length) {
+          const commands = cliScopes.map(scope => 'opencat plugin uninstall ' + plugin.pluginId + ' --scope ' + scope).join('；');
+          notices.push('此插件未安装在 user scope，Web UI 不能卸载这些 scope。请使用 CLI：' + commands + '。');
+        }
+        if (scopes.includes('managed')) {
+          notices.push('managed scope 由管理员管理，不能在 Web UI 中卸载。');
+        }
+      }
+      if (toolIsUserInstalled(plugin) && scopes.some(scope => scope !== 'user')) {
+        notices.push('卸载只会移除 user scope；插件仍安装在 ' + scopes.filter(scope => scope !== 'user').join('、') + ' scope，可能继续生效。');
+      }
+      if (plugin.projectEnabled) {
+        notices.push('卸载 user scope 不会修改当前项目的启用配置；即使当前没有剩余安装 scope，项目依赖同步后仍可能重新物化并生效。');
+      }
+      return notices.map(notice => '<div class="readonlyNotice">' + escapeHtml(notice) + '</div>').join('');
+    }
+
+    function renderToolPluginActions(plugin) {
+      const pluginId = escapeHtml(plugin.pluginId);
+      const operationBusy = Boolean(state.tools.installingId || state.tools.uninstallingId);
+      const refreshButton = state.tools.sessionRefreshPending
+        ? '<button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button>'
+        : '';
+      if (toolIsUserInstalled(plugin)) {
+        if (state.tools.uninstallConfirmId === plugin.pluginId) {
+          const uninstalling = state.tools.uninstallingId === plugin.pluginId;
+          return [
+            '<section class="formSection" data-tools-uninstall-confirmation>',
+            '<div class="sectionHeader"><h3>确认卸载 user scope 插件</h3></div>',
+            '<div class="readonlyNotice">两个卸载选项都会移除 user scope。仅当这是最后一个安装 scope 时，插件 options 和 secrets 才会被清理；选择“保留”会保留持久化数据目录，选择“删除”会在此时一并删除该数据目录。若其他 scope 仍安装，配置和数据目录都会保留。</div>',
+            '<div class="toolbarRow" style="margin-top:12px">',
+            '<button class="miniButton ' + (uninstalling ? 'buttonLoading' : '') + '" type="button" data-tools-uninstall-keep="' + pluginId + '" ' + (operationBusy ? 'disabled' : '') + '>' + (uninstalling ? '卸载中' : '卸载并保留持久化数据目录') + '</button>',
+            '<button class="miniButton danger" type="button" data-tools-uninstall-delete="' + pluginId + '" ' + (operationBusy ? 'disabled' : '') + '>卸载并删除持久化数据目录</button>',
+            '<button class="miniButton" type="button" data-tools-uninstall-cancel ' + (operationBusy ? 'disabled' : '') + '>取消</button>',
+            refreshButton,
+            '</div></section>'
+          ].join('');
+        }
+        return '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton danger" type="button" data-tools-uninstall="' + pluginId + '" ' + (operationBusy ? 'disabled' : '') + '>卸载插件</button>' + refreshButton + '</div>';
+      }
+      if (plugin.installed) {
+        return '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton" type="button" disabled>已安装在其他 scope</button>' + refreshButton + '</div>';
+      }
+      const installing = state.tools.installingId === plugin.pluginId;
+      return '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton ' + (installing ? 'buttonLoading' : '') + '" type="button" data-tools-install="' + pluginId + '" ' + (plugin.blocked || operationBusy ? 'disabled' : '') + '>' + (installing ? '安装中' : '安装插件') + '</button>' + refreshButton + '</div>';
     }
 
     function toolSearchParams() {
@@ -4434,7 +4515,7 @@ export function renderWebUiPage(): string {
     }
 
     async function installToolPlugin(pluginId, source) {
-      if (!pluginId || state.tools.installingId) return;
+      if (!pluginId || state.tools.installingId || state.tools.uninstallingId) return;
       state.tools.installingId = pluginId;
       state.tools.error = '';
       state.tools.notice = '';
@@ -4448,6 +4529,7 @@ export function renderWebUiPage(): string {
         });
         const configText = result.needsConfiguration ? '，需要补充配置后使用' : '';
         state.tools.notice = '已安装' + configText + '，下次刷新会话后生效。';
+        state.tools.sessionRefreshPending = true;
         if (state.running) state.tools.notice += ' 当前会话正在运行，可手动刷新会话。';
         if (state.tools.recommendation?.pluginId === pluginId) {
           state.tools.recommendation = null;
@@ -4463,6 +4545,58 @@ export function renderWebUiPage(): string {
         renderSecondary();
         renderMainView();
       }
+    }
+
+    async function uninstallToolPlugin(pluginId, deleteDataDir) {
+      if (!pluginId || typeof deleteDataDir !== 'boolean' || state.tools.installingId || state.tools.uninstallingId) return;
+      const plugin = (state.tools.plugins || []).find(candidate => candidate.pluginId === pluginId);
+      state.tools.uninstallingId = pluginId;
+      state.tools.error = '';
+      state.tools.notice = '';
+      renderSecondary();
+      renderMainView();
+      try {
+        const result = await api('/api/plugins/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pluginId, deleteDataDir })
+        });
+        const remainingScopes = Array.isArray(result.remainingScopes) ? result.remainingScopes : [];
+        const reverseDependents = Array.isArray(result.reverseDependents) ? result.reverseDependents : [];
+        const messages = ['已从 user scope 卸载 ' + pluginId + '。'];
+        if (remainingScopes.length) {
+          messages.push('仍有 ' + remainingScopes.join('、') + ' scope 安装（可能属于其他项目）；插件会在对应范围内继续生效，持久化数据目录也不会按最后一个 scope 删除。');
+        }
+        if (plugin?.projectEnabled) {
+          messages.push('卸载 user scope 不会修改当前项目的启用配置；即使当前没有剩余安装 scope，项目依赖同步后仍可能重新物化并生效。');
+        }
+        if (reverseDependents.length) {
+          messages.push('依赖此插件的其他插件：' + reverseDependents.join('、') + '。请检查这些插件是否仍可正常工作。');
+        }
+        messages.push('请手动刷新会话以应用插件变更。');
+        state.tools.notice = messages.join(' ');
+        state.tools.sessionRefreshPending = true;
+        state.tools.uninstallConfirmId = '';
+        addActivity({ kind: 'status', title: 'Plugin uninstalled', detail: pluginId + ' uninstalled from user scope', at: Date.now() });
+        await refreshTools();
+        await refreshAssets(false);
+        showToast('插件已卸载', 'success');
+      } catch (error) {
+        state.tools.error = getErrorMessage(error);
+        showToast('卸载插件失败', 'error');
+      } finally {
+        state.tools.uninstallingId = '';
+        renderSecondary();
+        renderMainView();
+      }
+    }
+
+    function refreshPluginSession() {
+      sendWs({ type: 'refresh_session' });
+      state.tools.sessionRefreshPending = false;
+      state.tools.notice = '会话已刷新，插件变更会在下一次任务中生效。';
+      renderSecondary();
+      renderToolsWorkspace();
     }
 
     function renderToolsRecommendation() {
@@ -4537,7 +4671,7 @@ export function renderWebUiPage(): string {
       secondaryBody.innerHTML = [
         renderToolsViewTabs(),
         state.tools.error ? '<div class="errorBox"><strong>插件操作失败</strong><div>' + escapeHtml(state.tools.error) + '</div></div>' : '',
-        state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + (state.running ? '<div style="margin-top:8px"><button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button></div>' : '') + '</div>' : '',
+        state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + (state.tools.sessionRefreshPending ? '<div style="margin-top:8px"><button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button></div>' : '') + '</div>' : '',
         renderToolsRecommendation(),
         '<div class="profileSummary"><strong class="summaryLine">' + escapeHtml(String(state.tools.plugins.length)) + ' 个插件</strong><span class="summaryLine">' + escapeHtml(String(state.tools.marketplaces.length)) + ' 个 marketplace</span></div>',
         '<div class="toolbarRow"><button class="miniButton ' + (state.tools.loading ? 'buttonLoading' : '') + '" type="button" data-tools-refresh>' + (state.tools.loading ? '刷新中' : '刷新') + '</button></div>',
@@ -4568,9 +4702,7 @@ export function renderWebUiPage(): string {
       secondaryBody.querySelector('[data-tools-apply]')?.addEventListener('click', () => refreshTools());
       secondaryBody.querySelector('[data-tools-add-marketplace]')?.addEventListener('click', () => addToolsMarketplace());
       secondaryBody.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
-        sendWs({ type: 'refresh_session' });
-        state.tools.notice = '会话已刷新，新安装插件会在下一次任务中加载。';
-        renderToolsPanel();
+        refreshPluginSession();
       });
       secondaryBody.querySelector('[data-tools-recommend-install]')?.addEventListener('click', event => {
         const button = event.currentTarget;
@@ -4616,12 +4748,13 @@ export function renderWebUiPage(): string {
           '<div class="metaCard"><span>Marketplace</span><strong>' + escapeHtml(selected.marketplaceName || '-') + '</strong></div>',
           '<div class="metaCard"><span>Version</span><strong>' + escapeHtml(selected.version || '未标注') + '</strong></div>',
           '<div class="metaCard"><span>Installs</span><strong>' + escapeHtml(selected.installCount === undefined ? '未提供' : formatNumber(selected.installCount)) + '</strong></div>',
-          '<div class="metaCard"><span>Scope</span><strong>user</strong></div>',
+          '<div class="metaCard"><span>Scope</span><strong>' + escapeHtml(toolInstalledScopes(selected).join('、') || '未安装') + '</strong></div>',
           '</div>',
           selected.tags?.length || selected.keywords?.length ? '<div class="tagRow">' + (selected.tags || []).concat(selected.keywords || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '',
           '<div class="contentPanel toolsDescription">' + escapeHtml(selected.description || '暂无描述') + '</div>',
           selected.blocked ? '<div class="errorBox">此插件被策略阻止，无法安装。</div>' : '',
-          '<div class="toolbarRow" style="margin-top:12px"><button class="miniButton ' + (state.tools.installingId === selected.pluginId ? 'buttonLoading' : '') + '" type="button" data-tools-install="' + escapeHtml(selected.pluginId) + '" ' + (selected.installed || selected.blocked || state.tools.installingId ? 'disabled' : '') + '>' + (state.tools.installingId === selected.pluginId ? '安装中' : selected.installed ? '已安装' : '安装插件') + '</button>' + (state.running ? '<button class="miniButton" type="button" data-tools-refresh-session>刷新会话</button>' : '') + '</div>',
+          renderToolScopeNotices(selected),
+          renderToolPluginActions(selected),
           state.tools.notice ? '<div class="readonlyNotice">' + escapeHtml(state.tools.notice) + '</div>' : '',
           '</div>'
         ].join('') : '<div class="workspaceCard ghostState">选择一个插件查看详情。</div>',
@@ -4632,6 +4765,7 @@ export function renderWebUiPage(): string {
       workspaceView.querySelectorAll('[data-tools-plugin]').forEach(button => {
         button.addEventListener('click', () => {
           state.tools.selectedId = button.dataset.toolsPlugin || '';
+          state.tools.uninstallConfirmId = '';
           renderToolsWorkspace();
         });
       });
@@ -4639,11 +4773,27 @@ export function renderWebUiPage(): string {
         const button = event.currentTarget;
         installToolPlugin(button.dataset.toolsInstall, 'tools menu');
       });
-      workspaceView.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
-        sendWs({ type: 'refresh_session' });
-        state.tools.notice = '会话已刷新，新安装插件会在下一次任务中加载。';
+      workspaceView.querySelector('[data-tools-uninstall]')?.addEventListener('click', event => {
+        if (state.tools.installingId || state.tools.uninstallingId) return;
+        state.tools.uninstallConfirmId = event.currentTarget.dataset.toolsUninstall || '';
+        state.tools.error = '';
+        state.tools.notice = '';
         renderSecondary();
         renderToolsWorkspace();
+      });
+      workspaceView.querySelector('[data-tools-uninstall-keep]')?.addEventListener('click', event => {
+        uninstallToolPlugin(event.currentTarget.dataset.toolsUninstallKeep, false);
+      });
+      workspaceView.querySelector('[data-tools-uninstall-delete]')?.addEventListener('click', event => {
+        uninstallToolPlugin(event.currentTarget.dataset.toolsUninstallDelete, true);
+      });
+      workspaceView.querySelector('[data-tools-uninstall-cancel]')?.addEventListener('click', () => {
+        if (state.tools.uninstallingId) return;
+        state.tools.uninstallConfirmId = '';
+        renderToolsWorkspace();
+      });
+      workspaceView.querySelector('[data-tools-refresh-session]')?.addEventListener('click', () => {
+        refreshPluginSession();
       });
     }
 

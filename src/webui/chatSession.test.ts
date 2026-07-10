@@ -1,7 +1,16 @@
 import { EventEmitter } from 'node:events'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, expect, test } from 'bun:test'
+import {
+  getClaudeConfigHomeDir,
+  getClaudeConfigHomeDirOverrideForTesting,
+  setClaudeConfigHomeDirForTesting,
+} from '../utils/envUtils.js'
 import { CliChatSession, resolveCliLaunch } from './chatSession.js'
+import { getWebChatTranscriptPath } from './sessionStore.js'
 import type { ServerEvent } from './types.js'
 
 function createMockChild() {
@@ -35,6 +44,33 @@ function createMockChild() {
   }
 
   return { child, stdout, stderr, writes, killSignals }
+}
+
+function withTemporaryConfig(run: (cwd: string) => void): void {
+  const dir = mkdtempSync(join(tmpdir(), 'opencat-webui-chat-session-'))
+  const previousConfigDir = getClaudeConfigHomeDirOverrideForTesting()
+  try {
+    setClaudeConfigHomeDirForTesting(dir)
+    getClaudeConfigHomeDir.cache?.clear?.()
+    run(resolve(join(dir, 'workspace')))
+  } finally {
+    setClaudeConfigHomeDirForTesting(previousConfigDir)
+    getClaudeConfigHomeDir.cache?.clear?.()
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+function writeUserTranscript(cwd: string, sessionId: string): void {
+  const transcriptPath = getWebChatTranscriptPath(cwd, sessionId)
+  mkdirSync(dirname(transcriptPath), { recursive: true })
+  writeFileSync(
+    transcriptPath,
+    JSON.stringify({
+      type: 'user',
+      uuid: 'user-1',
+      message: { role: 'user', content: 'first message' },
+    }),
+  )
 }
 
 describe('webui CLI chat session', () => {
@@ -134,24 +170,26 @@ describe('webui CLI chat session', () => {
   })
 
   test('new Web chat sessions launch with a fixed session id', () => {
-    const mock = createMockChild()
-    let capturedArgs: string[] = []
-    const session = new CliChatSession({
-      cwd: process.cwd(),
-      permissionMode: 'acceptEdits',
-      sessionId: '11111111-1111-4111-8111-111111111111',
-      send: () => {},
-      spawnFactory: (_command, args) => {
-        capturedArgs = args
-        return mock.child
-      },
+    withTemporaryConfig(cwd => {
+      const mock = createMockChild()
+      let capturedArgs: string[] = []
+      const session = new CliChatSession({
+        cwd,
+        permissionMode: 'acceptEdits',
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        send: () => {},
+        spawnFactory: (_command, args) => {
+          capturedArgs = args
+          return mock.child
+        },
+      })
+
+      session.sendUserMessage('hello')
+
+      expect(capturedArgs).toContain('--session-id')
+      expect(capturedArgs[capturedArgs.indexOf('--session-id') + 1]).toBe('11111111-1111-4111-8111-111111111111')
+      expect(capturedArgs).not.toContain('--resume')
     })
-
-    session.sendUserMessage('hello')
-
-    expect(capturedArgs).toContain('--session-id')
-    expect(capturedArgs[capturedArgs.indexOf('--session-id') + 1]).toBe('11111111-1111-4111-8111-111111111111')
-    expect(capturedArgs).not.toContain('--resume')
   })
 
   test('existing Web chat sessions resume their transcript id', () => {
@@ -174,6 +212,92 @@ describe('webui CLI chat session', () => {
     expect(capturedArgs).toContain('--resume')
     expect(capturedArgs[capturedArgs.indexOf('--resume') + 1]).toBe('22222222-2222-4222-8222-222222222222')
     expect(capturedArgs).not.toContain('--session-id')
+  })
+
+  test('restarts an interrupted new Web chat by resuming its created transcript', () => {
+    withTemporaryConfig(cwd => {
+      const sessionId = '33333333-3333-4333-8333-333333333333'
+      const mocks = [createMockChild(), createMockChild()]
+      const launches: string[][] = []
+      let spawnIndex = 0
+      const session = new CliChatSession({
+        cwd,
+        permissionMode: 'acceptEdits',
+        sessionId,
+        send: () => {},
+        spawnFactory: (_command, args) => {
+          launches.push(args)
+          return mocks[spawnIndex++]!.child
+        },
+      })
+
+      session.sendUserMessage('first message')
+      expect(launches[0]).toContain('--session-id')
+      expect(launches[0]).not.toContain('--resume')
+
+      writeUserTranscript(cwd, sessionId)
+      session.handleClientMessage({ type: 'abort' })
+      expect(mocks[0]!.killSignals).toContain('SIGINT')
+
+      session.sendUserMessage('continue')
+      expect(launches[1]).toContain('--resume')
+      expect(launches[1]?.[launches[1].indexOf('--resume') + 1]).toBe(sessionId)
+      expect(launches[1]).not.toContain('--session-id')
+    })
+  })
+
+  test('restarts a normally ended Web chat by resuming its created transcript', () => {
+    withTemporaryConfig(cwd => {
+      const sessionId = '44444444-4444-4444-8444-444444444444'
+      const mocks = [createMockChild(), createMockChild()]
+      const launches: string[][] = []
+      let spawnIndex = 0
+      const session = new CliChatSession({
+        cwd,
+        permissionMode: 'acceptEdits',
+        sessionId,
+        send: () => {},
+        spawnFactory: (_command, args) => {
+          launches.push(args)
+          return mocks[spawnIndex++]!.child
+        },
+      })
+
+      session.sendUserMessage('first message')
+      writeUserTranscript(cwd, sessionId)
+      mocks[0]!.child.emit('close', 0, null)
+
+      session.sendUserMessage('next message')
+      expect(launches[1]).toContain('--resume')
+      expect(launches[1]).not.toContain('--session-id')
+    })
+  })
+
+  test('retries a child that ended before creating a transcript as a new session', () => {
+    withTemporaryConfig(cwd => {
+      const sessionId = '55555555-5555-4555-8555-555555555555'
+      const mocks = [createMockChild(), createMockChild()]
+      const launches: string[][] = []
+      let spawnIndex = 0
+      const session = new CliChatSession({
+        cwd,
+        permissionMode: 'acceptEdits',
+        sessionId,
+        send: () => {},
+        spawnFactory: (_command, args) => {
+          launches.push(args)
+          return mocks[spawnIndex++]!.child
+        },
+      })
+
+      session.sendUserMessage('first attempt')
+      mocks[0]!.child.emit('close', 1, null)
+
+      session.sendUserMessage('retry')
+      expect(launches[1]).toContain('--session-id')
+      expect(launches[1]?.[launches[1].indexOf('--session-id') + 1]).toBe(sessionId)
+      expect(launches[1]).not.toContain('--resume')
+    })
   })
 
   test('stdout NDJSON broadcasts chat and activity events', () => {

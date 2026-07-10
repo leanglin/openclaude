@@ -1,4 +1,5 @@
 import { spawn, type SpawnOptions } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import treeKill from 'tree-kill'
 import {
@@ -24,6 +25,7 @@ import {
   redactSensitiveText,
   redactServerEvent,
 } from './redaction.js'
+import { getWebChatTranscriptPath } from './sessionStore.js'
 import type {
   ActivityKind,
   ClientMessage,
@@ -301,7 +303,10 @@ export class CliChatSession {
       this.options.permissionMode || 'acceptEdits',
     ]
     if (this.options.sessionId) {
-      if (this.options.resumeSession) {
+      const transcriptExists = existsSync(
+        getWebChatTranscriptPath(this.options.cwd, this.options.sessionId),
+      )
+      if (this.options.resumeSession || transcriptExists) {
         streamArgs.push('--resume', this.options.sessionId)
       } else {
         streamArgs.push('--session-id', this.options.sessionId)

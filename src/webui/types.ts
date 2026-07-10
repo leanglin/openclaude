@@ -119,6 +119,8 @@ export type WebCommandSuggestion = {
 
 export type WebPluginScope = 'user' | 'project' | 'local'
 
+export type WebPluginInstalledScope = WebPluginScope | 'managed'
+
 export type WebPluginMarketplaceSummary = {
   name: string
   source: string
@@ -136,6 +138,9 @@ export type WebPluginSummary = {
   keywords: string[]
   version?: string
   installed: boolean
+  userInstalled: boolean
+  projectEnabled: boolean
+  installedScopes: WebPluginInstalledScope[]
   blocked: boolean
   installCount?: number
   needsConfiguration: boolean
@@ -147,6 +152,16 @@ export type WebPluginInstallResult = {
   message?: string
   error?: string
   needsConfiguration?: boolean
+}
+
+export type WebPluginUninstallResult = {
+  ok: boolean
+  pluginId: string
+  scope?: 'user'
+  remainingScopes?: WebPluginInstalledScope[]
+  reverseDependents?: string[]
+  message?: string
+  error?: string
 }
 
 export type WebMcpServerScope = 'user' | 'project' | 'local'

@@ -14,6 +14,7 @@ import type { ServerEvent } from './types.js'
 import { getAutoMemPath, getAutoMemPathForProject } from '../memdir/paths.js'
 import { clearCommandsCache } from '../commands.js'
 import { getGlobalClaudeFile } from '../utils/env.js'
+import { getOriginalCwd, setOriginalCwd } from '../bootstrap/state.js'
 import {
   getClaudeConfigHomeDir,
   getClaudeConfigHomeDirOverrideForTesting,
@@ -21,8 +22,15 @@ import {
 } from '../utils/envUtils.js'
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
-import { clearInstalledPluginsCache } from '../utils/plugins/installedPluginsManager.js'
+import {
+  clearInstalledPluginsCache,
+  getInstalledPluginsFilePath,
+} from '../utils/plugins/installedPluginsManager.js'
 import { clearMarketplacesCache } from '../utils/plugins/marketplaceManager.js'
+import {
+  getPluginDataDir,
+  pluginDataDirPath,
+} from '../utils/plugins/pluginDirectories.js'
 import {
   resetSettingsCache,
   setCachedSettingsForSource,
@@ -273,8 +281,10 @@ function createLocalPluginMarketplace(root: string): string {
   const marketplaceMetaDir = join(marketplaceDir, '.claude-plugin')
   const samplePluginDir = join(marketplaceDir, 'sample-plugin')
   const blockedPluginDir = join(marketplaceDir, 'blocked-plugin')
+  const dependentPluginDir = join(marketplaceDir, 'dependent-plugin')
   mkdirSync(join(samplePluginDir, '.claude-plugin'), { recursive: true })
   mkdirSync(join(blockedPluginDir, '.claude-plugin'), { recursive: true })
+  mkdirSync(join(dependentPluginDir, '.claude-plugin'), { recursive: true })
   mkdirSync(marketplaceMetaDir, { recursive: true })
 
   writeFileSync(
@@ -299,6 +309,15 @@ function createLocalPluginMarketplace(root: string): string {
       name: 'blocked-plugin',
       version: '1.0.0',
       description: 'Blocked plugin for Web UI tests',
+    }, null, 2),
+  )
+  writeFileSync(
+    join(dependentPluginDir, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({
+      name: 'dependent-plugin',
+      version: '1.0.0',
+      description: 'Depends on the sample plugin',
+      dependencies: ['sample-plugin'],
     }, null, 2),
   )
   writeFileSync(
@@ -335,6 +354,15 @@ function createLocalPluginMarketplace(root: string): string {
           category: 'testing',
           tags: ['blocked'],
           version: '1.0.0',
+        },
+        {
+          name: 'dependent-plugin',
+          source: './dependent-plugin',
+          description: 'Depends on the sample plugin',
+          category: 'testing',
+          tags: ['dependent'],
+          version: '1.0.0',
+          dependencies: ['sample-plugin'],
         },
       ],
     }, null, 2),
@@ -481,7 +509,7 @@ describe('webui server', () => {
           expect.arrayContaining([
             expect.objectContaining({
               name: 'local-tools',
-              pluginCount: 2,
+              pluginCount: 3,
             }),
           ]),
         )
@@ -498,6 +526,9 @@ describe('webui server', () => {
               tags: ['webui', 'sample'],
               keywords: ['browser', 'install'],
               installed: false,
+              userInstalled: false,
+              projectEnabled: false,
+              installedScopes: [],
               blocked: false,
               installCount: 42,
               needsConfiguration: true,
@@ -509,7 +540,7 @@ describe('webui server', () => {
           ]),
         )
 
-        const searched = await fetch(`${baseUrl}/api/plugins?q=sample&marketplace=local-tools&status=available`, {
+        const searched = await fetch(`${baseUrl}/api/plugins?q=browser&marketplace=local-tools&status=available`, {
           headers: { Authorization: 'Bearer test-token' },
         }).then(response => response.json())
         expect(searched.plugins.map((plugin: { pluginId: string }) => plugin.pluginId)).toEqual([
@@ -545,12 +576,254 @@ describe('webui server', () => {
             expect.objectContaining({
               pluginId: 'sample-plugin@local-tools',
               installed: true,
+              userInstalled: true,
+              projectEnabled: false,
+              installedScopes: ['user'],
             }),
           ]),
         )
       },
       { cwd },
     )
+  })
+
+  test('uninstalls user plugins with strict data-retention input', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const marketplaceSource = createLocalPluginMarketplace(tempApiDir!)
+
+    await withServer(
+      async baseUrl => {
+        const headers = {
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }
+        await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ source: marketplaceSource }),
+        })
+
+        for (const body of [
+          { pluginId: 'sample-plugin@local-tools' },
+          { pluginId: 'sample-plugin@local-tools', deleteDataDir: 'false' },
+        ]) {
+          const invalid = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+          })
+          expect(invalid.status).toBe(400)
+          expect((await invalid.json()).error).toContain('deleteDataDir must be a boolean')
+        }
+
+        const missingId = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pluginId: ' ', deleteDataDir: false }),
+        })
+        expect(missingId.status).toBe(400)
+        expect((await missingId.json()).error).toContain('Plugin ID is required')
+
+        const shortId = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ pluginId: 'sample-plugin', deleteDataDir: false }),
+        })
+        expect(shortId.status).toBe(400)
+        expect((await shortId.json()).error).toContain(
+          'Plugin ID must use plugin@marketplace format',
+        )
+
+        const notInstalled = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            pluginId: 'missing-plugin@local-tools',
+            deleteDataDir: false,
+          }),
+        })
+        expect(notInstalled.status).toBe(400)
+        expect((await notInstalled.json()).error).toContain('not found in installed plugins')
+
+        const install = () => fetch(`${baseUrl}/api/plugins/install`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            pluginId: 'sample-plugin@local-tools',
+            scope: 'user',
+          }),
+        })
+        expect((await install()).status).toBe(200)
+
+        const dataDir = getPluginDataDir('sample-plugin@local-tools')
+        writeFileSync(join(dataDir, 'state.json'), '{}')
+        const retained = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            pluginId: 'sample-plugin@local-tools',
+            deleteDataDir: false,
+          }),
+        })
+        expect(retained.status).toBe(200)
+        expect(await retained.json()).toEqual(expect.objectContaining({
+          ok: true,
+          pluginId: 'sample-plugin@local-tools',
+          scope: 'user',
+          remainingScopes: [],
+          reverseDependents: [],
+        }))
+        expect(existsSync(dataDir)).toBe(true)
+
+        expect((await install()).status).toBe(200)
+        const deleted = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            pluginId: 'sample-plugin@local-tools',
+            deleteDataDir: true,
+          }),
+        })
+        expect(deleted.status).toBe(200)
+        expect(existsSync(pluginDataDirPath('sample-plugin@local-tools'))).toBe(false)
+
+        expect((await install()).status).toBe(200)
+        const crossProjectDataDir = getPluginDataDir('sample-plugin@local-tools')
+        writeFileSync(join(crossProjectDataDir, 'cross-project.json'), '{}')
+        const installedPluginsPath = getInstalledPluginsFilePath()
+        const installedPlugins = JSON.parse(
+          readFileSync(installedPluginsPath, 'utf8'),
+        )
+        const userInstall = installedPlugins.plugins['sample-plugin@local-tools'][0]
+        const otherProjectPath = join(cwd, 'other-project')
+        installedPlugins.plugins['sample-plugin@local-tools'].push(
+          { ...userInstall, scope: 'local', projectPath: otherProjectPath },
+          { ...userInstall, scope: 'project', projectPath: otherProjectPath },
+        )
+        writeFileSync(installedPluginsPath, JSON.stringify(installedPlugins, null, 2))
+        clearInstalledPluginsCache()
+        clearAllCaches()
+
+        const crossProjectUninstall = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            pluginId: 'sample-plugin@local-tools',
+            deleteDataDir: true,
+          }),
+        })
+        expect(crossProjectUninstall.status).toBe(200)
+        expect(await crossProjectUninstall.json()).toEqual(expect.objectContaining({
+          pluginId: 'sample-plugin@local-tools',
+          remainingScopes: ['project', 'local'],
+        }))
+        expect(existsSync(crossProjectDataDir)).toBe(true)
+      },
+      { cwd },
+    )
+  })
+
+  test('reports stable scopes, project enablement, and uninstall dependency warnings', async () => {
+    const { cwd } = setupIsolatedApiState()
+    const marketplaceSource = createLocalPluginMarketplace(tempApiDir!)
+    const previousOriginalCwd = getOriginalCwd()
+    setOriginalCwd(cwd)
+
+    try {
+      await withServer(
+        async baseUrl => {
+          const headers = {
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          }
+          await fetch(`${baseUrl}/api/plugins/marketplaces`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ source: marketplaceSource }),
+          })
+          for (const pluginId of [
+            'sample-plugin@local-tools',
+            'dependent-plugin@local-tools',
+          ]) {
+            const response = await fetch(`${baseUrl}/api/plugins/install`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ pluginId, scope: 'user' }),
+            })
+            expect(response.status).toBe(200)
+          }
+
+          const installedPluginsPath = getInstalledPluginsFilePath()
+          const installedPlugins = JSON.parse(
+            readFileSync(installedPluginsPath, 'utf8'),
+          )
+          const sampleInstall = installedPlugins.plugins['sample-plugin@local-tools'][0]
+          installedPlugins.plugins['sample-plugin@local-tools'].push(
+            { ...sampleInstall, scope: 'managed' },
+            { ...sampleInstall, scope: 'local', projectPath: cwd },
+            { ...sampleInstall, scope: 'project', projectPath: cwd },
+          )
+          installedPlugins.plugins['blocked-plugin@local-tools'] = [
+            { ...sampleInstall, scope: 'project', projectPath: join(cwd, 'other-project') },
+            { ...sampleInstall, scope: 'local', projectPath: join(cwd, 'other-project') },
+          ]
+          writeFileSync(installedPluginsPath, JSON.stringify(installedPlugins, null, 2))
+          clearInstalledPluginsCache()
+          clearAllCaches()
+          setCachedSettingsForSource('projectSettings', {
+            enabledPlugins: { 'sample-plugin@local-tools': true },
+          })
+
+          const installedList = await fetch(`${baseUrl}/api/plugins?status=all`, {
+            headers,
+          }).then(response => response.json())
+          expect(installedList.plugins).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+              pluginId: 'sample-plugin@local-tools',
+              userInstalled: true,
+              projectEnabled: true,
+              installedScopes: ['user', 'project', 'local', 'managed'],
+            }),
+            expect.objectContaining({
+              pluginId: 'blocked-plugin@local-tools',
+              userInstalled: false,
+              installedScopes: [],
+            }),
+          ]))
+
+          const uninstalled = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              pluginId: 'sample-plugin@local-tools',
+              deleteDataDir: false,
+            }),
+          })
+          expect(uninstalled.status).toBe(200)
+          expect(await uninstalled.json()).toEqual(expect.objectContaining({
+            ok: true,
+            pluginId: 'sample-plugin@local-tools',
+            scope: 'user',
+            remainingScopes: ['project', 'local', 'managed'],
+            reverseDependents: ['dependent-plugin'],
+          }))
+
+          const wrongScope = await fetch(`${baseUrl}/api/plugins/uninstall`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              pluginId: 'sample-plugin@local-tools',
+              deleteDataDir: false,
+            }),
+          })
+          expect(wrongScope.status).toBe(400)
+          expect((await wrongScope.json()).error).toContain('not user')
+        },
+        { cwd },
+      )
+    } finally {
+      setOriginalCwd(previousOriginalCwd)
+    }
   })
 
   test('serves MCP server APIs through existing config scopes', async () => {

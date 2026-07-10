@@ -86,7 +86,11 @@ import {
 import { runWithCwdOverride } from '../utils/cwd.js'
 import { clearAllCaches } from '../utils/plugins/cacheUtils.js'
 import { getInstallCounts } from '../utils/plugins/installCounts.js'
-import { isPluginInstalled } from '../utils/plugins/installedPluginsManager.js'
+import {
+  isInstallationRelevantToCurrentProject,
+  isPluginInstalled,
+  loadInstalledPluginsV2,
+} from '../utils/plugins/installedPluginsManager.js'
 import {
   createPluginId,
   getMarketplaceSourceDisplay,
@@ -106,6 +110,11 @@ import { loadAllPlugins } from '../utils/plugins/pluginLoader.js'
 import { getUnconfiguredOptions } from '../utils/plugins/pluginOptionsStorage.js'
 import { isPluginBlockedByPolicy } from '../utils/plugins/pluginPolicy.js'
 import type { PluginMarketplaceEntry } from '../utils/plugins/schemas.js'
+import type { PluginScope } from '../utils/plugins/schemas.js'
+import {
+  isPluginEnabledAtProjectScope,
+  uninstallPluginOp,
+} from '../services/plugins/pluginOperations.js'
 import { renderWebUiPage } from './page.js'
 import {
   attachmentTitleFallback,
@@ -132,9 +141,11 @@ import type {
   WebMcpServerScope,
   WebMcpServerSummary,
   WebPluginInstallResult,
+  WebPluginInstalledScope,
   WebPluginMarketplaceSummary,
   WebPluginScope,
   WebPluginSummary,
+  WebPluginUninstallResult,
   WebCommandSuggestion,
   WebUiPermissionMode,
 } from './types.js'
@@ -270,6 +281,28 @@ function normalizePluginScope(value: unknown): WebPluginScope {
   return value === 'project' || value === 'local' ? value : 'user'
 }
 
+const WEB_PLUGIN_SCOPE_ORDER: readonly PluginScope[] = [
+  'user',
+  'project',
+  'local',
+  'managed',
+]
+
+function getInstalledScopes(
+  pluginId: string,
+  currentProjectOnly: boolean,
+): WebPluginInstalledScope[] {
+  const scopes = new Set(
+    (loadInstalledPluginsV2().plugins[pluginId] ?? [])
+      .filter(
+        entry =>
+          !currentProjectOnly || isInstallationRelevantToCurrentProject(entry),
+      )
+      .map(entry => entry.scope),
+  )
+  return WEB_PLUGIN_SCOPE_ORDER.filter(scope => scopes.has(scope))
+}
+
 function pluginEntryNeedsConfiguration(entry: PluginMarketplaceEntry): boolean {
   const userConfig = entry.userConfig
   if (userConfig && Object.keys(userConfig).length > 0) return true
@@ -361,6 +394,7 @@ async function listWebPlugins(params: {
     for (const entry of marketplace.data?.plugins ?? []) {
       const pluginId = createPluginId(entry.name, marketplace.name)
       const installed = isPluginInstalled(pluginId)
+      const installedScopes = getInstalledScopes(pluginId, true)
       if (installed) installedPluginIds.add(pluginId)
       const summary: WebPluginSummary = {
         pluginId,
@@ -372,6 +406,9 @@ async function listWebPlugins(params: {
         keywords: entry.keywords ?? [],
         version: entry.version,
         installed,
+        userInstalled: installedScopes.includes('user'),
+        projectEnabled: isPluginEnabledAtProjectScope(pluginId),
+        installedScopes,
         blocked: isPluginBlockedByPolicy(pluginId),
         installCount: installCounts?.get(pluginId),
         needsConfiguration: pluginEntryNeedsConfiguration(entry),
@@ -1115,6 +1152,42 @@ async function handlePluginsApi(
       message: result.message,
       needsConfiguration: await pluginNeedsConfiguration(pluginId, pluginData.entry),
     } satisfies WebPluginInstallResult)
+    return true
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/plugins/uninstall') {
+    const payload = await readJsonBody<{
+      pluginId?: unknown
+      deleteDataDir?: unknown
+    }>(request)
+    const pluginId = typeof payload.pluginId === 'string' ? payload.pluginId.trim() : ''
+    if (!pluginId) throw new Error('Plugin ID is required.')
+    if (!parsePluginIdentifier(pluginId).marketplace) {
+      throw new Error('Plugin ID must use plugin@marketplace format.')
+    }
+    if (typeof payload.deleteDataDir !== 'boolean') {
+      throw new Error('deleteDataDir must be a boolean.')
+    }
+
+    const result = await uninstallPluginOp(pluginId, 'user', payload.deleteDataDir)
+    if (!result.success) {
+      sendJson(response, 400, {
+        ok: false,
+        pluginId,
+        error: result.message,
+      } satisfies WebPluginUninstallResult)
+      return true
+    }
+
+    const uninstalledPluginId = result.pluginId ?? pluginId
+    sendJson(response, 200, {
+      ok: true,
+      pluginId: uninstalledPluginId,
+      scope: 'user',
+      remainingScopes: getInstalledScopes(uninstalledPluginId, false),
+      reverseDependents: result.reverseDependents ?? [],
+      message: result.message,
+    } satisfies WebPluginUninstallResult)
     return true
   }
 

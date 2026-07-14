@@ -50,6 +50,7 @@ import {
   visualFailureSignature,
   visualPathMemorySnapshot,
   writeReport,
+  writeReportSafely,
   writeAndroidScreenshot,
   type RuntimeHandle,
 } from './cli';
@@ -291,29 +292,96 @@ test('falls back to non-inline Midscene report when inline generation fails with
   assert.deepEqual(calls, [{ inlineScreenshots: true }, { inlineScreenshots: false }]);
 });
 
-test('writes lightweight report when Midscene HTML exceeds size limit', () => {
+test('preserves complete Midscene HTML when the report exceeds the warning size', () => {
   const dir = tempTraceDir();
   const previous = process.env.MIDSCENE_REPORT_MAX_BYTES;
+  const events: Array<{ eventType: string; payload: Record<string, unknown> }> = [];
   try {
     process.env.MIDSCENE_REPORT_MAX_BYTES = String(1024 * 1024);
-    const report = writeReport(
+    const html = `<!doctype html><html><body>${'x'.repeat(2 * 1024 * 1024)}</body></html>`;
+    const report = writeReportSafely(
       dir,
-      `<!doctype html><html><body>${'x'.repeat(2 * 1024 * 1024)}</body></html>`,
+      () => html,
       { screenshot_count: 320 },
+      (eventType, payload) => events.push({ eventType, payload }),
     );
     const saved = readFileSync(report.path, 'utf8');
 
-    assert.equal(report.truncated, true);
+    assert.equal(report.truncated, false);
+    assert.equal(report.exceededSizeLimit, true);
     assert.equal(report.screenshotCount, 320);
-    assert.ok(report.originalSizeBytes > report.writtenSizeBytes);
-    assert.match(saved, /report_exceeded_size_limit/);
-    assert.match(saved, /screenshot_count/);
+    assert.equal(report.originalSizeBytes, report.writtenSizeBytes);
+    assert.equal(saved, html);
+    assert.doesNotMatch(saved, /report_exceeded_size_limit/);
+    assert.deepEqual(events.map((event) => event.eventType), [
+      'visual_report_generation_started',
+      'visual_report_generation_large',
+    ]);
+    assert.deepEqual(events[1]?.payload, {
+      reason: 'report_exceeded_size_limit',
+      max_bytes: 1024 * 1024,
+      original_size_bytes: report.originalSizeBytes,
+      written_size_bytes: report.writtenSizeBytes,
+      screenshot_count: 320,
+      report_path: 'midscene_report.html',
+    });
   } finally {
     if (previous === undefined) {
       delete process.env.MIDSCENE_REPORT_MAX_BYTES;
     } else {
       process.env.MIDSCENE_REPORT_MAX_BYTES = previous;
     }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('does not mark normal-sized Midscene HTML as exceeding the warning size', () => {
+  const dir = tempTraceDir();
+  const previous = process.env.MIDSCENE_REPORT_MAX_BYTES;
+  try {
+    process.env.MIDSCENE_REPORT_MAX_BYTES = String(1024 * 1024);
+    const html = '<!doctype html><html><body>ok</body></html>';
+    const report = writeReport(dir, html, { screenshot_count: 1 });
+
+    assert.equal(report.truncated, false);
+    assert.equal(report.exceededSizeLimit, false);
+    assert.equal(report.originalSizeBytes, report.writtenSizeBytes);
+    assert.equal(readFileSync(report.path, 'utf8'), html);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MIDSCENE_REPORT_MAX_BYTES;
+    } else {
+      process.env.MIDSCENE_REPORT_MAX_BYTES = previous;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('writes a diagnostic fallback only when Midscene report generation fails', () => {
+  const dir = tempTraceDir();
+  const events: Array<{ eventType: string; payload: Record<string, unknown> }> = [];
+  try {
+    const report = writeReportSafely(
+      dir,
+      () => {
+        throw new Error('report render failed');
+      },
+      { screenshot_count: 68 },
+      (eventType, payload) => events.push({ eventType, payload }),
+    );
+    const saved = readFileSync(report.path, 'utf8');
+
+    assert.equal(report.truncated, true);
+    assert.equal(report.exceededSizeLimit, false);
+    assert.equal(report.error, 'report render failed');
+    assert.match(saved, /Midscene Report \(generation failed\)/);
+    assert.match(saved, /report_generation_failed/);
+    assert.match(saved, /report render failed/);
+    assert.deepEqual(events.map((event) => event.eventType), [
+      'visual_report_generation_started',
+      'visual_report_generation_skipped',
+    ]);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

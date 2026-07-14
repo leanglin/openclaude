@@ -140,6 +140,8 @@ AppTest returns:
 - trace path
 - report path
 
+Midscene reports are saved as standalone HTML files with inline screenshots so they can be opened directly with `file://`. `MIDSCENE_REPORT_MAX_BYTES` remains available as a large-report warning threshold and defaults to 50 MiB. Reports above the threshold are still written in full and emit a `visual_report_generation_large` event; large files may take longer to open and use more browser memory. A lightweight diagnostic page is written only when report generation fails.
+
 Large event payloads are truncated before returning to the model. Fields with names such as `password`, `secret`, `token`, `api_key`, `access_key`, `authorization`, or `cookie` are redacted.
 
 ## Packaged Installs

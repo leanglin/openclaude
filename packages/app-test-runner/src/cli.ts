@@ -1761,6 +1761,8 @@ function writeTrace(traceDir: string, payload: JsonObject): string {
 type ReportWriteResult = {
   path: string;
   truncated: boolean;
+  exceededSizeLimit: boolean;
+  maxBytes: number;
   originalSizeBytes: number;
   writtenSizeBytes: number;
   screenshotCount: number;
@@ -1797,39 +1799,35 @@ export function writeReport(traceDir: string, html: string, metadata: JsonObject
   const maxBytes = resolveReportMaxBytes();
   const originalSizeBytes = Buffer.byteLength(html, 'utf8');
   const screenshotCount = Number(metadata.screenshot_count || metadata.screenshotCount || 0) || 0;
-  let nextHtml = html;
-  let truncated = false;
-  if (originalSizeBytes > maxBytes) {
-    truncated = true;
-    nextHtml = lightweightReportHtml('Midscene Report (truncated)', {
-      reason: 'report_exceeded_size_limit',
-      max_bytes: maxBytes,
-      original_size_bytes: originalSizeBytes,
-      screenshot_count: screenshotCount,
-      trace_file: 'trace.json',
-      screenshots_dir: 'screenshots/',
-    });
-  }
-  writeFileSync(reportPath, nextHtml, 'utf8');
+  const exceededSizeLimit = originalSizeBytes > maxBytes;
+  writeFileSync(reportPath, html, 'utf8');
   return {
     path: reportPath,
-    truncated,
+    truncated: false,
+    exceededSizeLimit,
+    maxBytes,
     originalSizeBytes,
-    writtenSizeBytes: Buffer.byteLength(nextHtml, 'utf8'),
+    writtenSizeBytes: originalSizeBytes,
     screenshotCount,
   };
 }
 
-function writeReportSafely(traceDir: string, render: () => string, metadata: JsonObject = {}): ReportWriteResult {
-  emitEvent('visual_report_generation_started', {
+export function writeReportSafely(
+  traceDir: string,
+  render: () => string,
+  metadata: JsonObject = {},
+  reportEvent: (eventType: string, payload: JsonObject) => void = emitEvent,
+): ReportWriteResult {
+  reportEvent('visual_report_generation_started', {
     screenshot_count: metadata.screenshot_count || metadata.screenshotCount || 0,
     report_max_bytes: resolveReportMaxBytes(),
   });
   try {
     const report = writeReport(traceDir, render(), metadata);
-    if (report.truncated) {
-      emitEvent('visual_report_generation_skipped', {
+    if (report.exceededSizeLimit) {
+      reportEvent('visual_report_generation_large', {
         reason: 'report_exceeded_size_limit',
+        max_bytes: report.maxBytes,
         original_size_bytes: report.originalSizeBytes,
         written_size_bytes: report.writtenSizeBytes,
         screenshot_count: report.screenshotCount,
@@ -1850,7 +1848,7 @@ function writeReportSafely(traceDir: string, render: () => string, metadata: Jso
       }),
       metadata,
     );
-    emitEvent('visual_report_generation_skipped', {
+    reportEvent('visual_report_generation_skipped', {
       reason: 'report_generation_failed',
       error: message,
       written_size_bytes: fallback.writtenSizeBytes,

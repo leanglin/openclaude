@@ -32,3 +32,4 @@ launcher/node_modules/
 launcher/dist/
 launcher/src-tauri/target/
 launcher/src-tauri/resources/opencat-runtime/
+launcher/src-tauri/.DS_Store
